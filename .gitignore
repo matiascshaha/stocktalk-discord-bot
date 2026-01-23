@@ -1,0 +1,29 @@
+# Environment
+.env
+venv/
+env/
+*.pyc
+__pycache__/
+
+# Data files
+data/*.jsonl
+data/*.csv
+!data/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Distribution
+dist/
+build/
+*.egg-info/

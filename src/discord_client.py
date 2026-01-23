@@ -18,9 +18,13 @@ class StockMonitorClient:
         self.notifier = Notifier()
         
         # Setup Discord client
-        intents = discord.Intents.default()
-        intents.message_content = True
-        self.client = discord.Client(intents=intents)
+        try:
+            intents = discord.Intents.default()
+            intents.message_content = True
+            self.client = discord.Client(intents=intents)
+        except AttributeError:
+            # discord.py-self may not have Intents
+            self.client = discord.Client()
         
         # Register event handlers
         self.client.event(self.on_ready)
@@ -33,7 +37,7 @@ class StockMonitorClient:
         logger.info("="*60)
         logger.info(f"📱 Logged in as: {self.client.user}")
         logger.info(f"📊 Monitoring channel: {CHANNEL_ID}")
-        logger.info(f"🧠 AI Parser: Anthropic Claude")
+        logger.info(f"🧠 AI Parser: {self.parser.provider.title() if self.parser.provider else 'None (Regex only)'}")
         logger.info(f"🤖 Auto-trading: {'ENABLED' if self.trader else 'DISABLED'}")
         logger.info("="*60)
         logger.info("\n⏳ Waiting for stock picks...\n")
@@ -41,14 +45,17 @@ class StockMonitorClient:
     async def on_message(self, message):
         """Called when a message is received"""
         # Filter messages
-        if message.channel.id != CHANNEL_ID:
-            return
+        # if message.channel.id != CHANNEL_ID:
+        #     logger.debug(f"Ignoring message from channel {message.channel.id}")
+        #     return
         
-        if message.author.id == self.client.user.id:
-            return
+        # if message.author.id == self.client.user.id:
+        #     logger.debug("Ignoring own message")
+        #     return
         
-        if len(message.content) < 3:
-            return
+        # if len(message.content) < 3:
+        #     logger.debug("Ignoring short message")
+        #     return
         
         logger.info(f"\n📨 New message from {message.author.name}")
         logger.debug(f"Message content: {message.content[:100]}...")
@@ -89,6 +96,43 @@ class StockMonitorClient:
             f.write(json.dumps(log_entry) + '\n')
         
         logger.debug("📝 Pick logged to picks_log.jsonl")
+    
+    async def read_channel_history(self, limit=10):
+        """
+        Read message history from the monitored channel.
+        
+        Args:
+            limit: Number of messages to read (default 10)
+            
+        Returns:
+            List of message dicts with author, content, timestamp
+        """
+        messages = []
+        
+        if not self.client.is_ready():
+            logger.error("Client not ready. Call this after connecting.")
+            return messages
+        so
+        channel = self.client.get_channel(CHANNEL_ID)
+        if not channel:
+            logger.error(f"Channel {CHANNEL_ID} not found")
+            return messages
+        
+        try:
+            async for msg in channel.history(limit=limit):
+                messages.append({
+                    'author': msg.author.name,
+                    'content': msg.content,
+                    'timestamp': msg.created_at.isoformat(),
+                    'message_id': msg.id
+                })
+            
+            logger.info(f"Read {len(messages)} messages from channel history")
+            return messages
+            
+        except Exception as e:
+            logger.error(f"Error reading channel history: {e}")
+            return messages
     
     def run(self):
         """Start the Discord client"""

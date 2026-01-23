@@ -52,6 +52,31 @@ This application monitors a specific Discord channel for stock trading signals a
 - Webull account (optional, for trading)
 
 ### Installation
+
+**Quick Setup (Recommended):**
+
+**Windows:**
+```bash
+git clone https://github.com/yourusername/discord-stock-monitor.git
+cd discord-stock-monitor
+scripts\setup.bat
+```
+
+**Linux/macOS:**
+```bash
+git clone https://github.com/yourusername/discord-stock-monitor.git
+cd discord-stock-monitor
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+```
+
+The setup script will automatically:
+- Create virtual environment
+- Install all dependencies
+- Create `.env` file from template
+- Set up data directory
+
+**Manual Setup (Alternative):**
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/discord-stock-monitor.git
@@ -68,7 +93,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # Edit .env with your credentials
-nano .env
+nano .env  # Or use your preferred editor
 ```
 
 ### Configuration
@@ -256,9 +281,12 @@ Modify `src/notifier.py` to add Telegram, Slack, or webhook integrations.
 
 ## 📚 Documentation
 
-- [Architecture Details](docs/ARCHITECTURE.md)
-- [API Reference](docs/API.md)
-- [Setup Guide](docs/SETUP.md)
+- [Setup Guide](docs/SETUP.md) - Quick start and installation
+- [Credentials Setup](docs/CREDENTIALS_SETUP.md) - Detailed credential setup instructions
+- [AI Provider Comparison](docs/AI_PROVIDER_COMPARISON.md) - Choose the best AI provider
+- [Helper Scripts](docs/SCRIPTS.md) - Test credentials and utilities
+- [Architecture Details](docs/ARCHITECTURE.md) - System design and data flow
+- [API Reference](docs/API.md) - Code documentation
 
 ## 🤝 Contributing
 
