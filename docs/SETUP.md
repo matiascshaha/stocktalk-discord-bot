@@ -73,7 +73,7 @@ Quick summary:
 - **Discord Token**: Extract from browser console (see CREDENTIALS_SETUP.md section 1)
 - **Discord Channel ID**: Enable Developer Mode, right-click channel → "Copy Channel ID"
 - **AI API Key**: Choose provider (OpenAI recommended - see [AI_PROVIDER_COMPARISON.md](AI_PROVIDER_COMPARISON.md))
-- **Webull Credentials**: Optional, only needed if `AUTO_TRADE=true`
+- **Webull OpenAPI Credentials**: Optional, only needed if `AUTO_TRADE=true`
 
 **Quick Test**: After setting up credentials, test them with:
 ```bash
@@ -91,6 +91,13 @@ cp .env.example .env
 # macOS/Linux: nano .env
 ```
 
+### 8b. Configure (no-code)
+
+Edit these files to control AI, trading, and notifications without touching Python:
+
+- `config/config.yaml`
+- `config/ai_parser.prompt`
+
 Fill in your `.env` file:
 
 ```env
@@ -101,11 +108,11 @@ CHANNEL_ID=123456789012345678
 # Anthropic API
 ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
 
-# Webull Configuration (Optional)
-WEBULL_USERNAME=your_email@example.com
-WEBULL_PASSWORD=your_password
-WEBULL_TRADING_PIN=123456
-WEBULL_DEVICE_NAME=my_trading_device
+# Webull OpenAPI Configuration (Optional)
+WEBULL_APP_KEY=your_webull_app_key
+WEBULL_APP_SECRET=your_webull_app_secret
+WEBULL_REGION=US
+# WEBULL_ACCOUNT_ID=your_account_id
 
 # Trading Settings
 AUTO_TRADE=false
@@ -234,7 +241,7 @@ Verify:
 **Login fails:**
 - Verify credentials in `.env`
 - Check if 2FA is enabled (may need to disable)
-- Try logging into Webull web/app manually first
+- Verify your Webull OpenAPI App Key/Secret are correct
 
 **Order execution fails:**
 - Check account has sufficient funds

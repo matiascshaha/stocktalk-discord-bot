@@ -98,7 +98,15 @@ nano .env  # Or use your preferred editor
 
 ### Configuration
 
-Edit `.env` file:
+Edit `.env` file for secrets, then use the configuration files for everything else:
+
+```bash
+# No-code configuration files
+config/config.yaml
+config/ai_parser.prompt
+```
+
+`.env` (secrets only):
 ```env
 # Discord
 DISCORD_TOKEN=your_discord_token_here
@@ -107,10 +115,10 @@ CHANNEL_ID=1234567890
 # Anthropic AI
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 
-# Webull (optional)
-WEBULL_USERNAME=your_email@example.com
-WEBULL_PASSWORD=your_password
-WEBULL_TRADING_PIN=123456
+# Webull OpenAPI (optional)
+WEBULL_APP_KEY=your_webull_app_key
+WEBULL_APP_SECRET=your_webull_app_secret
+WEBULL_REGION=US
 
 # Trading Settings
 AUTO_TRADE=false

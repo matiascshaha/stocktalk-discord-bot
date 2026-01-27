@@ -87,11 +87,11 @@ python scripts/test_credentials.py
 
 1. **Discord Token** - Validates your Discord token by attempting to log in
 2. **Discord Channel ID** - Verifies the channel ID format is correct
-3. **AI API Key** - Tests the configured AI provider's API key:
+3. **AI API Key** - Tests the configured AI provider's API key (from config/config.yaml or .env):
    - OpenAI (if `AI_PROVIDER=openai`)
    - Anthropic (if `AI_PROVIDER=anthropic`)
    - Google (if `AI_PROVIDER=google`)
-4. **Webull Credentials** - Tests Webull login (optional, only if credentials are provided)
+4. **Webull OpenAPI Credentials** - Tests Webull OpenAPI login (optional, only if credentials are provided)
 
 #### Output Example
 

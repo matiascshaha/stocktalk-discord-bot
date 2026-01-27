@@ -12,6 +12,7 @@ class Notifier:
     
     def __init__(self):
         self.config = NOTIFICATION_CONFIG
+        self._plyer_available = True
     
     def notify(self, picks, author):
         """Send notifications for picks"""
@@ -35,24 +36,45 @@ class Notifier:
     
     def _send_desktop_notification(self, picks, author):
         """Send desktop notification"""
+        # Build notification message
+        tickers = [pick['ticker'] for pick in picks]
+        ticker_str = ', '.join(tickers)
+
+        message = f"Found {len(picks)} pick(s): {ticker_str}"
+        if len(picks) == 1:
+            pick = picks[0]
+            message += f"\n{pick['action']} - Confidence: {pick['confidence']*100:.0f}%"
+
+        title = f"📊 Stock Pick from {author}"
+
         try:
-            # Build notification message
-            tickers = [pick['ticker'] for pick in picks]
-            ticker_str = ', '.join(tickers)
-            
-            message = f"Found {len(picks)} pick(s): {ticker_str}"
-            if len(picks) == 1:
-                pick = picks[0]
-                message += f"\n{pick['action']} - Confidence: {pick['confidence']*100:.0f}%"
-            
             notification.notify(
-                title=f"📊 Stock Pick from {author}",
+                title=title,
                 message=message,
                 timeout=10
             )
-            logger.debug("Desktop notification sent")
+            logger.debug("Desktop notification sent via plyer")
+            return
         except Exception as e:
-            logger.warning(f"Failed to send desktop notification: {e}")
+            if self._plyer_available:
+                logger.warning(f"Failed to send desktop notification via plyer: {e}")
+                self._plyer_available = False
+
+        # macOS fallback using osascript (avoids pyobjus dependency)
+        if sys.platform == 'darwin':
+            try:
+                import subprocess
+                subprocess.run(
+                    [
+                        "osascript",
+                        "-e",
+                        f'display notification "{message}" with title "{title}"'
+                    ],
+                    check=False,
+                )
+                logger.debug("Desktop notification sent via osascript")
+            except Exception as e:
+                logger.warning(f"Failed to send desktop notification via osascript: {e}")
     
     def _print_console_notification(self, picks, author):
         """Print formatted notification to console"""

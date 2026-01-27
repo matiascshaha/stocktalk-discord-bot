@@ -74,20 +74,26 @@ Parse stock picks from a message using AI.
 
 Webull trading integration.
 
-#### `__init__(self, config)`
+#### `__init__(self, config, trading_config=None)`
 
 Initialize Webull trader.
 
 **Parameters:**
 - `config` (dict): Webull configuration dictionary with keys:
-  - `username` (str): Webull account email
-  - `password` (str): Webull account password
-  - `trading_pin` (str): Trading PIN for order execution
-  - `device_name` (str): Device identifier
+  - `app_key` (str): Webull OpenAPI App Key
+  - `app_secret` (str): Webull OpenAPI App Secret
+  - `region` (str): `US`, `HK`, or `JP`
+  - `account_id` (str, optional): If omitted, first account is used
+  - `account_tax_type` (str, optional): Defaults to `GENERAL`
+- `trading_config` (dict, optional): Overrides for trading behavior:
+  - `paper_trade` (bool)
+  - `min_confidence` (float)
+  - `default_amount` (float)
+  - `use_market_orders` (bool)
 
 #### `login(self)`
 
-Authenticate with Webull.
+Validate Webull OpenAPI credentials (resolves account ID).
 
 **Returns:**
 - `bool`: True if login successful, False otherwise
@@ -103,14 +109,14 @@ Execute a trade based on a stock pick.
 - `pick` (dict): Stock pick dictionary (see `AIParser.parse()`)
 
 **Returns:**
-- `None`: Always returns None (logs errors internally)
+- `dict | None`: Order response (or simulated order) on success, `None` on skip/error
 
 **Behavior:**
 - Only executes BUY orders automatically
 - SELL orders are logged but not executed
 - Options are not supported
 - Validates confidence threshold
-- Checks sufficient funds
+- Uses market orders by default (configurable)
 
 ---
 
@@ -222,7 +228,7 @@ Validate that required configuration is present.
 
 **Checks:**
 - Required: `DISCORD_TOKEN`, `CHANNEL_ID`, `ANTHROPIC_API_KEY`
-- If `AUTO_TRADE=true`: Requires Webull credentials
+- If `AUTO_TRADE=true`: Requires Webull OpenAPI credentials
 
 ---
 
@@ -292,7 +298,7 @@ from src.webull_trader import WebullTrader
 from config.settings import WEBULL_CONFIG, TRADING_CONFIG
 
 # Initialize trader
-trader = WebullTrader(WEBULL_CONFIG)
+trader = WebullTrader(WEBULL_CONFIG, TRADING_CONFIG)
 if trader.login():
     # Start monitoring with trading enabled
     client = StockMonitorClient(trader=trader)
@@ -315,9 +321,9 @@ for pick in picks:
 
 ```python
 from src.webull_trader import WebullTrader
-from config.settings import WEBULL_CONFIG
+from config.settings import WEBULL_CONFIG, TRADING_CONFIG
 
-trader = WebullTrader(WEBULL_CONFIG)
+trader = WebullTrader(WEBULL_CONFIG, TRADING_CONFIG)
 if trader.login():
     pick = {
         'ticker': 'AAPL',

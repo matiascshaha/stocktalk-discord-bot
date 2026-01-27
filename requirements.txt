@@ -1,14 +1,31 @@
-discord.py-self==2.0.0
+discord.py-self==2.0.1
 anthropic==0.39.0
 openai>=1.0.0
 google-generativeai>=0.3.0
-python-dotenv==1.0.0
 pyperclip==1.8.2
 plyer==2.1.0
-pytest==7.4.3
+pyyaml==6.0.1
+
+# Core SDK (required)
+webull-python-sdk-core>=0.1.18
+
+# Trading SDK (required for placing orders, account management)
+webull-python-sdk-trade>=0.1.18
+
+# Market Data SDK (optional - for real-time quotes and historical data)
+webull-python-sdk-mdata>=0.1.18
+
+# Quotes SDK (optional - for quote data)
+webull-python-sdk-quotes-core>=0.1.18
+
+# Trade Events SDK (optional - for real-time order status updates via GRPC)
+webull-python-sdk-trade-events-core>=0.1.18
+
+# Additional dependencies
+python-dotenv>=1.0.0  # For .env file support
+requests>=2.31.0      # HTTP library (used by SDK)
+
+# Optional: For testing
+pytest==7.4.3         # Testing framework
+pytest-mock>=3.11.1   # Mocking for tests
 pytest-asyncio==0.21.1
-webull-python-sdk-core==0.1.18
-webull-python-sdk-mdata==0.1.18
-webull-python-sdk-quotes-core==0.1.18
-webull-python-sdk-trade-events-core==0.1.18
-webull-python-sdk-trade==0.1.18

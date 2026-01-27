@@ -1,0 +1,139 @@
+You are analyzing a message from a professional stock trading Discord channel.
+
+Message from {{AUTHOR_NAME}}:
+"{{MESSAGE_TEXT}}"
+
+TASK: Extract ALL actionable stock picks from this message.
+
+IMPORTANT RULES:
+1. Only extract picks where there is CLEAR ACTION: "Added", "Buying", "New position", "Trimming", "Exiting", "Selling"
+2. IGNORE portfolio updates, commentary, market analysis, reminders, or general discussion
+3. IGNORE mentions of stocks without clear action (e.g., "watching XYZ" or "interesting stock")
+4. For options, extract strike price and expiration date
+5. VERY IMPORTANT -- OPTIONS INTENT RULE:
+
+If the author expresses ANY interest, intention, plan, or consideration to buy calls or puts for a ticker,
+you MUST extract this as an OPTIONS BUY pick, even if:
+
+- no expiration date is given
+- no price is given
+- the language is vague or future tense
+- the contract format is incomplete
+
+Examples of intent language that MUST trigger an options BUY:
+- "may try to work into"
+- "looking to add"
+- "will add"
+- "may add"
+- "work into some calls"
+- "might build a position in calls"
+- "considering calls"
+- "want exposure via calls"
+- "options are illiquid but I may try"
+- "I may try to get into $85C"
+- "across multiple strikes"
+
+In these cases:
+- strike = parsed number if present, else null
+- expiry = null
+- option_type = CALL or PUT
+
+STOCK PICK PATTERNS TO RECOGNIZE:
+- "Added $TICKER at $X.XX" = BUY
+- "New position: $TICKER" = BUY
+- "Buying $TICKER" = BUY
+- "$TICKER (Shares + $XC Month 'YY)" = BUY with options
+- "Trimming $TICKER" = SELL (partial)
+- "Exiting $TICKER" = SELL (full)
+- "X% weight @ $Y.ZZ" = weight percentage
+
+OPTIONS FORMAT EXAMPLES:
+- "$115C Mar '26" = $115 strike CALL expiring March 2026
+- "$12.5C" = $12.50 strike CALL
+- "$30C Jun '26" = $30 strike CALL expiring June 2026
+
+IGNORE THESE:
+- Portfolio updates (lists of holdings)
+- Market commentary without specific action
+- General discussion or analysis
+- Reminders or announcements
+- Past performance discussions
+
+Return a JSON array. For each pick include:
+{
+  "ticker": "string (no $ symbol)",
+  "action": "BUY or SELL",
+  "confidence": 0.0-1.0 (how certain this is an actionable pick),
+  "weight": number or null (allocation percentage if mentioned),
+  "price": number or null (entry price if mentioned),
+  "strike": number or null (options strike price),
+  "option_type": "CALL" or "PUT" or "STOCK",
+  "expiry": "string or null (e.g., '2026-03-31' for Mar '26)",
+  "reasoning": "brief explanation",
+  "urgency": "LOW", "MEDIUM", or "HIGH",
+  "sentiment": "BULLISH" or "BEARISH"
+}
+
+Return ONLY the JSON array, no other text. If no actionable picks found, return [].
+
+EXAMPLES:
+
+Message: "Added $GLDD at $13.95 and some $12.5C for March at $1.75 avg just to add some juice. 4.5% weighting."
+Output: [
+  {
+    "ticker": "GLDD",
+    "action": "BUY",
+    "confidence": 1.0,
+    "weight": 4.5,
+    "price": 13.95,
+    "strike": null,
+    "option_type": "STOCK",
+    "expiry": null,
+    "reasoning": "Explicitly added shares at $13.95 with 4.5% weight",
+    "urgency": "HIGH",
+    "sentiment": "BULLISH"
+  },
+  {
+    "ticker": "GLDD",
+    "action": "BUY",
+    "confidence": 1.0,
+    "weight": null,
+    "price": 1.75,
+    "strike": 12.5,
+    "option_type": "CALL",
+    "expiry": "2026-03-31",
+    "reasoning": "Added $12.5 calls for March 2026",
+    "urgency": "HIGH",
+    "sentiment": "BULLISH"
+  }
+]
+
+Message: "New position: Pangea Logistics $PANL - 4% weight @ $7.23 avg on shares, also very small spot in $7.5C for May"
+Output: [
+  {
+    "ticker": "PANL",
+    "action": "BUY",
+    "confidence": 1.0,
+    "weight": 4.0,
+    "price": 7.23,
+    "strike": null,
+    "option_type": "STOCK",
+    "expiry": null,
+    "reasoning": "Explicit new position with 4% weight at $7.23",
+    "urgency": "HIGH",
+    "sentiment": "BULLISH"
+  },
+  {
+    "ticker": "PANL",
+    "action": "BUY",
+    "confidence": 0.9,
+    "weight": null,
+    "price": null,
+    "strike": 7.5,
+    "option_type": "CALL",
+    "expiry": null,
+    "reasoning": "Small spot in $7.5 calls for May",
+    "urgency": "MEDIUM",
+    "sentiment": "BULLISH"
+  }
+]

@@ -20,6 +20,8 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from dotenv import load_dotenv
+
+from config.settings import AI_PROVIDER
 import asyncio
 
 # Load environment variables
@@ -209,44 +211,42 @@ def test_google_key():
         return False
 
 def test_webull_credentials():
-    """Test Webull credentials using their SDK"""
+    """Test Webull OpenAPI credentials using our WebullTrader"""
     print("\n" + "="*60)
-    print("Testing Webull Credentials...")
+    print("Testing Webull OpenAPI Credentials...")
     print("="*60)
     
-    username = os.getenv('WEBULL_USERNAME')
-    password = os.getenv('WEBULL_PASSWORD')
-    trading_pin = os.getenv('WEBULL_TRADING_PIN')
+    try:
+        from config.settings import WEBULL_CONFIG
+        from src.webull_trader import WebullTrader
+    except ImportError as e:
+        print(f"❌ Import error: {e}")
+        return None
+
+    app_key = WEBULL_CONFIG.get('app_key')
+    app_secret = WEBULL_CONFIG.get('app_secret')
     
-    if not username or not password:
+    if not app_key or not app_secret:
         print("ℹ️  Webull credentials not found (skipping)")
-        print("   These are optional unless AUTO_TRADE=true")
         return None
     
     try:
-        from webull import webull
-        wb = webull()
+        # Create trader with paper trading enabled
+        trader = WebullTrader(WEBULL_CONFIG)
         
-        print("Attempting to log in...")
-        wb.login(username, password)
+        # Test login
+        print("🔍 Testing credentials...")
+        success = trader.login()
         
-        if trading_pin:
-            print("Getting trade token...")
-            wb.get_trade_token(trading_pin)
-        
-        account = wb.get_account()
-        
-        print("✅ Webull credentials are valid!")
-        print(f"   Account Value: ${float(account['netLiquidation']):,.2f}")
-        print(f"   Cash Available: ${float(account['accountMembers'][1]['value']):,.2f}")
-        return True
-        
-    except ImportError:
-        print("⚠️  webull package not installed. Install with: pip install webull")
-        return False
+        if success:
+            print("✅ Webull credentials are valid!")
+            return True
+        else:
+            print("❌ Webull credentials failed")
+            return False
+            
     except Exception as e:
-        print(f"❌ Webull login failed: {e}")
-        print("   Check your username, password, and trading PIN")
+        print(f"❌ Error: {e}")
         return False
 
 def main():
@@ -264,7 +264,7 @@ def main():
     results['discord_channel'] = test_discord_channel()
     
     # Test AI providers (check which one is configured)
-    ai_provider = os.getenv('AI_PROVIDER', '').lower()
+    ai_provider = (AI_PROVIDER or '').lower()
     
     # If AI_PROVIDER is set, only test that one
     if ai_provider == 'openai':
@@ -273,6 +273,8 @@ def main():
         results['anthropic'] = test_anthropic_key()
     elif ai_provider == 'google':
         results['google'] = test_google_key()
+    elif ai_provider == 'none':
+        print("ℹ️  AI_PROVIDER=none (skipping AI provider tests)")
     else:
         # If not specified, test all that have keys configured
         # This helps users figure out which provider they want to use

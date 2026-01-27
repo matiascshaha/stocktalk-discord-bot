@@ -20,6 +20,7 @@ from config.settings import (
     WEBULL_CONFIG
 )
 from src.utils.logger import setup_logger
+from src.utils.logging_format import format_mode_summary
 
 logger = setup_logger('main')
 
@@ -37,7 +38,7 @@ def main():
     print_banner()
     
     # Validate configuration
-    logger.info("Validating configuration...")
+    logger.info("Validating configuration.")
     config_errors = validate_config()
     
     if config_errors:
@@ -47,32 +48,33 @@ def main():
         logger.error("\nPlease check your .env file and try again.")
         sys.exit(1)
     
-    logger.info("✅ Configuration valid")
+    logger.info("Configuration valid.")
+    logger.info(format_mode_summary(TRADING_CONFIG))
     
     # Initialize Webull trader if auto-trading enabled
     trader = None
     if TRADING_CONFIG['auto_trade']:
-        logger.info("🔄 Initializing Webull trader...")
-        trader = WebullTrader(WEBULL_CONFIG)
-        
+        logger.info("Initializing Webull trader.")
+        trader = WebullTrader(WEBULL_CONFIG, TRADING_CONFIG)
+
         if trader.login():
-            logger.info("✅ Webull trader ready")
+            logger.info("Webull trader ready.")
         else:
-            logger.warning("⚠️  Webull login failed - continuing in monitor-only mode")
+            logger.warning("Webull login failed; continuing in monitor-only mode.")
             trader = None
     else:
-        logger.info("ℹ️  Auto-trading disabled - running in monitor-only mode")
+        logger.info("Auto-trading disabled; running in monitor-only mode.")
     
     # Initialize and run Discord client
-    logger.info("🚀 Starting Discord monitor...")
+    logger.info("Starting Discord monitor.")
     client = StockMonitorClient(trader=trader)
     
     try:
         client.run()
     except KeyboardInterrupt:
-        logger.info("\n👋 Shutting down gracefully...")
+        logger.info("Shutting down gracefully.")
     except Exception as e:
-        logger.error(f"❌ Fatal error: {e}", exc_info=True)
+        logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
 
 if __name__ == '__main__':

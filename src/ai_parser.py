@@ -1,8 +1,17 @@
-import anthropic
-import openai
 import json
 import re
-from config.settings import ANTHROPIC_API_KEY, OPENAI_API_KEY
+from pathlib import Path
+
+import anthropic
+import openai
+
+from config.settings import (
+    AI_CONFIG,
+    AI_PROVIDER,
+    ANTHROPIC_API_KEY,
+    GOOGLE_API_KEY,
+    OPENAI_API_KEY,
+)
 from src.utils.logger import setup_logger
 
 logger = setup_logger('ai_parser')
@@ -18,22 +27,10 @@ class AIParser:
     def __init__(self):
         self.client = None
         self.provider = None
-        
-        if ANTHROPIC_API_KEY:
-            try:
-                self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-                self.provider = 'anthropic'
-                logger.info("Using Anthropic Claude for AI parsing")
-            except Exception as e:
-                logger.warning(f"Anthropic initialization failed: {e}")
-        
-        if not self.client and OPENAI_API_KEY:
-            try:
-                self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
-                self.provider = 'openai'
-                logger.info("Using OpenAI GPT for AI parsing")
-            except Exception as e:
-                logger.warning(f"OpenAI initialization failed: {e}")
+        self.config = AI_CONFIG
+        self.prompt_template = self._load_prompt_template()
+
+        self._init_client()
         
         if not self.client:
             logger.warning("No AI provider available - using fallback regex parser only")
@@ -46,23 +43,32 @@ class AIParser:
             return self._fallback_parse(message_text)
         
         prompt = self._build_prompt(message_text, author_name)
+        if not prompt.strip():
+            logger.warning("Prompt template is empty; falling back to regex parser")
+            return self._fallback_parse(message_text)
         
         try:
             if self.provider == 'anthropic':
                 response = self.client.messages.create(
-                    model="claude-sonnet-4-5",
-                    max_tokens=2000,
+                    model=self.config['anthropic']['model'],
+                    max_tokens=self.config['anthropic']['max_tokens'],
+                    temperature=self.config['anthropic']['temperature'],
                     messages=[{"role": "user", "content": prompt}]
                 )
                 response_text = response.content[0].text.strip()
             
             elif self.provider == 'openai':
                 response = self.client.chat.completions.create(
-                    model="gpt-4o",
+                    model=self.config['openai']['model'],
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=2000
+                    max_tokens=self.config['openai']['max_tokens'],
+                    temperature=self.config['openai']['temperature'],
                 )
                 response_text = response.choices[0].message.content.strip()
+
+            elif self.provider == 'google':
+                response = self.client.generate_content(prompt)
+                response_text = response.text.strip()
             
             logger.debug(f"AI response: {response_text}")
             
@@ -83,153 +89,75 @@ class AIParser:
     
     def _build_prompt(self, message_text, author_name):
         """Build AI prompt for parsing"""
-        return f"""You are analyzing a message from a professional stock trading Discord channel.
+        return self._render_prompt(message_text, author_name)
 
-Message from {author_name}:
-"{message_text}"
+    def _render_prompt(self, message_text, author_name):
+        template = self.prompt_template or ""
+        prompt = template.replace("{{AUTHOR_NAME}}", str(author_name))
+        prompt = prompt.replace("{{MESSAGE_TEXT}}", str(message_text))
+        return prompt
 
-TASK: Extract ALL actionable stock picks from this message.
+    def _load_prompt_template(self) -> str:
+        path = self.config.get("prompt_file") if isinstance(self.config, dict) else None
+        path = path or "config/ai_parser.prompt"
+        prompt_path = Path(path)
 
-IMPORTANT RULES:
-1. Only extract picks where there is CLEAR ACTION: "Added", "Buying", "New position", "Trimming", "Exiting", "Selling"
-2. IGNORE portfolio updates, commentary, market analysis, reminders, or general discussion
-3. IGNORE mentions of stocks without clear action (e.g., "watching XYZ" or "interesting stock")
-4. For options, extract strike price and expiration date
-5. VERY IMPORTANT — OPTIONS INTENT RULE:
+        try:
+            return prompt_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Failed to load prompt template from %s: %s", prompt_path, exc)
+            return ""
 
-If the author expresses ANY interest, intention, plan, or consideration to buy calls or puts for a ticker,
-you MUST extract this as an OPTIONS BUY pick, even if:
+    def _init_client(self):
+        provider = (AI_PROVIDER or "").lower().strip()
+        fallback = bool(self.config.get("fallback_to_available_provider"))
 
-- no expiration date is given
-- no price is given
-- the language is vague or future tense
-- the contract format is incomplete
+        if provider in ("", "auto"):
+            provider = None
 
-Examples of intent language that MUST trigger an options BUY:
-- "may try to work into"
-- "looking to add"
-- "will add"
-- "may add"
-- "work into some calls"
-- "might build a position in calls"
-- "considering calls"
-- "want exposure via calls"
-- "options are illiquid but I may try"
-- "I may try to get into $85C"
-- "across multiple strikes"
+        if provider:
+            self._try_init_provider(provider)
+            if not self.client and fallback:
+                self._init_first_available()
+        else:
+            self._init_first_available()
 
-In these cases:
-- strike = parsed number if present, else null
-- expiry = null
-- option_type = CALL or PUT
+    def _init_first_available(self):
+        for name in ("anthropic", "openai", "google"):
+            if self._provider_key_available(name):
+                self._try_init_provider(name)
+                if self.client:
+                    return
 
-STOCK PICK PATTERNS TO RECOGNIZE:
-- "Added $TICKER at $X.XX" = BUY
-- "New position: $TICKER" = BUY  
-- "Buying $TICKER" = BUY
-- "$TICKER (Shares + $XC Month 'YY)" = BUY with options
-- "Trimming $TICKER" = SELL (partial)
-- "Exiting $TICKER" = SELL (full)
-- "X% weight @ $Y.ZZ" = weight percentage
+    def _provider_key_available(self, provider: str) -> bool:
+        if provider == "anthropic":
+            return bool(ANTHROPIC_API_KEY)
+        if provider == "openai":
+            return bool(OPENAI_API_KEY)
+        if provider == "google":
+            return bool(GOOGLE_API_KEY)
+        return False
 
-OPTIONS FORMAT EXAMPLES:
-- "$115C Mar '26" = $115 strike CALL expiring March 2026
-- "$12.5C" = $12.50 strike CALL
-- "$30C Jun '26" = $30 strike CALL expiring June 2026
+    def _try_init_provider(self, provider: str):
+        try:
+            if provider == "anthropic" and ANTHROPIC_API_KEY:
+                self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+                self.provider = "anthropic"
+                logger.info("Using Anthropic Claude for AI parsing")
+            elif provider == "openai" and OPENAI_API_KEY:
+                self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                self.provider = "openai"
+                logger.info("Using OpenAI GPT for AI parsing")
+            elif provider == "google" and GOOGLE_API_KEY:
+                import google.generativeai as genai
 
-IGNORE THESE:
-- Portfolio updates (lists of holdings)
-- Market commentary without specific action
-- General discussion or analysis
-- Reminders or announcements
-- Past performance discussions
-
-Return a JSON array. For each pick include:
-{{
-  "ticker": "string (no $ symbol)",
-  "action": "BUY or SELL",
-  "confidence": 0.0-1.0 (how certain this is an actionable pick),
-  "weight": number or null (allocation percentage if mentioned),
-  "price": number or null (entry price if mentioned),
-  "strike": number or null (options strike price),
-  "option_type": "CALL" or "PUT" or "STOCK",
-  "expiry": "string or null (e.g., '2026-03-31' for Mar '26)",
-  "reasoning": "brief explanation",
-  "urgency": "LOW", "MEDIUM", or "HIGH",
-  "sentiment": "BULLISH" or "BEARISH"
-}}
-
-Return ONLY the JSON array, no other text. If no actionable picks found, return [].
-
-EXAMPLES:
-
-Message: "Added $GLDD at $13.95 and some $12.5C for March at $1.75 avg just to add some juice. 4.5% weighting."
-Output: [
-  {{
-    "ticker": "GLDD",
-    "action": "BUY",
-    "confidence": 1.0,
-    "weight": 4.5,
-    "price": 13.95,
-    "strike": null,
-    "option_type": "STOCK",
-    "expiry": null,
-    "reasoning": "Explicitly added shares at $13.95 with 4.5% weight",
-    "urgency": "HIGH",
-    "sentiment": "BULLISH"
-  }},
-  {{
-    "ticker": "GLDD",
-    "action": "BUY",
-    "confidence": 1.0,
-    "weight": null,
-    "price": 1.75,
-    "strike": 12.5,
-    "option_type": "CALL",
-    "expiry": "2026-03-31",
-    "reasoning": "Added $12.5 calls for March 2026",
-    "urgency": "HIGH",
-    "sentiment": "BULLISH"
-  }}
-]
-
-Message: "New position: Pangea Logistics $PANL - 4% weight @ $7.23 avg on shares, also very small spot in $7.5C for May"
-Output: [
-  {{
-    "ticker": "PANL",
-    "action": "BUY",
-    "confidence": 1.0,
-    "weight": 4.0,
-    "price": 7.23,
-    "strike": null,
-    "option_type": "STOCK",
-    "expiry": null,
-    "reasoning": "New position at $7.23 with 4% weight",
-    "urgency": "HIGH",
-    "sentiment": "BULLISH"
-  }},
-  {{
-    "ticker": "PANL",
-    "action": "BUY",
-    "confidence": 0.9,
-    "weight": null,
-    "price": null,
-    "strike": 7.5,
-    "option_type": "CALL",
-    "expiry": "2026-05-31",
-    "reasoning": "Small position in $7.5 calls for May",
-    "urgency": "MEDIUM",
-    "sentiment": "BULLISH"
-  }}
-]
-
-Message: "PORTFOLIO UPDATE - 15 POSITIONS... 20-21%: $ENS* (Shares + $115C Mar '26) - $116.63"
-Output: []
-Reason: This is a portfolio update, not a new actionable pick
-
-Message: "I expect $MU to meaningfully outperform the market tomorrow."
-Output: []
-Reason: This is commentary/prediction, not an actionable buy/sell order"""
+                genai.configure(api_key=GOOGLE_API_KEY)
+                model_name = self.config["google"]["model"]
+                self.client = genai.GenerativeModel(model_name)
+                self.provider = "google"
+                logger.info("Using Google Gemini for AI parsing")
+        except Exception as e:
+            logger.warning(f"{provider.title()} initialization failed: {e}")
     
     def _clean_json(self, text):
         """Clean JSON response from AI"""

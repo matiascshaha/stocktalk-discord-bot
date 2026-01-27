@@ -1,6 +1,6 @@
 # Credentials Setup Guide
 
-This guide walks you through obtaining all the credentials needed to run the Discord Stock Monitor. **Webull credentials are optional** and can be added later when your developer account is approved.
+This guide walks you through obtaining all the credentials needed to run the Discord Stock Monitor. **Webull OpenAPI credentials are optional** and can be added later when your developer account is approved.
 
 ## Prerequisites
 
@@ -214,16 +214,16 @@ Choose your AI provider based on the [AI Provider Comparison](AI_PROVIDER_COMPAR
 
 ---
 
-## 4. Webull Credentials (Optional - Skip for Now)
+## 4. Webull OpenAPI Credentials (Optional - Skip for Now)
 
 **Status:** Your developer account is under review. Skip this section for now.
 
-When your account is approved, you'll need:
+When your account is approved, you'll need Webull OpenAPI credentials:
 
-- `WEBULL_USERNAME` - Your Webull account email
-- `WEBULL_PASSWORD` - Your Webull account password
-- `WEBULL_TRADING_PIN` - 6-digit PIN for trading
-- `WEBULL_DEVICE_NAME` - Any name for your device (e.g., "stock_monitor")
+- `WEBULL_APP_KEY` - Your Webull OpenAPI App Key
+- `WEBULL_APP_SECRET` - Your Webull OpenAPI App Secret
+- `WEBULL_REGION` - Region for your account (`US`, `HK`, or `JP`)
+- `WEBULL_ACCOUNT_ID` - Optional; if omitted, the first account is used
 
 **Note:** Leave these blank or commented out in `.env` until your account is approved.
 
@@ -231,7 +231,8 @@ When your account is approved, you'll need:
 
 ## 5. Configuration Settings
 
-These are not credentials, just configuration values. You can use the defaults or adjust:
+These are not credentials, just configuration values. You can use the defaults or adjust.
+Preferred: edit `config/config.yaml` (no-code). The `.env` values still work as overrides.
 
 ### Trading Settings
 
@@ -274,10 +275,10 @@ OPENAI_API_KEY=sk-proj-ABC123...
 # GOOGLE_API_KEY=AIzaSyABC123...
 
 # Webull Configuration (Optional - Skip until account approved)
-# WEBULL_USERNAME=your_email@example.com
-# WEBULL_PASSWORD=your_password
-# WEBULL_TRADING_PIN=123456
-# WEBULL_DEVICE_NAME=my_trading_device
+# WEBULL_APP_KEY=your_webull_app_key
+# WEBULL_APP_SECRET=your_webull_app_secret
+# WEBULL_REGION=US
+# WEBULL_ACCOUNT_ID=your_account_id
 
 # Trading Settings
 AUTO_TRADE=false
@@ -314,7 +315,7 @@ After setting up your `.env` file:
    - Discord token validity
    - Discord channel ID format
    - AI API key (OpenAI/Anthropic/Google)
-   - Webull credentials (if provided)
+   - Webull OpenAPI credentials (if provided)
    
    See [SCRIPTS.md](SCRIPTS.md) for more details.
 

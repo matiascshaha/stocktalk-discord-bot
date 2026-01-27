@@ -1,0 +1,51 @@
+# StockTalk Configuration
+# Edit this file to configure behavior without touching code.
+# Secrets (Discord token, API keys) should stay in .env.
+
+version: 1
+
+ai:
+  # Provider options: openai | anthropic | google | none
+  # If unset, the app will pick the first available key in .env
+  provider: auto
+
+  # If true, falls back to any available provider if the preferred one fails
+  fallback_to_available_provider: true
+
+  prompt:
+    # Path to the prompt template file
+    file: config/ai_parser.prompt
+
+  openai:
+    model: gpt-4o
+    max_tokens: 2000
+    temperature: 0.2
+
+  anthropic:
+    model: claude-sonnet-4-5
+    max_tokens: 2000
+    temperature: 0.2
+
+  google:
+    model: gemini-3-pro-preview
+    temperature: 0.2
+
+trading:
+  auto_trade: true
+  paper_trade: false
+  min_confidence: 0.7
+  default_amount: 1000
+  use_market_orders: true
+  extended_hours_trading: false
+  time_in_force: DAY
+
+notifications:
+  desktop_notifications: true
+  sound_alert: true
+  copy_to_clipboard: true
+
+webull:
+  region: US
+  api_endpoint: api.webull.com
+  account_id: ""
+  account_tax_type: GENERAL
