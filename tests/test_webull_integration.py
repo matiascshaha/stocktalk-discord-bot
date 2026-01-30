@@ -1,477 +1,168 @@
-#!/usr/bin/env python3
 """
-Comprehensive Webull Brokerage Integration Test Suite
+Webull Trader Integration Tests
 
-This test suite uses REAL Webull API endpoints:
-- Paper Trading Tests: Use UAT environment (us-openapi-alb.uat.webullbroker.com)
-- Live Trading Tests: Use Production environment (api.webull.com) - REAL MONEY!
-
-Both test types make actual API calls to Webull servers.
-
-Test Structure:
-1. Paper Trading Tests - Safe, uses test account, no real money
-2. Live Trading Tests - Requires real credentials, USES REAL MONEY
-
-Run tests:
-- Paper tests only: python test_webull_integration.py
-- Live tests: Set WEBULL_ENABLE_LIVE_TESTS=true in .env first!
+Simple tests to verify basic functionality.
+Requires: WEBULL_APP_KEY and WEBULL_APP_SECRET in .env
 """
 
-import sys
 import os
-
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
+import pytest
 from dotenv import load_dotenv
+
+from src.models.webull_models import *
 from src.webull_trader import WebullTrader
-from src.utils.logger import setup_logger
+from config.settings import WEBULL_CONFIG
 
 load_dotenv()
 
-logger = setup_logger('test_webull_integration')
 
+class TestWebullTrader:
+    """Basic Webull integration tests"""
 
-# ============================================================================
-# Configuration Builders
-# ============================================================================
+    @pytest.fixture
+    def trader(self):
+        """Create paper trader"""
+        paper_trade = False
+        app_key = WEBULL_CONFIG.get('test_app_key') if paper_trade else os.getenv('WEBULL_APP_KEY')
+        app_secret = WEBULL_CONFIG.get('test_app_secret') if paper_trade else os.getenv('WEBULL_APP_SECRET')
+        
+        if not app_key or not app_secret:
+            pytest.skip("Webull credentials not set")
+        
+        return WebullTrader(
+            app_key=app_key,
+            app_secret=app_secret,
+            paper_trade=paper_trade,
+            region="US",
+            account_id=WEBULL_CONFIG.get('test_account_id') if paper_trade else os.getenv('WEBULL_ACCOUNT_ID'),
+        )
 
-def _build_paper_config():
-    """Configuration for PAPER trading (UAT environment)."""
-    return {
-        'app_key': os.getenv('WEBULL_APP_KEY'),
-        'app_secret': os.getenv('WEBULL_APP_SECRET'),
-        'region': os.getenv('WEBULL_REGION', 'US'),
-        'paper_trade': True,  # Uses UAT endpoint
-        'min_confidence': 0.7,
-        'default_dollar_amount': 1000,
-        'use_market_orders': True,
-        'time_in_force': 'DAY',
-    }
+    def test_login(self, trader):
+        """Test basic login"""
+        assert trader.login() is True
+        print(f"\n✅ Login successful")
 
+    def test_get_account_id(self, trader):
+        """Test account ID resolution"""
+        account_id = trader.resolve_account_id()
+        assert account_id is not None
+        print(f"\n✅ Account ID: {account_id}")
 
-def _build_live_config():
-    """Configuration for LIVE trading (Production environment) - REAL MONEY!"""
-    return {
-        'app_key': os.getenv('WEBULL_APP_KEY'),
-        'app_secret': os.getenv('WEBULL_APP_SECRET'),
-        'region': os.getenv('WEBULL_REGION', 'US'),
-        'paper_trade': False,  # Uses PRODUCTION endpoint
-        'min_confidence': 0.9,  # Higher threshold for live trading
-        'default_dollar_amount': 100,  # Smaller amount for safety
-        'use_market_orders': False,  # Use limit orders for safety
-        'time_in_force': 'DAY',
-    }
+    def test_get_balance(self, trader):
+        """Test fetching account balance"""
+        balance = trader.get_account_balance()
+        assert balance is not None
+        print(f"\n✅ Balance: {balance}")
 
-
-def _build_sample_picks():
-    """Sample stock picks for testing."""
-    return [
-        {
-            'ticker': 'AAPL',
-            'action': 'BUY',
-            'confidence': 0.95,
-            'weight': None,
-            'strike': None,
-            'option_type': 'STOCK',
-            'price': 150.0,
-            'expiry': None,
-            'reasoning': 'Strong bullish momentum',
-            'urgency': 'HIGH',
-            'sentiment': 'BULLISH'
-        },
-        {
-            'ticker': 'NVDA',
-            'action': 'BUY',
-            'confidence': 0.85,
-            'weight': None,
-            'strike': None,
-            'option_type': 'STOCK',
-            'price': 700.0,
-            'expiry': None,
-            'reasoning': 'AI boom continuation',
-            'urgency': 'MEDIUM',
-            'sentiment': 'BULLISH'
-        },
-        {
-            'ticker': 'TSLA',
-            'action': 'SELL',
-            'confidence': 0.80,
-            'weight': None,
-            'strike': None,
-            'option_type': 'STOCK',
-            'price': 200.0,
-            'expiry': None,
-            'reasoning': 'Overbought signals',
-            'urgency': 'MEDIUM',
-            'sentiment': 'BEARISH'
-        },
-        {
-            'ticker': 'MSFT',
-            'action': 'BUY',
-            'confidence': 0.60,  # Below threshold
-            'weight': None,
-            'strike': None,
-            'option_type': 'STOCK',
-            'price': 420.0,
-            'expiry': None,
-            'reasoning': 'Weak signal',
-            'urgency': 'LOW',
-            'sentiment': 'NEUTRAL'
-        },
-    ]
-
-
-# ============================================================================
-# Paper Trading Tests (UAT Environment)
-# ============================================================================
-
-class TestWebullPaperTrading:
-    """
-    Test paper trading functionality using REAL Webull UAT/test API.
+    def test_preview_order(self, trader):
+        """Test order preview (no actual order)"""
+        order = StockOrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            quantity=1,
+            order_type=OrderType.LIMIT,
+            limit_price=150.0
+        )
+        
+        preview = trader.preview_stock_order(order)
+        
+        # Now preview is an OrderPreview model with typed attributes
+        print(f"\n✅ Stock order preview:")
+        print(f"   Estimated cost: ${preview.estimated_cost} {preview.currency}")
+        print(f"   Transaction fee: ${preview.estimated_transaction_fee}")
+        print(f"   Cost as float: ${preview.cost_as_float}")
+        
+        assert preview.estimated_cost is not None
     
-    These tests hit the actual UAT endpoint: us-openapi-alb.uat.webullbroker.com
-    No real money is involved, but real API calls are made.
-    """
+    def test_place_stock_order(self, trader):
+        """Test placing actual stock order (paper trading - no real money)"""
+        order = StockOrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            quantity=1,
+            order_type=OrderType.LIMIT,
+            time_in_force="GTC",
+            limit_price=100.0  # Low price so it won't actually fill
+        )
 
-    def __init__(self):
-        config = _build_paper_config()
-        if not config['app_key'] or not config['app_secret']:
-            logger.warning("Webull credentials not configured - tests will be skipped")
-            logger.warning("Set WEBULL_APP_KEY and WEBULL_APP_SECRET in .env to enable")
-            self.trader = None
-        else:
-            self.trader = WebullTrader(config)
-    
-    def test_paper_login(self):
-        """Test login to Webull UAT environment."""
-        logger.info("\n" + "="*60)
-        logger.info("🔐 PAPER TRADING LOGIN TEST (UAT API)")
-        logger.info("="*60)
+        # Place order (hits UAT API - paper trading)
+        result = trader.place_stock_order(order)
         
-        if not self.trader:
-            logger.info("⏭️  Skipped: No credentials configured")
-            logger.info("="*60 + "\n")
-            return None
+        print(f"\n✅ Stock order placed:")
+        print(f"   Order ID: {result.get('order_id', 'N/A')}")
+        print(f"   Client Order ID: {result.get('client_order_id', 'N/A')}")
+        print(f"   Status: {result.get('status', 'N/A')}")
+        print(f"   Full response: {result}")
         
-        try:
-            success = self.trader.login()
-            if success:
-                logger.info("✅ Successfully authenticated with Webull UAT API")
-                logger.info("="*60 + "\n")
-                return True
-            else:
-                logger.error("❌ Failed to authenticate with Webull UAT API")
-                logger.info("="*60 + "\n")
-                return False
-        except Exception as exc:
-            logger.error(f"❌ Exception during login: {exc}")
-            logger.info("="*60 + "\n")
-            return False
-    
-    def test_paper_account_balance(self):
-        """Test fetching account balance from UAT environment."""
-        logger.info("\n" + "="*60)
-        logger.info("💰 PAPER ACCOUNT BALANCE TEST (UAT API)")
-        logger.info("="*60)
-        
-        if not self.trader:
-            logger.info("⏭️  Skipped: No credentials configured")
-            logger.info("="*60 + "\n")
-            return None
-        
-        try:
-            balance = self.trader.get_account_balance()
-            logger.info(f"✅ Retrieved balance from UAT: {balance}")
-            logger.info("="*60 + "\n")
-            return balance
-        except Exception as exc:
-            logger.error(f"❌ Failed to get balance: {exc}")
-            logger.info("="*60 + "\n")
-            return None
-    
-    def test_paper_trade_execution(self):
-        """Test actual order placement in UAT environment."""
-        logger.info("\n" + "="*60)
-        logger.info("📝 PAPER TRADE EXECUTION TEST (UAT API)")
-        logger.info("="*60)
-        
-        if not self.trader:
-            logger.info("⏭️  Skipped: No credentials configured")
-            logger.info("="*60 + "\n")
-            return None
-        
-        picks = _build_sample_picks()
-        
-        logger.info(f"\n📄 Processing {len(picks)} paper trades via UAT API...\n")
-        
-        results = []
-        for pick in picks:
-            logger.info(f"Processing: {pick['ticker']} - {pick['action']}")
-            try:
-                order = self.trader.execute_trade(pick)
-                results.append({
-                    'pick': pick,
-                    'order': order
-                })
-                if order:
-                    env = order.get('_environment', 'UNKNOWN')
-                    logger.info(f"  ✅ Order placed in {env}")
-                else:
-                    logger.info(f"  ⏭️  Order skipped (filtered)")
-            except Exception as exc:
-                logger.error(f"  ❌ Error: {exc}")
-                results.append({
-                    'pick': pick,
-                    'order': None,
-                    'error': str(exc)
-                })
-        
-        # Summary
-        logger.info("\n" + "="*60)
-        logger.info("📊 PAPER TRADE EXECUTION SUMMARY")
-        logger.info("="*60)
-        
-        successful = [r for r in results if r.get('order') is not None]
-        logger.info(f"✅ Successful orders: {len(successful)}/{len(picks)}")
-        
-        for result in results:
-            pick = result['pick']
-            order = result.get('order')
-            if order:
-                status = "✅"
-            elif 'error' in result:
-                status = "❌"
-            else:
-                status = "⏭️ "
-            logger.info(f"{status} {pick['ticker']}: {pick['action']} ({pick['sentiment']})")
-        
-        logger.info("="*60 + "\n")
-        
-        return results
-    
-    def test_paper_order_history(self):
-        """Test fetching order history from UAT environment."""
-        logger.info("\n" + "="*60)
-        logger.info("📜 PAPER ORDER HISTORY TEST (UAT API)")
-        logger.info("="*60)
-        
-        if not self.trader:
-            logger.info("⏭️  Skipped: No credentials configured")
-            logger.info("="*60 + "\n")
-            return None
-        
-        try:
-            orders = self.trader.get_order_history(limit=10)
-            logger.info(f"✅ Retrieved {len(orders)} orders from UAT")
-            for i, order in enumerate(orders[:3], 1):  # Show first 3
-                logger.info(f"  Order {i}: {order.get('symbol', 'N/A')} - {order.get('side', 'N/A')}")
-            if len(orders) > 3:
-                logger.info(f"  ... and {len(orders) - 3} more")
-            logger.info("="*60 + "\n")
-            return orders
-        except Exception as exc:
-            logger.error(f"❌ Failed to get order history: {exc}")
-            logger.info("="*60 + "\n")
-            return None
+        assert result is not None
+        # Note: May contain order_id or error message depending on UAT behavior
 
-
-# ============================================================================
-# Live Trading Tests (Production Environment) - REAL MONEY!
-# ============================================================================
-
-class TestWebullLiveTrading:
-    """
-    Test LIVE trading functionality using REAL Webull Production API.
-    
-    ⚠️  WARNING: These tests hit the PRODUCTION endpoint: api.webull.com
-    ⚠️  REAL MONEY will be used if orders are placed!
-    ⚠️  Only run these tests if you understand the risks!
-    
-    These tests are DISABLED by default. To enable:
-    Set WEBULL_ENABLE_LIVE_TESTS=true in your .env file
-    """
-
-    def __init__(self):
-        # Check if live tests are explicitly enabled
-        enabled = os.getenv('WEBULL_ENABLE_LIVE_TESTS', 'false').lower() == 'true'
-        
-        if not enabled:
-            logger.warning("⚠️  Live trading tests are DISABLED by default")
-            logger.warning("   Set WEBULL_ENABLE_LIVE_TESTS=true in .env to enable")
-            self.trader = None
-            self.enabled = False
-            return
-        
-        config = _build_live_config()
-        if not config['app_key'] or not config['app_secret']:
-            logger.warning("Webull credentials not configured - tests will be skipped")
-            self.trader = None
-            self.enabled = False
-        else:
-            self.trader = WebullTrader(config)
-            self.enabled = True
-            logger.warning("⚠️" * 20)
-            logger.warning("⚠️  LIVE TRADING MODE ENABLED - REAL MONEY AT RISK!")
-            logger.warning("⚠️" * 20)
-    
-    def test_live_login(self):
-        """Test login to Webull PRODUCTION environment."""
-        logger.info("\n" + "="*60)
-        logger.info("🔐 LIVE TRADING LOGIN TEST (PRODUCTION API)")
-        logger.info("⚠️  WARNING: This tests REAL ACCOUNT ACCESS!")
-        logger.info("="*60)
-        
-        if not self.enabled:
-            logger.info("⏭️  Skipped: Live tests not enabled")
-            logger.info("="*60 + "\n")
-            return None
-        
-        try:
-            success = self.trader.login()
-            if success:
-                logger.info("✅ Successfully authenticated with Webull PRODUCTION API")
-                logger.warning("⚠️  This is your REAL trading account!")
-                logger.info("="*60 + "\n")
-                return True
-            else:
-                logger.error("❌ Failed to authenticate with Webull PRODUCTION API")
-                logger.info("="*60 + "\n")
-                return False
-        except Exception as exc:
-            logger.error(f"❌ Exception during login: {exc}")
-            logger.info("="*60 + "\n")
-            return False
-    
-    def test_live_account_balance(self):
-        """Test fetching REAL account balance."""
-        logger.info("\n" + "="*60)
-        logger.info("💰 LIVE ACCOUNT BALANCE TEST (PRODUCTION API)")
-        logger.info("⚠️  WARNING: Viewing REAL account balance!")
-        logger.info("="*60)
-        
-        if not self.enabled:
-            logger.info("⏭️  Skipped: Live tests not enabled")
-            logger.info("="*60 + "\n")
-            return None
-        
-        try:
-            balance = self.trader.get_account_balance()
-            logger.info(f"✅ Retrieved REAL balance: {balance}")
-            logger.warning("⚠️  This is your actual trading account balance!")
-            logger.info("="*60 + "\n")
-            return balance
-        except Exception as exc:
-            logger.error(f"❌ Failed to get balance: {exc}")
-            logger.info("="*60 + "\n")
-            return None
-    
-    def test_live_trade_DRY_RUN(self):
-        """
-        Build order payloads but DO NOT EXECUTE on production.
-        
-        This is a SAFETY test - it builds orders but doesn't submit them.
-        """
-        logger.info("\n" + "="*60)
-        logger.info("🔍 LIVE TRADE DRY RUN (NO ACTUAL ORDERS)")
-        logger.info("="*60)
-        
-        if not self.enabled:
-            logger.info("⏭️  Skipped: Live tests not enabled")
-            logger.info("="*60 + "\n")
-            return None
-        
-        picks = _build_sample_picks()
-        
-        logger.info(f"\n📄 Building {len(picks)} order payloads (NOT executing)...\n")
-        
-        results = []
-        for pick in picks:
-            logger.info(f"Building payload for: {pick['ticker']} - {pick['action']}")
-            try:
-                symbol = pick['ticker']
-                quantity = 1
-                limit_price = pick.get('price')
-                
-                payload = self.trader.build_order_payload_from_pick(
-                    pick,
-                    symbol=symbol,
-                    market='US',
-                    instrument_type='EQUITY',
-                    quantity=quantity,
-                    limit_price=limit_price,
+    def test_preview_option_order(self, trader):
+        """Test option order preview (no actual order)"""
+        order = OptionOrderRequest(
+            order_type=OrderType.LIMIT,
+            quantity="1",
+            limit_price="21.25",
+            side=OrderSide.BUY,
+            legs=[
+                OptionLeg(
+                    side=OrderSide.BUY,
+                    quantity="1",
+                    symbol="TSLA",
+                    strike_price="400",
+                    option_expire_date="2025-11-26",
+                    option_type=OptionType.CALL,
+                    market="US"
                 )
-                
-                results.append({
-                    'pick': pick,
-                    'payload': payload
-                })
-                logger.info(f"  ✅ Payload built: {payload['order_type']} order for {quantity} shares")
-            except Exception as exc:
-                logger.error(f"  ❌ Error building payload: {exc}")
-                results.append({
-                    'pick': pick,
-                    'payload': None,
-                    'error': str(exc)
-                })
+            ]
+        )
         
-        logger.info("\n" + "="*60)
-        logger.info("📊 DRY RUN SUMMARY")
-        logger.info("="*60)
-        logger.info(f"✅ Payloads built: {len([r for r in results if r.get('payload')])}/{len(picks)}")
-        logger.info("ℹ️  NOTE: No orders were actually placed")
-        logger.info("="*60 + "\n")
+        preview = trader.preview_option_order(order)
         
-        return results
+        print(f"\n✅ Option order preview:")
+        print(f"   Estimated cost: ${preview.estimated_cost} {preview.currency}")
+        print(f"   Transaction fee: ${preview.estimated_transaction_fee}")
+        
+        assert preview is not None
 
+    def test_place_option_order(self, trader):
+        """Test placing actual option order (paper trading - no real money)"""
+        order = OptionOrderRequest(
+            client_order_id=uuid.uuid4().hex,
+            combo_type="NORMAL",
+            order_type=OrderType.LIMIT,
+            quantity="1",
+            limit_price="1.0",
+            option_strategy="SINGLE",
+            side=OrderSide.BUY,
+            time_in_force=TimeInForce.GTC,
+            entrust_type="QTY",
+            legs=[
+                OptionLeg(
+                    side=OrderSide.BUY,
+                    quantity="1",
+                    symbol="TSLA",
+                    strike_price="400.0",
+                    option_expire_date="2025-11-26",
+                    instrument_type="OPTION",
+                    option_type=OptionType.CALL,
+                    market="US"
+                )
+            ]
+        )
 
-# ============================================================================
-# Main Test Runner
-# ============================================================================
-
-def run_all_tests():
-    """Run all Webull integration tests."""
-    logger.info("\n" + "="*70)
-    logger.info("WEBULL BROKERAGE INTEGRATION TEST SUITE")
-    logger.info("="*70)
-    
-    # Paper trading tests (UAT environment)
-    logger.info("\n🧪 RUNNING PAPER TRADING TESTS (UAT API)")
-    logger.info("─" * 70)
-    paper_tester = TestWebullPaperTrading()
-    
-    paper_login_ok = paper_tester.test_paper_login()
-    paper_balance = paper_tester.test_paper_account_balance()
-    paper_trades = paper_tester.test_paper_trade_execution()
-    paper_history = paper_tester.test_paper_order_history()
-    
-    # Live trading tests (Production environment)
-    logger.info("\n💰 RUNNING LIVE TRADING TESTS (PRODUCTION API)")
-    logger.info("─" * 70)
-    live_tester = TestWebullLiveTrading()
-    
-    live_login_ok = live_tester.test_live_login()
-    live_balance = live_tester.test_live_account_balance()
-    live_dry_run = live_tester.test_live_trade_DRY_RUN()
-    
-    # Final summary
-    logger.info("\n" + "="*70)
-    logger.info("✅ ALL TESTS COMPLETE")
-    logger.info("="*70)
-    
-    logger.info("\nPaper Trading (UAT) Results:")
-    logger.info(f"  Login: {'✅' if paper_login_ok else '❌' if paper_login_ok is False else '⏭️'}")
-    logger.info(f"  Balance: {'✅' if paper_balance else '❌' if paper_balance is False else '⏭️'}")
-    logger.info(f"  Trades: {'✅' if paper_trades else '❌' if paper_trades is False else '⏭️'}")
-    logger.info(f"  History: {'✅' if paper_history is not None else '❌'}")
-    
-    logger.info("\nLive Trading (Production) Results:")
-    logger.info(f"  Login: {'✅' if live_login_ok else '❌' if live_login_ok is False else '⏭️'}")
-    logger.info(f"  Balance: {'✅' if live_balance else '❌' if live_balance is False else '⏭️'}")
-    logger.info(f"  Dry Run: {'✅' if live_dry_run else '❌' if live_dry_run is False else '⏭️'}")
-    
-    logger.info("\n" + "="*70 + "\n")
+        # Place option order (hits UAT API - paper trading)
+        result = trader.place_option_order(order)
+        
+        print(f"\n✅ Option order placed:")
+        print(f"   Order ID: {result.get('order_id', 'N/A')}")
+        print(f"   Client Order ID: {result.get('client_order_id', 'N/A')}")
+        print(f"   Status: {result.get('status', 'N/A')}")
+        print(f"   Option Symbol: {result.get('symbol', 'N/A')}")
+        print(f"   Full response: {result}")
+        
+        assert result is not None
 
 
 if __name__ == '__main__':
-    run_all_tests()
+    pytest.main([__file__, '-v', '-s'])

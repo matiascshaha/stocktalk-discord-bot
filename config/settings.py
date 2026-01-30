@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from dotenv import load_dotenv
 
@@ -48,7 +48,7 @@ def _config_path() -> str:
     env_override = os.getenv("CONFIG_PATH")
     if env_override:
         return str(Path(env_override).expanduser())
-    return str(Path.cwd() / "config" / "config.yaml")
+    return str(Path.cwd() / "config" / "trading.yaml")
 
 
 def _cfg(path: str, default: Optional[Any] = None) -> Any:
@@ -138,9 +138,12 @@ AI_CONFIG = {
 WEBULL_CONFIG = {
     'app_key': os.getenv('WEBULL_APP_KEY'),
     'app_secret': os.getenv('WEBULL_APP_SECRET'),
+    'test_app_key': _cfg('webull.test_app_key'),
+    'test_app_secret': _cfg('webull.test_app_secret'),
     'region': _cfg('webull.region', os.getenv('WEBULL_REGION', 'US')),
     'api_endpoint': _cfg('webull.api_endpoint', os.getenv('WEBULL_API_ENDPOINT')),
-    'account_id': _cfg('webull.account_id', os.getenv('WEBULL_ACCOUNT_ID')),
+    'account_id': _cfg('webull.account_id'),
+    'test_account_id': _cfg('webull.test_account_id', os.getenv('WEBULL_TEST_ACCOUNT_ID')),
     'currency': _cfg('webull.currency', os.getenv('WEBULL_CURRENCY', 'USD')),
     'account_tax_type': _cfg('webull.account_tax_type', os.getenv('WEBULL_ACCOUNT_TAX_TYPE', 'GENERAL')),
 }
@@ -204,3 +207,36 @@ def validate_config():
             errors.append("WEBULL_APP_SECRET is required when AUTO_TRADE is enabled")
     
     return errors
+
+
+def get_account_constraints() -> str:
+    """
+    Get natural language account constraints from config.
+    These constraints are passed to the AI parser to enforce rules automatically.
+    
+    Returns:
+        str: Natural language constraints string
+    """
+    constraints = _cfg('account_constraints', '')
+    if isinstance(constraints, str):
+        return constraints.strip()
+    return ''
+
+
+def get_analyst_for_channel(channel_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Get analyst profile for a given Discord channel ID.
+    
+    Args:
+        channel_id: Discord channel ID (int or str)
+    
+    Returns:
+        Dict with analyst config (name, multipliers, preferences) or None if not configured
+    """
+    channel_str = str(channel_id)
+    analyst_channels = _cfg('analyst_channels', {})
+    
+    if not isinstance(analyst_channels, dict):
+        return None
+    
+    return analyst_channels.get(channel_str)

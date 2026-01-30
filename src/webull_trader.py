@@ -1,491 +1,390 @@
+"""
+Production-Ready Webull OpenAPI Trading Integration
+
+Simplified, clean, and maintainable implementation.
+"""
+
 import uuid
 from typing import Any, Dict, Optional, List
 
-from webullsdkcore.client import ApiClient
-from webullsdktrade.api import API
+from webull.core.client import ApiClient
+from webull.trade.trade_client import TradeClient
 
 from src.utils.logger import setup_logger
+from src.models import *
 
+from config.settings import WEBULL_CONFIG
 logger = setup_logger("webull_trader")
 
 
 class WebullTrader:
     """
-    Webull OpenAPI trading integration with REAL paper trading support.
+    Simplified Webull OpenAPI trader.
     
-    Key Features:
-    - Paper trading: Uses Webull's UAT/test environment (us-openapi-alb.uat.webullbroker.com)
-    - Live trading: Uses production environment (api.webull.com)
-    - Both modes hit REAL Webull APIs (not simulated locally)
-    
-    Environments:
-    - Production: api.webull.com (REAL MONEY)
-    - UAT/Test: us-openapi-alb.uat.webullbroker.com (PAPER TRADING)
-    
-    Configuration:
-    - app_key, app_secret: Webull OpenAPI credentials
-    - region: Trading region (US, HK, JP)
-    - paper_trade: If True, uses UAT endpoint; if False, uses production
-    - use_market_orders: If False, requires limit_price for orders
-    """
-
-    # Webull API Endpoints
-    ENDPOINTS = {
-        'us': {
-            'production': 'api.webull.com',
-            'uat': 'us-openapi-alb.uat.webullbroker.com',
-        },
-        'hk': {
-            'production': 'api.webull.hk',
-            'uat': 'api.sandbox.webull.hk',
-        },
-        'jp': {
-            'production': 'api.webull.co.jp',
-            'uat': 'jp-openapi-alb.uat.webullbroker.com',
-        },
-    }
-
-    def __init__(self, config: Dict[str, Any], trading_config: Optional[Dict[str, Any]] = None):
-        """
-        Initialize Webull trader.
-        
-        Args:
-            config: Base configuration dict
-            trading_config: Optional trading-specific overrides
-        """
-        raw = dict(config)
-
-        # Merge trading_config overrides if provided
-        if trading_config:
-            raw = {
-                **raw,
-                "paper_trade": trading_config.get("paper_trade", raw.get("paper_trade")),
-                "min_confidence": trading_config.get("min_confidence", raw.get("min_confidence")),
-                "default_amount": trading_config.get("default_amount", raw.get("default_amount")),
-                "default_dollar_amount": trading_config.get(
-                    "default_amount",
-                    raw.get("default_dollar_amount", raw.get("default_amount")),
-                ),
-                "use_market_orders": trading_config.get("use_market_orders", raw.get("use_market_orders")),
-                "extended_hours_trading": trading_config.get("extended_hours_trading", raw.get("extended_hours_trading")),
-                "time_in_force": trading_config.get("time_in_force", raw.get("time_in_force")),
-            }
-
-        self.config = self._normalize_config(raw)
-        logger.info(f"Webull config: {self.config}")
-
-        # Validate required credentials
-        if not self.config.get("app_key") or not self.config.get("app_secret"):
-            raise ValueError("WEBULL_APP_KEY and WEBULL_APP_SECRET are required for Webull OpenAPI.")
-
-        # Initialize API client with appropriate endpoint
-        region_id = self.config.get("region", "us").lower()
-        
-        # Determine endpoint based on paper_trade flag
-        endpoint = self._get_endpoint(region_id, self.config.get("paper_trade"))
-        
-        # Log which environment we're using
-        env_type = "UAT/PAPER" if self.config.get("paper_trade") else "PRODUCTION/LIVE"
-        logger.info(f"Initializing Webull API in {env_type} mode: {endpoint}")
-        
-        # Initialize API client
-        self.api_client = ApiClient(
-            self.config.get("app_key"),
-            self.config.get("app_secret"),
-            region_id,
+    Example:
+        trader = WebullTrader(
+            app_key="key",
+            app_secret="secret",
+            paper_trade=True
         )
         
-        # Set the endpoint (UAT or Production)
-        self.api_client.add_endpoint(region_id, endpoint)
+        order = StockOrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            quantity=10,
+            order_type=OrderType.LIMIT,
+            limit_price=150.0
+        )
         
-        # Initialize API (this gives us access to account_v2, order_v2, etc.)
-        self.api = API(self.api_client)
-        
-        # Cache account_id if provided
-        self._account_id: Optional[str] = self.config.get("account_id")
+        preview = trader.preview_stock_order(order)
+        if preview.valid:
+            result = trader.place_stock_order(order)
+    """
 
-    def _get_endpoint(self, region: str, paper_trade: bool) -> str:
-        """
-        Get the appropriate API endpoint based on region and paper_trade flag.
-        
-        Args:
-            region: Region code (us, hk, jp)
-            paper_trade: If True, return UAT endpoint; if False, return production
-            
-        Returns:
-            str: API endpoint URL
-        """
-        region = region.lower()
-        if region not in self.ENDPOINTS:
-            raise ValueError(f"Unsupported region: {region}. Supported: {list(self.ENDPOINTS.keys())}")
-        
-        endpoint_type = 'uat' if paper_trade else 'production'
-        return self.ENDPOINTS[region][endpoint_type]
+    ENDPOINTS = {
+        'us': {'production': 'api.webull.com', 'uat': 'us-openapi-alb.uat.webullbroker.com'},
+        'hk': {'production': 'api.webull.hk', 'uat': 'api.sandbox.webull.hk'},
+        'jp': {'production': 'api.webull.co.jp', 'uat': 'jp-openapi-alb.uat.webullbroker.com'},
+    }
 
-    # ---------- Account Management ----------
+    def __init__(
+        self,
+        app_key: str,
+        app_secret: str,
+        region: str = "US",
+        paper_trade: bool = True,
+        account_id: Optional[str] = None,
+    ):
+        """Initialize trader"""
+        self.app_key = app_key
+        self.app_secret = app_secret
+        self.region = region.lower()
+        self.paper_trade = paper_trade
+        self._account_id = account_id
+        
+        self._validate_config()
+        self._init_api_client()
+
+    def _validate_config(self):
+        """Validate configuration"""
+        if not self.app_key or not self.app_secret:
+            raise ValueError("app_key and app_secret required")
+        if self.region not in self.ENDPOINTS:
+            raise ValueError(f"Invalid region: {self.region}")
+
+    def _init_api_client(self):
+        """Initialize API client"""
+        endpoint = self._get_endpoint()
+        env = "UAT/PAPER" if self.paper_trade else "PRODUCTION/LIVE"
+        
+        logger.info(f"Init Webull API: {env} mode, region: {self.region.upper()}, endpoint: {endpoint}")
+        
+        self.api_client = ApiClient(self.app_key, self.app_secret, self.region)
+        self.api_client.add_endpoint(self.region, endpoint)
+        self._account_id =  WEBULL_CONFIG.get('test_account_id') if self.paper_trade else self._account_id
+        self.trade_client = TradeClient(self.api_client)
+
+    def _get_endpoint(self) -> str:
+        """Get API endpoint"""
+        env_type = "uat" if self.paper_trade else "production"
+        return self.ENDPOINTS[self.region][env_type]
+
+    # ============================================================================
+    # Account Management
+    # ============================================================================
 
     def resolve_account_id(self) -> str:
-        """
-        Get account_id (uses configured account_id if provided; else fetch first available).
-        
-        Returns:
-            str: The account ID
-            
-        Raises:
-            RuntimeError: If account list cannot be fetched or parsed
-        """
+        """Get account ID"""
         if self._account_id:
+            logger.info(f"Using provided account ID: {self._mask_id(self._account_id)}")
             return self._account_id
 
-        # Fetch account list using v2 API
-        res = self.api.account_v2.get_account_list()
-        self._ensure_ok(res, "get_account_list")
-
+        res = self.trade_client.account_v2.get_account_list()
+        self._check_response(res, "get_account_list")
+        
         data = res.json()
-        account_id = None
+        accounts = self._extract_accounts(data)
+        
+        if not accounts:
+            raise RuntimeError(f"No accounts found: {data}")
 
-        # Handle various response formats
-        if isinstance(data, dict):
-            # Try common keys
-            for key in ("accounts", "account_list", "data", "list"):
-                if key in data and isinstance(data[key], list) and data[key]:
-                    account_id = data[key][0].get("account_id") or data[key][0].get("accountId")
-                    break
-            if not account_id and "account_id" in data:
-                account_id = data.get("account_id")
-        elif isinstance(data, list) and data:
-            account_id = data[0].get("account_id") or data[0].get("accountId")
-
+        account_id = accounts[0].get('account_id') or accounts[0].get('accountId')
         if not account_id:
-            raise RuntimeError(f"Could not parse account_id from account list response: {data}")
+            raise RuntimeError(f"No account_id in: {accounts[0]}")
 
         self._account_id = str(account_id)
+        logger.info(f"Resolved account: {self._mask_id(self._account_id)}")
         return self._account_id
 
+    def _extract_accounts(self, data: Any) -> List[Dict]:
+        """Extract accounts list from various response formats"""
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            return data.get('accounts') or data.get('data') or data.get('list', [])
+        return []
+
     def get_account_balance(self) -> Dict[str, Any]:
-        """
-        Return raw account balance JSON.
-        
-        Returns:
-            Dict: Account balance data
-        """
+        """Get account balance"""
         account_id = self.resolve_account_id()
-        res = self.api.account_v2.get_account_balance(account_id)
-        self._ensure_ok(res, "get_account_balance")
+        res = self.trade_client.account_v2.get_account_balance(account_id)
+        self._check_response(res, "get_account_balance")
         return res.json()
-    
+
     def get_account_positions(self) -> Dict[str, Any]:
-        """
-        Return raw account positions JSON.
-        
-        Returns:
-            Dict: Account positions data
-        """
+        """Get current positions"""
         account_id = self.resolve_account_id()
-        res = self.api.account_v2.get_account_position(account_id)
-        self._ensure_ok(res, "get_account_position")
+        res = self.trade_client.account_v2.get_account_position(account_id)
+        self._check_response(res, "get_account_position")
         return res.json()
 
     def login(self) -> bool:
-        """
-        Validate Webull OpenAPI credentials by resolving account_id.
-        
-        Returns:
-            bool: True if login successful, False otherwise
-        """
+        """Validate credentials"""
         try:
-            account_id = self.resolve_account_id()
-            account_id_str = str(account_id)
-            masked = account_id_str[-4:].rjust(len(account_id_str), "•") if account_id else "unknown"
-            env_type = "UAT/PAPER" if self.config.get("paper_trade") else "PRODUCTION/LIVE"
-            logger.info(f"Webull OpenAPI authenticated in {env_type} mode (account_id {masked})")
+            self.resolve_account_id()
+            env = "UAT/PAPER" if self.paper_trade else "PRODUCTION/LIVE"
+            logger.info(f"Authenticated in {env} mode")
             return True
         except Exception as exc:
-            logger.error("Webull OpenAPI login failed: %s", exc)
+            logger.error(f"Login failed: {exc}")
             return False
 
-    # ---------- Order Building ----------
+    # ============================================================================
+    # Order Preview
+    # ============================================================================
 
-    def build_order_payload_from_pick(
-        self,
-        pick: Dict[str, Any],
-        *,
-        symbol: str,
-        market: Optional[str] = None,
-        instrument_type: str = "EQUITY",
-        quantity: Optional[int] = None,
-        limit_price: Optional[float] = None,
-    ) -> Dict[str, Any]:
+
+    def preview_stock_order(self, order: StockOrderRequest) -> Dict[str, Any]:
         """
-        Build a Webull OpenAPI order payload (v2 style) based on a parsed 'pick'.
-        This does NOT place the trade; it just constructs the payload.
-
-        Args:
-            pick: Parsed pick dict with action, confidence, etc.
-            symbol: Stock symbol
-            market: Market (US, HK, JP)
-            instrument_type: EQUITY, OPTION, etc.
-            quantity: Number of shares
-            limit_price: Limit price (required if not using market orders)
-            
-        Returns:
-            Dict: Order payload ready for place_order_v2
-            
-        Raises:
-            ValueError: If action unsupported or required fields missing
+        Preview stock order using Webull's API.
+        Returns raw response from Webull.
         """
-        action = (pick.get("action") or "").upper()
-        if action not in ("BUY", "SELL"):
-            raise ValueError(f"Unsupported action for ordering: {action}")
+        account_id = self.resolve_account_id()
+        payload = self._build_stock_payload(order)
+        
+        logger.info(f"Previewing {order.side} {order.quantity} {order.symbol}...")
+        
+        res = self.trade_client.order_v2.preview_order(account_id, [payload])
+        self._check_response(res, "preview_order")
+        
+        preview_data = res.json()
+        logger.info(f"Preview response: {preview_data}")
+        
+        # Best practice: use model_validate
+        return OrderPreviewResponse.model_validate(preview_data)
 
-        option_type = (pick.get("option_type") or "STOCK").upper()
-        if option_type != "STOCK":
-            raise ValueError("This payload builder currently supports STOCK only (option_type=STOCK).")
+    def preview_option_order(self, order: OptionOrderRequest) -> OrderPreviewResponse:
+        """Preview option order using Webull's preview_option API"""
+        account_id = self.resolve_account_id()
+        
+        # Convert Pydantic model to dict for API
+        payload = order.model_dump(exclude_none=True)
+        logger.info(f"Formatted option payload: {payload}")
+        
+        logger.info(f"Previewing option {order.side} {order.quantity} {order.legs[0].symbol}...")
+        
+        res = self.trade_client.order_v2.preview_option(account_id, [payload])
+        self._check_response(res, "preview_option")
+        
+        preview_data = res.json()
+        logger.info(f"Option preview response: {preview_data}")
+        
+        return OrderPreviewResponse.model_validate(preview_data)
 
-        if quantity is None:
-            quantity = 1
+    def _get_buying_power(self) -> Optional[float]:
+        """Get buying power (returns None if fails)"""
+        try:
+            balance = self.get_account_balance()
+            return float(balance.get('buying_power', 0))
+        except:
+            return None
 
-        client_order_id = uuid.uuid4().hex
+    # ============================================================================
+    # Order Placement - Stocks
+    # ============================================================================
 
-        if self.config.get("use_market_orders"):
-            order_type = "MARKET"
-        else:
-            order_type = "LIMIT"
+    def place_stock_order(self, order: StockOrderRequest, skip_preview: bool = False) -> Dict[str, Any]:
+        """Place stock order"""
+        # Preview first (unless skipped)
+        if not skip_preview:
+            preview = self.preview_stock_order(order)
+            if not preview:
+                raise ValueError(f"Preview failed: {preview.errors}")
+            logger.info(f"estimated cost: {preview.estimated_cost}, fee: {preview.estimated_transaction_fee}")
+        
+        # Build and send
+        payload = self._build_stock_payload(order)
+        return self._execute_order(payload, f"{order.side} {order.quantity} {order.symbol}")
 
-        payload: Dict[str, Any] = {
-            "client_order_id": client_order_id,
-            "symbol": symbol,
-            "instrument_type": instrument_type,
-            "market": (market or self.config.get("default_market")),
-            "order_type": order_type,
-            "quantity": self._format_quantity(quantity),
-            "side": action,
-            "time_in_force": self.config.get("time_in_force"),
+    def _build_stock_payload(self, order: StockOrderRequest) -> Dict[str, Any]:
+        """Build stock order payload"""
+        payload = {
+            "client_order_id": uuid.uuid4().hex,
+            "symbol": order.symbol,
+            "instrument_type": "EQUITY",
+            "market": "US",
+            "order_type": order.order_type,
+            "quantity": self._format_quantity(order.quantity),
+            "side": order.side,
+            "time_in_force": order.time_in_force,
             "entrust_type": "QTY",
-            "support_trading_session": "Y" if self.config.get("extended_hours_trading") else "N",
+            "combo_type": "NORMAL",
+            "support_trading_session": order.trading_session,
         }
-
-        if self.config.get("account_tax_type"):
-            payload["account_tax_type"] = self.config.get("account_tax_type")
-
-        if order_type == "LIMIT":
-            if limit_price is None:
-                raise ValueError("limit_price is required when use_market_orders=False")
-            payload["limit_price"] = str(limit_price)
-
+        
+        if order.order_type == OrderType.LIMIT:
+            payload["limit_price"] = str(order.limit_price)
+        
         return payload
 
-    # ---------- Order Placement ----------
+    # ============================================================================
+    # Order Placement - Options
+    # ============================================================================
 
-    def place_order_v2(self, new_order_payload: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Place an order using order_v2.place_order (official v2 API style).
+    def place_option_order(self, order: OptionOrderRequest, skip_preview: bool = False) -> Dict[str, Any]:
+        """Place option order using Webull's place_option API"""
+        if not skip_preview:
+            preview = self.preview_option_order(order)
+            if not preview:
+                raise ValueError(f"Option preview failed: {preview.errors}")
+            logger.info(f"Preview: ${preview.estimated_cost} {preview.currency}")
         
-        This ACTUALLY calls the Webull API:
-        - If paper_trade=True: Calls UAT environment (test account, fake money)
-        - If paper_trade=False: Calls production environment (REAL MONEY!)
-        
-        Args:
-            new_order_payload: Order payload from build_order_payload_from_pick
-            
-        Returns:
-            Dict: Order response from Webull API
-        """
         account_id = self.resolve_account_id()
-        env_type = "UAT/PAPER" if self.config.get("paper_trade") else "PRODUCTION/LIVE"
         
-        logger.info(f"Placing order in {env_type} environment...")
-
-        try:
-            # Place order using v2 API (hits REAL Webull endpoint)
-            res = self.api.order_v2.place_order(account_id=account_id, new_orders=new_order_payload)
-            self._ensure_ok(res, "place_order_v2")
-            response = res.json()
-            
-            # Add metadata to indicate which environment was used
-            response['_environment'] = env_type
-            response['_paper_trade'] = self.config.get("paper_trade")
-            
-            return response
-        except Exception as exc:
-            logger.error("Order placement failed in %s environment: %s", env_type, exc)
-            raise
-
-    def execute_trade(self, pick: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Execute a trade based on a parsed pick.
+        # Convert Pydantic model to dict for API
+        payload = order.model_dump(exclude_none=True)
         
-        Args:
-            pick: Pick dict with ticker, action, confidence, price, etc.
-            
-        Returns:
-            Dict: Order response on success, None otherwise
-        """
-        try:
-            # Extract and validate symbol
-            symbol = self._normalize_symbol(pick.get("ticker") or pick.get("symbol"))
-            if not symbol:
-                logger.warning("Skipping trade: missing ticker/symbol in pick %s", pick)
-                return None
-
-            # Validate action
-            action = (pick.get("action") or "").upper()
-            if action not in ("BUY", "SELL"):
-                logger.warning("Skipping trade for %s: unsupported action %s", symbol, action)
-                return None
-
-            # Check confidence threshold
-            confidence = float(pick.get("confidence") or 0.0)
-            if confidence < self.config.get("min_confidence"):
-                logger.info(
-                    "Skipping %s: confidence %.2f below threshold %.2f",
-                    symbol,
-                    confidence,
-                    self.config.get("min_confidence"),
-                )
-                return None
-
-            # Check option type (only support STOCK for now)
-            option_type = (pick.get("option_type") or "STOCK").upper()
-            if option_type != "STOCK":
-                logger.info("Skipping %s: options not supported (option_type=%s)", symbol, option_type)
-                return None
-
-            # Skip SELL orders (require manual review)
-            if action == "SELL":
-                logger.info("Skipping SELL for %s (manual review required)", symbol)
-                return None
-
-            # Calculate quantity
-            quantity = self._calculate_quantity(pick)
-            if not quantity:
-                logger.warning("Skipping %s: unable to determine quantity", symbol)
-                return None
-
-            # Get limit price if needed
-            limit_price = None
-            if not self.config.get("use_market_orders"):
-                limit_price = pick.get("price") or pick.get("limit_price")
-                if limit_price is None:
-                    logger.warning("Skipping %s: limit price required for limit orders", symbol)
-                    return None
-
-            # Build order payload
-            payload = self.build_order_payload_from_pick(
-                pick,
-                symbol=symbol,
-                market=(pick.get("market") or self.config.get("default_market")),
-                instrument_type="EQUITY",
-                quantity=quantity,
-                limit_price=limit_price,
-            )
-
-            # Place order (hits REAL API)
-            result = self.place_order_v2(payload)
-            env_type = result.get('_environment', 'UNKNOWN')
-            logger.info("Order submitted for %s (%s) in %s environment", symbol, action, env_type)
-            return result
-            
-        except Exception as exc:
-            logger.error("Trade execution failed: %s", exc, exc_info=True)
-            return None
-
-    # ---------- Query Methods ----------
-    
-    def get_order_history(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """
-        Get order history.
+        env = "UAT/PAPER" if self.paper_trade else "PRODUCTION/LIVE"
+        symbol = order.legs[0].symbol if order.legs else "unknown"
+        logger.info(f"Placing option {order.side} {order.quantity} {symbol} in {env}...")
         
-        Args:
-            limit: Maximum number of orders to return
-            
-        Returns:
-            List of order dicts
-        """
-        account_id = self.resolve_account_id()
-        res = self.api.order_v2.query_orders_v2(account_id=account_id)
-        self._ensure_ok(res, "query_orders_v2")
-        data = res.json()
+        res = self.trade_client.order_v2.place_option(account_id, [payload])
+        self._check_response(res, "place_option")
         
-        # Handle various response formats
-        if isinstance(data, dict):
-            return data.get("orders", data.get("data", []))[:limit]
-        return data[:limit] if isinstance(data, list) else []
+        response = res.json()
+        logger.info(f"Option order placed: {response}")
+        return response
 
-    # ---------- Internals ----------
-
-    def _normalize_config(self, raw: Dict[str, Any]) -> Dict[str, Any]:
-        """Normalize and validate configuration."""
-        def _first(*keys: str) -> Optional[Any]:
-            for key in keys:
-                if key in raw and raw[key] is not None:
-                    return raw[key]
-            return None
-
-        default_amount = raw.get("default_amount", raw.get("default_dollar_amount", 250.0))
-        if default_amount is None:
-            default_amount = 250.0
-
-        return {
-            "app_key": _first("app_key", "appKey"),
-            "app_secret": _first("app_secret", "appSecret"),
-            "region": str(_first("region") or "US"),
-            "account_id": _first("account_id", "accountId"),
-            "currency": str(_first("currency") or "USD"),
-            "account_tax_type": _first("account_tax_type", "accountTaxType") or "GENERAL",
-            "default_market": str(_first("default_market") or "US"),
-            "paper_trade": bool(raw.get("paper_trade", True)),
-            "min_confidence": float(raw.get("min_confidence", 0.80)),
-            "default_dollar_amount": float(default_amount),
-            "use_market_orders": bool(raw.get("use_market_orders", True)),
-            "extended_hours_trading": bool(raw.get("extended_hours_trading", False)),
-            "time_in_force": str(raw.get("time_in_force", "DAY")),
+    def _build_option_payload(self, order: OptionOrderRequest) -> Dict[str, Any]:
+        """Build option order payload"""
+        option_symbol = self._format_option_symbol(order)
+        
+        payload = {
+            "client_order_id": uuid.uuid4().hex,
+            "symbol": option_symbol,
+            "instrument_type": "OPTION",
+            "market": "US",
+            "order_type": order.order_type,
+            "quantity": str(order.quantity),
+            "side": order.side,
+            "time_in_force": order.time_in_force,
+            "entrust_type": "QTY",
+            "combo_type": "NORMAL",
+            "support_trading_session": "CORE",
         }
+        
+        if order.order_type == OrderType.LIMIT:
+            payload["limit_price"] = str(order.limit_price)
+        
+        return payload
 
-    def _calculate_quantity(self, pick: Dict[str, Any]) -> Optional[float]:
-        """Calculate order quantity from pick."""
-        quantity = pick.get("quantity")
-        if quantity:
-            try:
-                return float(quantity)
-            except (TypeError, ValueError):
-                return None
+    def _format_option_symbol(self, order: OptionOrderRequest) -> str:
+        """Format option symbol (e.g., AAPL250117C00150000)"""
+        expiry = order.expiry_date.replace("-", "")[2:]  # YYMMDD
+        option_code = order.option_type[0]  # C or P
+        strike = f"{int(order.strike_price * 1000):08d}"
+        return f"{order.symbol}{expiry}{option_code}{strike}"
 
-        price = pick.get("price")
-        if price:
-            try:
-                price_val = float(price)
-                if price_val <= 0:
-                    return None
-                qty = max(1, int(self.config.get("default_dollar_amount") // price_val))
-                return qty
-            except (TypeError, ValueError):
-                return None
+    # ============================================================================
+    # Batch Orders
+    # ============================================================================
 
-        return 1
+    def place_batch_orders(
+        self,
+        stock_orders: Optional[List[StockOrderRequest]] = None,
+        option_orders: Optional[List[OptionOrderRequest]] = None,
+        skip_preview: bool = False
+    ) -> Dict[str, Any]:
+        """Place batch orders (up to 50)"""
+        payloads = []
+        
+        # Add stock orders
+        if stock_orders:
+            payloads.extend(self._build_batch_stock_orders(stock_orders, skip_preview))
+        
+        # Add option orders
+        if option_orders:
+            payloads.extend(self._build_batch_option_orders(option_orders, skip_preview))
+        
+        if not payloads:
+            logger.warning("No valid orders to place")
+            return {}
+        
+        if len(payloads) > 50:
+            raise ValueError(f"Max 50 orders per batch, got {len(payloads)}")
+        
+        env = "UAT/PAPER" if self.paper_trade else "PRODUCTION/LIVE"
+        logger.info(f"Placing batch of {len(payloads)} orders in {env}...")
+        
+        account_id = self.resolve_account_id()
+        res = self.trade_client.order_v2.place_order(account_id=account_id, new_orders=payloads)
+        self._check_response(res, "batch_place_order")
+        
+        response = res.json()
+        logger.info(f"Batch complete: {response}")
+        return response
 
-    def _format_quantity(self, quantity: Any) -> str:
-        """Format quantity as string."""
-        try:
-            if float(quantity).is_integer():
-                return str(int(quantity))
-            return str(quantity)
-        except Exception:
-            return str(quantity)
+    def _build_batch_stock_orders(self, orders: List[StockOrderRequest], skip_preview: bool) -> List[Dict]:
+        """Build stock order payloads for batch"""
+        payloads = []
+        for order in orders:
+            if not skip_preview:
+                preview = self.preview_stock_order(order)
+                if not preview.valid:
+                    logger.error(f"Skipping {order.symbol}: {preview.errors}")
+                    continue
+            payloads.append(self._build_stock_payload(order))
+        return payloads
 
-    def _normalize_symbol(self, symbol: Optional[str]) -> str:
-        """Normalize stock symbol."""
-        if not symbol:
-            return ""
-        return str(symbol).strip().replace("$", "").upper()
+    def _build_batch_option_orders(self, orders: List[OptionOrderRequest], skip_preview: bool) -> List[Dict]:
+        """Build option order payloads for batch"""
+        payloads = []
+        for order in orders:
+            if not skip_preview:
+                preview = self.preview_option_order(order)
+                if not preview.valid:
+                    logger.error(f"Skipping {order.symbol} option: {preview.errors}")
+                    continue
+            payloads.append(self._build_option_payload(order))
+        return payloads
 
-    def _ensure_ok(self, response: Any, name: str) -> None:
-        """Ensure API response is successful."""
-        status = getattr(response, "status_code", None)
-        if status != 200:
-            body = None
-            try:
-                body = response.json()
-            except Exception:
-                body = getattr(response, "text", None)
-            raise RuntimeError(f"{name} failed (status_code={status}): {body}")
+    # ============================================================================
+    # Helper Methods
+    # ============================================================================
+
+    def _execute_order(self, payload: Dict[str, Any], description: str) -> Dict[str, Any]:
+        """Execute order (common logic for stocks and options)"""
+        account_id = self.resolve_account_id()
+        env = "UAT/PAPER" if self.paper_trade else "PRODUCTION/LIVE"
+        
+        logger.info(f"Placing {description} in {env}...")
+        
+        res = self.trade_client.order_v2.place_order(account_id=account_id, new_orders=[payload])
+        self._check_response(res, "place_order")
+        
+        response = res.json()
+        logger.info(f"Order placed: {response}")
+        return response
+
+    def _check_response(self, response: Any, operation: str):
+        """Check API response status"""
+        if response.status_code != 200:
+            raise RuntimeError(f"{operation} failed ({response.status_code}): {response.text}")
+
+    def _format_quantity(self, quantity: float) -> str:
+        """Format quantity as string"""
+        return str(int(quantity)) if quantity.is_integer() else str(quantity)
+
+    def _mask_id(self, account_id: str) -> str:
+        """Mask account ID for logging"""
+        return account_id[-4:].rjust(len(account_id), "•")

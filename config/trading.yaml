@@ -1,0 +1,139 @@
+# StockTalk Trading Configuration
+# Edit this file to configure behavior without touching code.
+# Secrets (Discord token, API keys) should stay in .env.
+# This replaces the old config.yaml with clearer intent.
+
+version: 1
+
+# =============================================================================
+# AI/PARSING CONFIGURATION
+# =============================================================================
+ai:
+  # Provider options: openai | anthropic | google | none
+  # If unset, the app will pick the first available key in .env
+  provider: auto
+
+  # If true, falls back to any available provider if the preferred one fails
+  fallback_to_available_provider: true
+
+  prompt:
+    # Path to the prompt template file
+    file: config/ai_parser.prompt
+
+  openai:
+    model: gpt-4o
+    max_tokens: 2000
+    temperature: 0.2
+
+  anthropic:
+    model: claude-sonnet-4-5
+    max_tokens: 2000
+    temperature: 0.2
+
+  google:
+    model: gemini-3-pro-preview
+    temperature: 0.2
+
+# =============================================================================
+# TRADING EXECUTION CONFIGURATION
+# =============================================================================
+trading:
+  # Enable automatic trade execution via Webull API
+  auto_trade: false
+  
+  # CRITICAL: Toggle between paper trading (UAT/test) and live trading (production)
+  # true = Paper trading (us-openapi-alb.uat.webullbroker.com) - SAFE FOR TESTING
+  # false = Live trading (api.webull.com) - REAL MONEY - USE WITH CAUTION
+  paper_trade: true
+  
+  # Minimum confidence threshold for AI-parsed picks (0.0-1.0)
+  # Picks below this confidence will be logged but not executed
+  min_confidence: 0.7
+  
+  # Default dollar amount per trade when weight is not specified
+  default_amount: 1000
+  
+  # Use market orders (vs limit orders)
+  use_market_orders: true
+  
+  # Allow extended hours trading (pre-market, after-market)
+  extended_hours_trading: false
+  
+  # Time in force: DAY, GTC, IOC, FOK
+  time_in_force: DAY
+
+# =============================================================================
+# ACCOUNT CONSTRAINTS (Natural Language)
+# =============================================================================
+# These constraints are passed to the AI parser to enforce position sizing,
+# margin management, and portfolio rules automatically.
+# Use natural language to describe your account rules.
+account_constraints: |
+  MARGIN CONSTRAINTS:
+  - Never let margin maintenance buffer fall below $1,000
+  - Maximum margin usage ratio: 70% of available margin
+  - Warn if position would cause margin buffer to drop below $1,500
+  
+  POSITION SIZING CONSTRAINTS:
+  - No single position should exceed 30% of total account value
+  - Maximum 5 open positions at any time
+  - Close or reduce positions if any approach 25% allocation
+  
+  TRADING RULES:
+  - Only execute LONG positions (no short selling)
+  - Prioritize liquidity: only trade stocks with avg daily volume > 1M shares
+  - Never add to a losing position within 48 hours of initial entry
+
+# =============================================================================
+# CHANNEL-TO-ANALYST MAPPING
+# =============================================================================
+# Map Discord channel IDs to analyst profiles.
+# Each analyst has custom sizing multipliers, options preferences, and margin rules.
+# Enables per-analyst configuration without code changes.
+analyst_channels:
+  # Format: channel_id: {name, commons_multiplier, options_multiplier, margin_buffer_required}
+  # Example:
+  # "123456789": 
+  #   name: "Cramer"
+  #   commons_multiplier: 2.0      # Double his stock sizing
+  #   options_multiplier: 2.5      # Even more aggressive with options
+  #   margin_buffer_required: 1500 # Enforce higher buffer for this analyst
+  #   options_preferences: |
+  #     Prefer out-of-money calls (0.05-0.15 delta).
+  #     Keep short-term calls (<30 DTE) to 20% of position.
+  #     If analyst suggests $X strike, also consider $X+1 and $X+2 for wave trades.
+
+  # PLACEHOLDER: Add your analyst channels here
+  # "1234567890":
+  #   name: "Analyst1"
+  #   commons_multiplier: 1.5
+  #   options_multiplier: 2.0
+  #   margin_buffer_required: 1000
+  #   options_preferences: ""
+
+# =============================================================================
+# NOTIFICATION CONFIGURATION
+# =============================================================================
+notifications:
+  desktop_notifications: true
+  sound_alert: true
+  copy_to_clipboard: true
+
+# =============================================================================
+# WEBULL CONFIGURATION
+# =============================================================================
+webull:
+  region: US
+  # Paper trading endpoint (UAT) -- set via trading.paper_trade
+  # Production endpoint -- set via trading.paper_trade
+  # The WebullTrader class will automatically select based on trading.paper_trade
+  
+  # Account ID is fetched dynamically via API, can be cached here if needed
+  account_id: ""
+
+  test_app_key: "a88f2efed4dca02b9bc1a3cecbc35dba"
+  test_app_secret: "c2895b3526cc7c7588758351ddf425d6"
+  webull_test_account_id: "J6HA4EBQRQFJD2J6NQH0F7M649"
+  
+  currency: USD
+  account_tax_type: GENERAL
