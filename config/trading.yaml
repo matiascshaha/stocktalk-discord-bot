@@ -1,7 +1,7 @@
 # StockTalk Trading Configuration
 # Edit this file to configure behavior without touching code.
 # Secrets (Discord token, API keys) should stay in .env.
-# This replaces the old config.yaml with clearer intent.
+# This replaces the old trading.yaml with clearer intent.
 
 version: 1
 
@@ -18,20 +18,11 @@ ai:
 
   prompt:
     # Path to the prompt template file
-    file: config/ai_parser.prompt
+    file: ./config/ai_parser.prompt
 
   openai:
     model: gpt-4o
     max_tokens: 2000
-    temperature: 0.2
-
-  anthropic:
-    model: claude-sonnet-4-5
-    max_tokens: 2000
-    temperature: 0.2
-
-  google:
-    model: gemini-3-pro-preview
     temperature: 0.2
 
 # =============================================================================
@@ -39,12 +30,12 @@ ai:
 # =============================================================================
 trading:
   # Enable automatic trade execution via Webull API
-  auto_trade: false
+  auto_trade: true
   
   # CRITICAL: Toggle between paper trading (UAT/test) and live trading (production)
   # true = Paper trading (us-openapi-alb.uat.webullbroker.com) - SAFE FOR TESTING
   # false = Live trading (api.webull.com) - REAL MONEY - USE WITH CAUTION
-  paper_trade: true
+  paper_trade: false
   
   # Minimum confidence threshold for AI-parsed picks (0.0-1.0)
   # Picks below this confidence will be logged but not executed
@@ -70,19 +61,10 @@ trading:
 # Use natural language to describe your account rules.
 account_constraints: |
   MARGIN CONSTRAINTS:
-  - Never let margin maintenance buffer fall below $1,000
-  - Maximum margin usage ratio: 70% of available margin
-  - Warn if position would cause margin buffer to drop below $1,500
-  
-  POSITION SIZING CONSTRAINTS:
-  - No single position should exceed 30% of total account value
-  - Maximum 5 open positions at any time
-  - Close or reduce positions if any approach 25% allocation
+  - Never let margin maintenance buffer fall below $1,000. Don't place the trade if it would lower margin buffer below 1000$
   
   TRADING RULES:
-  - Only execute LONG positions (no short selling)
-  - Prioritize liquidity: only trade stocks with avg daily volume > 1M shares
-  - Never add to a losing position within 48 hours of initial entry
+  - Only execute LONG positions or PUT positions. only commons or options (PUT/CALL). no short selling.
 
 # =============================================================================
 # CHANNEL-TO-ANALYST MAPPING
@@ -93,23 +75,57 @@ account_constraints: |
 analyst_channels:
   # Format: channel_id: {name, commons_multiplier, options_multiplier, margin_buffer_required}
   # Example:
-  # "123456789": 
-  #   name: "Cramer"
-  #   commons_multiplier: 2.0      # Double his stock sizing
-  #   options_multiplier: 2.5      # Even more aggressive with options
-  #   margin_buffer_required: 1500 # Enforce higher buffer for this analyst
-  #   options_preferences: |
-  #     Prefer out-of-money calls (0.05-0.15 delta).
-  #     Keep short-term calls (<30 DTE) to 20% of position.
-  #     If analyst suggests $X strike, also consider $X+1 and $X+2 for wave trades.
+  "1229546005788098580": 
+    name: "Stock Talk"
+    analyst_preferences: |
+      When an analyst posts an options alert for a ticker:
 
-  # PLACEHOLDER: Add your analyst channels here
-  # "1234567890":
-  #   name: "Analyst1"
-  #   commons_multiplier: 1.5
-  #   options_multiplier: 2.0
-  #   margin_buffer_required: 1000
-  #   options_preferences: ""
+      You will be provided the full options chain in the prompt.
+
+      1) Determine analyst weighting:
+          - Bucket A: >= 5%
+          - Bucket B: < 5%
+
+      2) Buy the analyst’s exact recommended option:
+          - Bucket A: $2,000
+          - Bucket B: $1,000
+
+      3) Buy common shares:
+          - Bucket A: $4,000
+          - Bucket B: $3,000
+
+      4) Add a short-term lotto option (<30 DTE, nearest ATM from the chain) ONLY if
+          its mid price is <= 5% above the analyst’s stated average:
+          - Bucket A: $1,000
+          - Bucket B: $500
+
+      The lotto is for quick momentum and quick exit.
+  "1014979505359683726": 
+    name: "Stock Talk"
+    analyst_preferences: |
+      When an analyst posts an options alert for a ticker:
+
+      You will be provided the full options chain in the prompt.
+
+      1) Determine analyst weighting:
+          - Bucket A: >= 5%
+          - Bucket B: < 5%
+
+      2) Buy the analyst’s exact recommended option:
+          - Bucket A: $2,000
+          - Bucket B: $1,000
+
+      3) Buy common shares:
+          - Bucket A: $4,000
+          - Bucket B: $3,000
+
+      4) Add a short-term lotto option (<30 DTE, nearest ATM from the chain) ONLY if
+          its mid price is <= 5% above the analyst’s stated average:
+          - Bucket A: $1,000
+          - Bucket B: $500
+
+      The lotto is for quick momentum and quick exit.
+
 
 # =============================================================================
 # NOTIFICATION CONFIGURATION

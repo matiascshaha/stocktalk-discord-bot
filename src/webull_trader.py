@@ -4,11 +4,15 @@ Production-Ready Webull OpenAPI Trading Integration
 Simplified, clean, and maintainable implementation.
 """
 
+from unicodedata import category
 import uuid
 from typing import Any, Dict, Optional, List
 
-from webull.core.client import ApiClient
-from webull.trade.trade_client import TradeClient
+# from webull.core.client import ApiClient
+from webullsdktrade.api import API
+from webullsdkcore.client import ApiClient
+from webullsdkcore.common.region import Region
+# from webull.trade.trade_client import TradeClient
 
 from src.utils.logger import setup_logger
 from src.models import *
@@ -51,7 +55,7 @@ class WebullTrader:
         self,
         app_key: str,
         app_secret: str,
-        region: str = "US",
+        region: str = Region.US.value,
         paper_trade: bool = True,
         account_id: Optional[str] = None,
     ):
@@ -82,7 +86,8 @@ class WebullTrader:
         self.api_client = ApiClient(self.app_key, self.app_secret, self.region)
         self.api_client.add_endpoint(self.region, endpoint)
         self._account_id =  WEBULL_CONFIG.get('test_account_id') if self.paper_trade else self._account_id
-        self.trade_client = TradeClient(self.api_client)
+        self.api = API(self.api_client)
+        self.trade_client = self.api
 
     def _get_endpoint(self) -> str:
         """Get API endpoint"""
@@ -164,7 +169,7 @@ class WebullTrader:
         
         logger.info(f"Previewing {order.side} {order.quantity} {order.symbol}...")
         
-        res = self.trade_client.order_v2.preview_order(account_id, [payload])
+        res = self.trade_client.order.preview_order(account_id, [payload])
         self._check_response(res, "preview_order")
         
         preview_data = res.json()
@@ -183,7 +188,7 @@ class WebullTrader:
         
         logger.info(f"Previewing option {order.side} {order.quantity} {order.legs[0].symbol}...")
         
-        res = self.trade_client.order_v2.preview_option(account_id, [payload])
+        res = self.trade_client.order.preview_option(account_id, [payload])
         self._check_response(res, "preview_option")
         
         preview_data = res.json()
@@ -205,31 +210,35 @@ class WebullTrader:
 
     def place_stock_order(self, order: StockOrderRequest, skip_preview: bool = False) -> Dict[str, Any]:
         """Place stock order"""
-        # Preview first (unless skipped)
-        if not skip_preview:
-            preview = self.preview_stock_order(order)
-            if not preview:
-                raise ValueError(f"Preview failed: {preview.errors}")
-            logger.info(f"estimated cost: {preview.estimated_cost}, fee: {preview.estimated_transaction_fee}")
-        
         # Build and send
         payload = self._build_stock_payload(order)
         return self._execute_order(payload, f"{order.side} {order.quantity} {order.symbol}")
 
+    def test(self):
+        """Test method"""
+        logger.info("Test method called")
+        from webullsdkquotescore.grpc.grpc_client import GrpcApiClient
+        grpc_client = GrpcApiClient(self.app_key, self.app_secret, self.region)
+        api = API(grpc_client)
+        a = api.market_data.get_snapshot("AAPL", category="US_STOCK")
+        logger.info(f"Snapshot: {a}")
+
     def _build_stock_payload(self, order: StockOrderRequest) -> Dict[str, Any]:
         """Build stock order payload"""
+        instrument = self.get_instrument(order.symbol)  # to get
+        if not instrument:
+            raise ValueError(f"Instrument not found for symbol: {order.symbol}")
+        
+        instrument_id = instrument[0].get("instrument_id")
+        
         payload = {
             "client_order_id": uuid.uuid4().hex,
-            "symbol": order.symbol,
-            "instrument_type": "EQUITY",
-            "market": "US",
+            "instrument_id": instrument_id,
             "order_type": order.order_type,
-            "quantity": self._format_quantity(order.quantity),
+            "qty": self._format_quantity(order.quantity),
             "side": order.side,
-            "time_in_force": order.time_in_force,
-            "entrust_type": "QTY",
-            "combo_type": "NORMAL",
-            "support_trading_session": order.trading_session,
+            "tif": order.time_in_force,
+            "extended_hours_trading": order.extended_hours_trading,
         }
         
         if order.order_type == OrderType.LIMIT:
@@ -258,7 +267,7 @@ class WebullTrader:
         symbol = order.legs[0].symbol if order.legs else "unknown"
         logger.info(f"Placing option {order.side} {order.quantity} {symbol} in {env}...")
         
-        res = self.trade_client.order_v2.place_option(account_id, [payload])
+        res = self.trade_client.order.place_option(account_id, [payload])
         self._check_response(res, "place_option")
         
         response = res.json()
@@ -327,7 +336,7 @@ class WebullTrader:
         logger.info(f"Placing batch of {len(payloads)} orders in {env}...")
         
         account_id = self.resolve_account_id()
-        res = self.trade_client.order_v2.place_order(account_id=account_id, new_orders=payloads)
+        res = self.trade_client.order.place_order(account_id=account_id, new_orders=payloads)
         self._check_response(res, "batch_place_order")
         
         response = res.json()
@@ -357,6 +366,16 @@ class WebullTrader:
                     continue
             payloads.append(self._build_option_payload(order))
         return payloads
+    # ============================================================================
+    # Quotes Methods
+    # ============================================================================
+
+    def get_instrument(self, symbols: str, category: str = "US_STOCK") -> List[Dict[str, Any]]:
+        response = self.api.instrument.get_instrument(symbols, category)
+        if response.status_code == 200:
+            instruments = response.json()
+        logger.info(f"Fetched {len(instruments)} instruments for symbols: {symbols}")
+        return instruments
 
     # ============================================================================
     # Helper Methods
@@ -369,7 +388,7 @@ class WebullTrader:
         
         logger.info(f"Placing {description} in {env}...")
         
-        res = self.trade_client.order_v2.place_order(account_id=account_id, new_orders=[payload])
+        res = self.trade_client.order.place_order(account_id=account_id, **payload)
         self._check_response(res, "place_order")
         
         response = res.json()

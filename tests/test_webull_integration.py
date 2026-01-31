@@ -82,7 +82,7 @@ class TestWebullTrader:
             quantity=1,
             order_type=OrderType.LIMIT,
             time_in_force="GTC",
-            limit_price=100.0  # Low price so it won't actually fill
+            limit_price=1.0  # Low price so it won't actually fill
         )
 
         # Place order (hits UAT API - paper trading)
@@ -162,6 +162,14 @@ class TestWebullTrader:
         print(f"   Full response: {result}")
         
         assert result is not None
+
+    def test_get_instrument(self, trader):
+        """Test fetching stock quote"""
+        trader.test()
+
+        #quote = trader.get_instrument("AAPL")
+        #assert quote is not None
+        #print(f"\n✅ Stock quote for AAPL:{quote}")
 
 
 if __name__ == '__main__':

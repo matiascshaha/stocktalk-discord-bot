@@ -95,7 +95,7 @@ cp .env.example .env
 
 Edit these files to control AI, trading, and notifications without touching Python:
 
-- `config/config.yaml`
+- `config/trading.yaml`
 - `config/ai_parser.prompt`
 
 Fill in your `.env` file:

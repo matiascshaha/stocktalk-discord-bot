@@ -232,7 +232,7 @@ When your account is approved, you'll need Webull OpenAPI credentials:
 ## 5. Configuration Settings
 
 These are not credentials, just configuration values. You can use the defaults or adjust.
-Preferred: edit `config/config.yaml` (no-code). The `.env` values still work as overrides.
+Preferred: edit `config/trading.yaml` (no-code). The `.env` values still work as overrides.
 
 ### Trading Settings
 

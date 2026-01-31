@@ -1,0 +1,929 @@
+17056 2026-01-27 22:54:50,483 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+17056 2026-01-27 22:54:56,892 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/preview",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T03:54:55Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "55c428d8-7f8f-5a30-99ae-e1533d8d456e",
+    "x-signature": "WZSjyd9MxrEZdYhEXZFb65M4QL8=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "238",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "new_orders": {
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "MARKET",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"new_orders\":{\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"MARKET\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: 3535ff38-cb4e-4aa9-8f9f-6790f2d8f9b4
+17056 2026-01-27 22:54:56,893 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "3535ff38-cb4e-4aa9-8f9f-6790f2d8f9b4"
+}
+18788 2026-01-27 22:56:09,938 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+18788 2026-01-27 22:56:14,993 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/preview",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T03:56:13Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "31906be7-c367-5607-9b27-bb13082ffafe",
+    "x-signature": "Q6W+uyK0IL4NMkMWgSw33AXi3Os=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "238",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "new_orders": {
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "MARKET",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"new_orders\":{\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"MARKET\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: 85b547b9-f298-42a0-bbf9-731db1d0f2ba
+18788 2026-01-27 22:56:14,993 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "85b547b9-f298-42a0-bbf9-731db1d0f2ba"
+}
+28628 2026-01-27 22:58:48,736 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+28628 2026-01-27 22:58:53,729 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/preview",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T03:58:52Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "135a80a3-9643-50d3-9ad3-a29415c901a8",
+    "x-signature": "NHpyLImDjYamIvqHJKYemnPMjnQ=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "291",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "new_orders": {
+      "client_order_id": "670995c77218412a9d13c0d285806ba2",
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "MARKET",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"new_orders\":{\"client_order_id\":\"670995c77218412a9d13c0d285806ba2\",\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"MARKET\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: b326e929-5b3f-4f9c-8f68-cf287fd0ff88
+28628 2026-01-27 22:58:53,729 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "b326e929-5b3f-4f9c-8f68-cf287fd0ff88"
+}
+42476 2026-01-27 23:00:27,541 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+42476 2026-01-27 23:00:32,752 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/preview",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:00:31Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "27b5080e-b2c9-5e03-810d-c430f6f4f0d3",
+    "x-signature": "N6UicJ7cbNouul32dlSuxF29KGc=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "313",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "new_orders": {
+      "client_order_id": "7e0f39dfc6894514b809b2e5940c38a1",
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "LIMIT",
+      "limit_price": "150.00",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"new_orders\":{\"client_order_id\":\"7e0f39dfc6894514b809b2e5940c38a1\",\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"LIMIT\",\"limit_price\":\"150.00\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: daf3b741-c899-4321-b588-72d88c22afd5
+42476 2026-01-27 23:00:32,752 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "daf3b741-c899-4321-b588-72d88c22afd5"
+}
+38372 2026-01-27 23:00:45,213 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+38372 2026-01-27 23:00:50,146 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/preview",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:00:49Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "ca84257f-40b9-5ab4-afe4-70c078e38ffc",
+    "x-signature": "equg8w57fyOy/mR85Q++bp9DQdA=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "313",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "new_orders": {
+      "client_order_id": "1a45a31b76b54558909f59c9e96ac39a",
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "LIMIT",
+      "limit_price": "150.00",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"new_orders\":{\"client_order_id\":\"1a45a31b76b54558909f59c9e96ac39a\",\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"LIMIT\",\"limit_price\":\"150.00\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: 97ee67ff-c942-450d-aec1-9e18006354d3
+38372 2026-01-27 23:00:50,146 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "97ee67ff-c942-450d-aec1-9e18006354d3"
+}
+21536 2026-01-27 23:01:39,410 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+39020 2026-01-27 23:02:31,260 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+39020 2026-01-27 23:02:36,179 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/place",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:02:35Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "17538440-4397-561b-abfc-aef8ccc774e4",
+    "x-signature": "yzI1W3Y2cmcE3TLPAkOR0TK0noM=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "310",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "new_orders": {
+      "client_order_id": "212838c8510447bcb96ac7e8ac0bb19c",
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "LIMIT",
+      "limit_price": "188",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"new_orders\":{\"client_order_id\":\"212838c8510447bcb96ac7e8ac0bb19c\",\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"LIMIT\",\"limit_price\":\"188\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: 41705eda-fbf5-4951-87a5-93449086275c
+39020 2026-01-27 23:02:36,179 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "41705eda-fbf5-4951-87a5-93449086275c"
+}
+44024 2026-01-27 23:03:32,516 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+23348 2026-01-27 23:03:55,303 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+23348 2026-01-27 23:04:00,252 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/place",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:03:59Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "c110c49b-dd8f-5b51-b162-787e0f87d86a",
+    "x-signature": "WEAE3KEArZoffVP1Asw0KytnIbw=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "310",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "new_orders": {
+      "client_order_id": "84544f1c327041fe91c857a84864c1ae",
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "LIMIT",
+      "limit_price": "188",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"new_orders\":{\"client_order_id\":\"84544f1c327041fe91c857a84864c1ae\",\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"LIMIT\",\"limit_price\":\"188\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: d4e88f24-0232-4abc-ac39-f53ce236fb57
+23348 2026-01-27 23:04:00,252 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "d4e88f24-0232-4abc-ac39-f53ce236fb57"
+}
+23348 2026-01-27 23:04:06,314 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/replace",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:04:05Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "fea2fcbb-b876-5fa6-8b16-cdbe1f0c6599",
+    "x-signature": "xcjFKdNiQjb6TjZYQl4nnXxfftM=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "151",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "modify_orders": {
+      "client_order_id": "84544f1c327041fe91c857a84864c1ae",
+      "quantity": "100",
+      "limit_price": "200"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"modify_orders\":{\"client_order_id\":\"84544f1c327041fe91c857a84864c1ae\",\"quantity\":\"100\",\"limit_price\":\"200\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: 500a4360-89da-4181-b47d-31af63b62878
+23348 2026-01-27 23:04:06,314 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "500a4360-89da-4181-b47d-31af63b62878"
+}
+23348 2026-01-27 23:04:12,410 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/cancel",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:04:11Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "6e8469ca-6f9e-5755-ac8a-a12b6a5759d7",
+    "x-signature": "b1nqplxKRD0wReQ8113gbyE2Ixs=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "96",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "client_order_id": "84544f1c327041fe91c857a84864c1ae"
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"client_order_id\":\"84544f1c327041fe91c857a84864c1ae\"}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'message': 'System error.', 'error_code': 'OAUTH_OPENAPI_SYSTEM_ERROR'} ServerException:HTTP Status: 417, Code: OAUTH_OPENAPI_SYSTEM_ERROR, Msg: System error., RequestID: feb434c0-9f55-495d-9b9d-4d326d6d18a9
+23348 2026-01-27 23:04:12,411 webull.core.client ERROR get_response exception. {
+  "error_code": "OAUTH_OPENAPI_SYSTEM_ERROR",
+  "error_msg": "System error.",
+  "http_status": 417,
+  "request_id": "feb434c0-9f55-495d-9b9d-4d326d6d18a9"
+}
+23348 2026-01-27 23:04:14,655 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/order/detail",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "client_order_id": "84544f1c327041fe91c857a84864c1ae"
+  },
+  "_method": "GET",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:04:13Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "e7749fca-73a8-541e-be23-b27ae9ec9d41",
+    "x-signature": "pxIByeWucw0PCtACjYFLrgHKl0E=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3"
+  },
+  "_body_params": null,
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": null,
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'message': 'System error.', 'error_code': 'OAUTH_OPENAPI_SYSTEM_ERROR'} ServerException:HTTP Status: 417, Code: OAUTH_OPENAPI_SYSTEM_ERROR, Msg: System error., RequestID: fd70780b-d24b-460e-9e32-37783e8746f5
+23348 2026-01-27 23:04:14,655 webull.core.client ERROR get_response exception. {
+  "error_code": "OAUTH_OPENAPI_SYSTEM_ERROR",
+  "error_msg": "System error.",
+  "http_status": 417,
+  "request_id": "fd70780b-d24b-460e-9e32-37783e8746f5"
+}
+23348 2026-01-27 23:04:20,795 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/option/order/place",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:04:19Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "6131e8cb-6a87-58ea-8696-15d555500635",
+    "x-signature": "DwCTlB/dQG07sFQaiwytq6XoleM=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "447",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "new_orders": [
+      {
+        "client_order_id": "6c092fdff268458482b02cc2049bd7f5",
+        "combo_type": "NORMAL",
+        "order_type": "LIMIT",
+        "quantity": "1",
+        "limit_price": "11.25",
+        "option_strategy": "SINGLE",
+        "side": "BUY",
+        "time_in_force": "GTC",
+        "entrust_type": "QTY",
+        "orders": [
+          {
+            "side": "BUY",
+            "quantity": "1",
+            "symbol": "AAPL",
+            "strike_price": "249.0",
+            "init_exp_date": "2025-08-15",
+            "instrument_type": "OPTION",
+            "option_type": "CALL",
+            "market": "US"
+          }
+        ]
+      }
+    ],
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649"
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"new_orders\":[{\"client_order_id\":\"6c092fdff268458482b02cc2049bd7f5\",\"combo_type\":\"NORMAL\",\"order_type\":\"LIMIT\",\"quantity\":\"1\",\"limit_price\":\"11.25\",\"option_strategy\":\"SINGLE\",\"side\":\"BUY\",\"time_in_force\":\"GTC\",\"entrust_type\":\"QTY\",\"orders\":[{\"side\":\"BUY\",\"quantity\":\"1\",\"symbol\":\"AAPL\",\"strike_price\":\"249.0\",\"init_exp_date\":\"2025-08-15\",\"instrument_type\":\"OPTION\",\"option_type\":\"CALL\",\"market\":\"US\"}]}],\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\"}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'message': 'Parameter error, invalid market,symbol,instrument_type,option_type,strike_price, value: US,AAPL,CALL,OPTION,249.0,2025-08-15', 'error_code': 'OAUTH_OPENAPI_PARAM_ERR'} ServerException:HTTP Status: 417, Code: OAUTH_OPENAPI_PARAM_ERR, Msg: Parameter error, invalid market,symbol,instrument_type,option_type,strike_price, value: US,AAPL,CALL,OPTION,249.0,2025-08-15, RequestID: 2a056aa8-6ed8-4c67-ad14-adbcc9ead352
+23348 2026-01-27 23:04:20,795 webull.core.client ERROR get_response exception. {
+  "error_code": "OAUTH_OPENAPI_PARAM_ERR",
+  "error_msg": "Parameter error, invalid market,symbol,instrument_type,option_type,strike_price, value: US,AAPL,CALL,OPTION,249.0,2025-08-15",
+  "http_status": 417,
+  "request_id": "2a056aa8-6ed8-4c67-ad14-adbcc9ead352"
+}
+23348 2026-01-27 23:04:26,825 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/option/order/replace",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:04:25Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "2c6b1f3a-f7e9-59a5-af38-953571a1ce26",
+    "x-signature": "j1yX0xAhiEWO0WjNIo3ElYoaVwg=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "233",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "modify_orders": [
+      {
+        "client_order_id": "6c092fdff268458482b02cc2049bd7f5",
+        "quantity": "2",
+        "limit_price": "11.3",
+        "orders": [
+          {
+            "client_order_id": "6c092fdff268458482b02cc2049bd7f5",
+            "quantity": "2"
+          }
+        ]
+      }
+    ],
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649"
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"modify_orders\":[{\"client_order_id\":\"6c092fdff268458482b02cc2049bd7f5\",\"quantity\":\"2\",\"limit_price\":\"11.3\",\"orders\":[{\"client_order_id\":\"6c092fdff268458482b02cc2049bd7f5\",\"quantity\":\"2\"}]}],\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\"}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'message': 'Parameter error, invalid order_id', 'error_code': 'OAUTH_OPENAPI_PARAM_ERR'} ServerException:HTTP Status: 417, Code: OAUTH_OPENAPI_PARAM_ERR, Msg: Parameter error, invalid order_id, RequestID: 26a5a632-c5ec-42dd-aced-5a0ca6f69108
+23348 2026-01-27 23:04:26,825 webull.core.client ERROR get_response exception. {
+  "error_code": "OAUTH_OPENAPI_PARAM_ERR",
+  "error_msg": "Parameter error, invalid order_id",
+  "http_status": 417,
+  "request_id": "26a5a632-c5ec-42dd-aced-5a0ca6f69108"
+}
+23348 2026-01-27 23:04:33,181 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/option/order/cancel",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:04:31Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "82516acd-6ef2-5348-af11-8245437f8435",
+    "x-signature": "37ycz+cFBfFhTaRwhlU9AL+cdmM=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "96",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "client_order_id": "6c092fdff268458482b02cc2049bd7f5",
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649"
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"client_order_id\":\"6c092fdff268458482b02cc2049bd7f5\",\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\"}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'message': 'System error.', 'error_code': 'OAUTH_OPENAPI_SYSTEM_ERROR'} ServerException:HTTP Status: 417, Code: OAUTH_OPENAPI_SYSTEM_ERROR, Msg: System error., RequestID: 74e9d645-179a-43f0-bca4-e0b68b2ee617
+23348 2026-01-27 23:04:33,181 webull.core.client ERROR get_response exception. {
+  "error_code": "OAUTH_OPENAPI_SYSTEM_ERROR",
+  "error_msg": "System error.",
+  "http_status": 417,
+  "request_id": "74e9d645-179a-43f0-bca4-e0b68b2ee617"
+}
+8940 2026-01-27 23:05:10,358 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+8940 2026-01-27 23:05:14,727 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/place",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "a88f2efed4dca02b9bc1a3cecbc35dba",
+    "x-timestamp": "2026-01-28T04:05:13Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "93cab653-68d0-5e04-9829-12d46b9cb9b0",
+    "x-signature": "XaOY9ewjbMA/j+MRVQ6CRPBMmuA=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "310",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "J6HA4EBQRQFJD2J6NQH0F7M649",
+    "new_orders": {
+      "client_order_id": "79f534b497b2446d8fcf489be9e4af6b",
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "LIMIT",
+      "limit_price": "150",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"J6HA4EBQRQFJD2J6NQH0F7M649\",\"new_orders\":{\"client_order_id\":\"79f534b497b2446d8fcf489be9e4af6b\",\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"LIMIT\",\"limit_price\":\"150\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: 325df9d8-9667-4307-a9a4-ca23228759fd
+8940 2026-01-27 23:05:14,728 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "325df9d8-9667-4307-a9a4-ca23228759fd"
+}
+9756 2026-01-27 23:06:47,962 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+9756 2026-01-27 23:06:53,840 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/place",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "6d9f1a0aa919a127697b567bb704369e",
+    "x-timestamp": "2026-01-28T04:06:52Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "acda7b9a-b3c6-5e0c-b762-ceb9d29d0261",
+    "x-signature": "5uWXYDkhfU2XITYJws/oz+2DEQU=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "310",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "HBGQE8NM0CQG4Q34ABOM83HD09",
+    "new_orders": {
+      "client_order_id": "72a6c2a4a74e49d1b5944fa082764302",
+      "symbol": "AAPL",
+      "instrument_type": "EQUITY",
+      "market": "US",
+      "order_type": "LIMIT",
+      "limit_price": "188",
+      "quantity": "1",
+      "support_trading_session": "N",
+      "side": "BUY",
+      "time_in_force": "DAY",
+      "entrust_type": "QTY"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"HBGQE8NM0CQG4Q34ABOM83HD09\",\"new_orders\":{\"client_order_id\":\"72a6c2a4a74e49d1b5944fa082764302\",\"symbol\":\"AAPL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"LIMIT\",\"limit_price\":\"188\",\"quantity\":\"1\",\"support_trading_session\":\"N\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: b1e50dda-078c-4a06-8a6c-e7da0d4a26ae
+9756 2026-01-27 23:06:53,841 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "b1e50dda-078c-4a06-8a6c-e7da0d4a26ae"
+}
+9756 2026-01-27 23:06:59,957 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/replace",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "6d9f1a0aa919a127697b567bb704369e",
+    "x-timestamp": "2026-01-28T04:06:58Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "f94bab8c-aa3f-51ee-9192-cdf7dc32c7da",
+    "x-signature": "O34xGs9Lr3QK/KmTzO4Ntj8oeLU=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "151",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "HBGQE8NM0CQG4Q34ABOM83HD09",
+    "modify_orders": {
+      "client_order_id": "72a6c2a4a74e49d1b5944fa082764302",
+      "quantity": "100",
+      "limit_price": "200"
+    }
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"HBGQE8NM0CQG4Q34ABOM83HD09\",\"modify_orders\":{\"client_order_id\":\"72a6c2a4a74e49d1b5944fa082764302\",\"quantity\":\"100\",\"limit_price\":\"200\"}}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'error_code': 'INTERNAL_ERROR'} ServerException:HTTP Status: 500, Code: INTERNAL_ERROR, Msg: , RequestID: 46e26ff4-e390-413a-b368-73a6d4a82beb
+9756 2026-01-27 23:06:59,958 webull.core.client ERROR get_response exception. {
+  "error_code": "INTERNAL_ERROR",
+  "error_msg": "",
+  "http_status": 500,
+  "request_id": "46e26ff4-e390-413a-b368-73a6d4a82beb"
+}
+9756 2026-01-27 23:07:06,040 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/cancel",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "6d9f1a0aa919a127697b567bb704369e",
+    "x-timestamp": "2026-01-28T04:07:04Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "899a8ec0-c38a-5bb5-8428-f3902fec3d65",
+    "x-signature": "A+OASujGxN3/Y2tb3Yw0aTpnMR4=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "96",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "HBGQE8NM0CQG4Q34ABOM83HD09",
+    "client_order_id": "72a6c2a4a74e49d1b5944fa082764302"
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"HBGQE8NM0CQG4Q34ABOM83HD09\",\"client_order_id\":\"72a6c2a4a74e49d1b5944fa082764302\"}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'message': 'System error.', 'error_code': 'OAUTH_OPENAPI_SYSTEM_ERROR'} ServerException:HTTP Status: 417, Code: OAUTH_OPENAPI_SYSTEM_ERROR, Msg: System error., RequestID: f275d367-bc93-4489-81e3-91dfee530971
+9756 2026-01-27 23:07:06,041 webull.core.client ERROR get_response exception. {
+  "error_code": "OAUTH_OPENAPI_SYSTEM_ERROR",
+  "error_msg": "System error.",
+  "http_status": 417,
+  "request_id": "f275d367-bc93-4489-81e3-91dfee530971"
+}
+9756 2026-01-27 23:07:08,076 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/order/detail",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {
+    "account_id": "HBGQE8NM0CQG4Q34ABOM83HD09",
+    "client_order_id": "72a6c2a4a74e49d1b5944fa082764302"
+  },
+  "_method": "GET",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "6d9f1a0aa919a127697b567bb704369e",
+    "x-timestamp": "2026-01-28T04:07:07Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "3a57876f-4ae2-5a47-9f99-7d1259c4b900",
+    "x-signature": "U6Kp9gE69LDKmspvqQD0KL7DcOM=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3"
+  },
+  "_body_params": null,
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": null,
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'message': 'System error.', 'error_code': 'OAUTH_OPENAPI_SYSTEM_ERROR'} ServerException:HTTP Status: 417, Code: OAUTH_OPENAPI_SYSTEM_ERROR, Msg: System error., RequestID: 57a970ff-d726-4b73-b3b6-29eaf701a4e4
+9756 2026-01-27 23:07:08,077 webull.core.client ERROR get_response exception. {
+  "error_code": "OAUTH_OPENAPI_SYSTEM_ERROR",
+  "error_msg": "System error.",
+  "http_status": 417,
+  "request_id": "57a970ff-d726-4b73-b3b6-29eaf701a4e4"
+}
+33620 2026-01-27 23:09:43,770 webull.core.http.initializer.client_initializer INFO _check_token_enable result is False
+33620 2026-01-27 23:09:48,248 webull.core.client ERROR ServerException occurred. Host:us-openapi-alb.uat.webullbroker.com SDK-Version:1.0.9 Request:{
+  "_version": "v2",
+  "_action_name": "/openapi/trade/stock/order/preview",
+  "_protocol_type": "https",
+  "_accept_format": "JSON",
+  "_params": {},
+  "_method": "POST",
+  "_header": {
+    "x-version": "v2",
+    "Accept-Encoding": "gzip",
+    "x-app-key": "6d9f1a0aa919a127697b567bb704369e",
+    "x-timestamp": "2026-01-28T04:09:47Z",
+    "x-signature-version": "1.0",
+    "x-signature-algorithm": "HMAC-SHA1",
+    "x-signature-nonce": "a8e0a560-b94c-5aa2-a73a-3a62320cced3",
+    "x-signature": "HYXyMrs4dtvpV4rmJSVf7v/mIeI=",
+    "User-Agent": "WebullApiSDK (Windows 10;AMD64) Python/3.10.11 Core/1.0.9 python-requests/2.18.3",
+    "Content-Length": "314",
+    "Content-Type": "application/json"
+  },
+  "_body_params": {
+    "account_id": "HBGQE8NM0CQG4Q34ABOM83HD09",
+    "new_orders": [
+      {
+        "client_order_id": "37a73d638d214b2a8bd7ca80845bfef8",
+        "symbol": "BULL",
+        "instrument_type": "EQUITY",
+        "market": "US",
+        "order_type": "LIMIT",
+        "limit_price": "26",
+        "quantity": "1",
+        "support_trading_session": "CORE",
+        "side": "BUY",
+        "time_in_force": "DAY",
+        "entrust_type": "QTY"
+      }
+    ]
+  },
+  "_uri_pattern": null,
+  "_uri_params": null,
+  "_content": "{\"account_id\":\"HBGQE8NM0CQG4Q34ABOM83HD09\",\"new_orders\":[{\"client_order_id\":\"37a73d638d214b2a8bd7ca80845bfef8\",\"symbol\":\"BULL\",\"instrument_type\":\"EQUITY\",\"market\":\"US\",\"order_type\":\"LIMIT\",\"limit_price\":\"26\",\"quantity\":\"1\",\"support_trading_session\":\"CORE\",\"side\":\"BUY\",\"time_in_force\":\"DAY\",\"entrust_type\":\"QTY\"}]}",
+  "_extra_user_agent": {},
+  "string_to_sign": "",
+  "_request_connect_timeout": null,
+  "_request_read_timeout": null,
+  "endpoint": "us-openapi-alb.uat.webullbroker.com",
+  "_signer_spec": "<module 'webull.core.auth.algorithm.sha_hmac1' from 'C:\\\\Users\\\\matia\\\\Development\\\\Repositories\\\\GitHub\\\\stocktalk-discord-bot\\\\venv\\\\lib\\\\site-packages\\\\webull\\\\core\\\\auth\\\\algorithm\\\\sha_hmac1.py'>"
+} Response:{'message': 'Parameter error, invalid combo_type', 'error_code': 'OAUTH_OPENAPI_PARAM_ERR'} ServerException:HTTP Status: 417, Code: OAUTH_OPENAPI_PARAM_ERR, Msg: Parameter error, invalid combo_type, RequestID: a15931b4-c420-444d-b500-bcf71fedba76
+33620 2026-01-27 23:09:48,248 webull.core.client ERROR get_response exception. {
+  "error_code": "OAUTH_OPENAPI_PARAM_ERR",
+  "error_msg": "Parameter error, invalid combo_type",
+  "http_status": 417,
+  "request_id": "a15931b4-c420-444d-b500-bcf71fedba76"
+}

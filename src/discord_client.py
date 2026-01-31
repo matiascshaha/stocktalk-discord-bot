@@ -67,9 +67,12 @@ class StockMonitorClient:
         logger.debug(f"Message content: {message.content[:100]}...")
         
         logger.info("AI analyzing message.")
-        picks = self.parser.parse(message.content, message.author.name)
+        picks = self.parser.parse(message.content, message.author.name, message.channel.id, self.trader)
 
-        if picks:
+        if picks.get("picks"):
+            pick_objs = picks.get("picks", [])
+            logger.info(f"Detected {len(pick_objs)} stock pick(s).")
+            logger.debug("Picks details: {}".format(json.dumps(picks, indent=2)))
             logger.info(format_pick_summary(picks))
 
             # Send notifications

@@ -102,7 +102,7 @@ Edit `.env` file for secrets, then use the configuration files for everything el
 
 ```bash
 # No-code configuration files
-config/config.yaml
+config/trading.yaml
 config/ai_parser.prompt
 ```
 

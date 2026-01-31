@@ -81,7 +81,8 @@ class StockOrderRequest(BaseModel):
     limit_price: Optional[float] = Field(None, gt=0, description="Limit price (required for LIMIT orders)")
     time_in_force: TimeInForce = Field(TimeInForce.DAY, description="Time in force")
     trading_session: TradingSession = Field(TradingSession.CORE, description="Trading session")
-    
+    extended_hours_trading: bool = Field(False, description="Whether to allow extended hours trading")
+
     @field_validator('symbol')
     @classmethod
     def normalize_symbol(cls, v: str) -> str:

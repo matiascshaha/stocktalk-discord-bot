@@ -3,7 +3,7 @@
 This folder is your no-code control center. Edit these files to change behavior without touching Python.
 
 ## 1) Main config
-Edit `config/config.yaml`.
+Edit `config/trading.yaml`.
 
 - Secrets live in `.env` (Discord token, API keys, Webull App Key/Secret).
 - Non-secret settings live here (AI provider/model, trading toggles, notifications).
@@ -28,11 +28,11 @@ These will be replaced automatically at runtime.
 If you want to store the config elsewhere, set:
 
 ```
-CONFIG_PATH=/full/path/to/config/config.yaml
+CONFIG_PATH=/full/path/to/config/trading.yaml
 ```
 
 in `.env` (or your environment).
 
 ## Notes
-- If `config/config.yaml` is missing, the app falls back to `.env` and defaults.
+- If `config/trading.yaml` is missing, the app falls back to `.env` and defaults.
 - Keep secrets out of this folder if you plan to share the repo.

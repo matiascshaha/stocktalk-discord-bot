@@ -37,12 +37,17 @@ class Notifier:
     def _send_desktop_notification(self, picks, author):
         """Send desktop notification"""
         # Build notification message
-        tickers = [pick['ticker'] for pick in picks]
+        pick_objs = picks.get("picks", [])
+        if not pick_objs:
+            logger.warning("No picks to notify")
+            return
+        
+        tickers = [pick['ticker'] for pick in pick_objs]
         ticker_str = ', '.join(tickers)
 
-        message = f"Found {len(picks)} pick(s): {ticker_str}"
-        if len(picks) == 1:
-            pick = picks[0]
+        message = f"Found {len(pick_objs)} pick(s): {ticker_str}"
+        if len(pick_objs) == 1:
+            pick = pick_objs[0]
             message += f"\n{pick['action']} - Confidence: {pick['confidence']*100:.0f}%"
 
         title = f"📊 Stock Pick from {author}"
@@ -81,14 +86,15 @@ class Notifier:
         print("\n" + "="*60)
         print(f"📊 STOCK PICK DETECTED from {author}")
         print("="*60)
-        
-        for i, pick in enumerate(picks, 1):
+
+        pick_objs = picks.get("picks", [])
+        for i, pick in enumerate(pick_objs, 1):
             print(f"\nPick #{i}:")
             print(f"  Ticker: {pick['ticker']}")
             print(f"  Action: {pick['action']}")
             print(f"  Confidence: {pick['confidence']*100:.1f}%")
-            if pick['weight']:
-                print(f"  Weight: {pick['weight']}%")
+            if pick['weight_percent']:
+                print(f"  Weight: {pick['weight_percent']}%")
             print(f"  Urgency: {pick['urgency']}")
             print(f"  Sentiment: {pick['sentiment']}")
             print(f"  Reasoning: {pick['reasoning']}")

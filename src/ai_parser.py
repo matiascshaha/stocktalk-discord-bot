@@ -2,6 +2,8 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional
+from datetime import datetime
+from pytz import timezone
 
 import anthropic
 import openai
@@ -43,8 +45,7 @@ class AIParser:
         message_text: str,
         author_name: str,
         channel_id: Optional[int] = None,
-        account_balance: Optional[Dict[str, Any]] = None,
-        account_positions: Optional[Dict[str, Any]] = None,
+        trading_account: Optional[Any] = None,
     ) -> list:
         """
         Parse stock picks from message using AI with optional account context.
@@ -53,32 +54,29 @@ class AIParser:
             message_text: The Discord message content
             author_name: The author's Discord username
             channel_id: Optional Discord channel ID for analyst-specific rules
-            account_balance: Optional account balance dict from Webull API
-            account_positions: Optional account positions dict from Webull API
-        
+            trading_account: Optional trading account object for context
+
         Returns:
             List of picks (with new unified format if account context provided)
         """
         
         if not self.client:
             logger.warning("No AI client available")
-            return self._fallback_parse(message_text)
-        
-        # Determine which prompt template to use
-        use_account_context = (account_balance is not None or account_positions is not None)
+            logger.warning("Skipping because no AI provider is configured")
+            return None
         
         prompt = self._build_prompt(
             message_text=message_text,
             author_name=author_name,
             channel_id=channel_id,
-            account_balance=account_balance,
-            account_positions=account_positions,
-            use_account_context=use_account_context,
+            trading_account=trading_account
         )
         
         if not prompt.strip():
-            logger.warning("Prompt template is empty; falling back to regex parser")
-            return self._fallback_parse(message_text)
+            logger.warning("Prompt template is empty; Doing nothing.")
+            # no fallback parse
+            # return and do nothing
+            return None
         
         try:
             if self.provider == 'anthropic':
@@ -119,103 +117,136 @@ class AIParser:
                     # Fallback: treat as list
                     return result if isinstance(result, list) else [result]
             except json.JSONDecodeError:
-                # Try parsing as list (legacy format)
-                return json.loads(response_text)
+                # if text is not a dict, log error
+                logger.warning("AI response was not in expected format. Probably an issue with context.")
+                logger.error(f"Failed to parse AI response as JSON: {response_text}")
+                return False
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON parsing error: {e}")
             logger.debug(f"Raw response: {response_text}")
-            return self._fallback_parse(message_text)
+            return False
         
         except Exception as e:
             logger.error(f"AI parsing error: {e}")
-            return self._fallback_parse(message_text)
+            return False
     
     def _build_prompt(
         self,
         message_text: str,
         author_name: str,
         channel_id: Optional[int] = None,
-        account_balance: Optional[Dict[str, Any]] = None,
-        account_positions: Optional[Dict[str, Any]] = None,
-        use_account_context: bool = False,
+        trading_account: Optional[Any] = None,
     ) -> str:
         """Build AI prompt for parsing, optionally with account context."""
         
-        if use_account_context:
+        if trading_account is not None:
             # Use unified prompt with account context
             return self._render_prompt_with_account(
                 message_text=message_text,
                 author_name=author_name,
                 channel_id=channel_id,
-                account_balance=account_balance,
-                account_positions=account_positions,
+                trading_account=trading_account
             )
         else:
             # Use simple prompt
-            return self._render_prompt(message_text, author_name)
+            return self._render_prompt(message_text, author_name, channel_id=channel_id)
 
-    def _render_prompt(self, message_text, author_name):
-        template = self.prompt_template or ""
-        prompt = template.replace("{{AUTHOR_NAME}}", str(author_name))
+    def _clear_remaining_placeholders(self, prompt: str) -> str:
+        """Remove any unreplaced placeholders from the prompt."""
+        return re.sub(r"\{\{[A-Z_]+\}\}", "", prompt)
+
+    def _render_prompt(self, message_text, author_name, channel_id=None) -> str:
+        prompt = self.prompt_template or ""
+        eastern = timezone('US/Eastern')
+        current_time = datetime.now(eastern).strftime("%Y-%m-%d %H:%M:%S %Z")
+        analyst_rules = get_analyst_for_channel(channel_id) if channel_id else None
+        analyst_name = analyst_rules.get("name", "Unknown") if analyst_rules else "Unknown"
+        analyst_prefs = analyst_rules.get("analyst_preferences", "") if analyst_rules else ""
+        account_constraints = get_account_constraints()
+        TRADING_DEACTIVATED_NOTICE = (
+            "Note: Auto-trading is currently deactivated. "
+            "Provide stock picks without considering trading actions."
+        )
+        prompt = prompt.replace("{{CURRENT_TIME}}", current_time)
+        prompt = prompt.replace("{{AUTHOR_NAME}}", str(author_name))
         prompt = prompt.replace("{{MESSAGE_TEXT}}", str(message_text))
+        prompt = prompt.replace("{{ACCOUNT_BALANCE}}", f"N/A")
+        prompt = prompt.replace("{{DAY_BUYING_POWER}}", f"N/A")
+        prompt = prompt.replace("{{OVERNIGHT_BUYING_POWER}}", f"N/A")
+        prompt = prompt.replace("{{OPTION_BUYING_POWER}}", f"N/A")
+        prompt = prompt.replace("{{MARGIN_BUFFER}}", f"N/A")
+        prompt = prompt.replace("{{ANALYST_NAME}}", analyst_name)
+        prompt = prompt.replace("{{ANALYST_PREFERENCES}}", analyst_prefs)
+        prompt = prompt.replace("{{OPTIONS_CHAIN}}", "N/A")
+        prompt = prompt.replace("{{ACCOUNT_CONSTRAINTS}}", account_constraints)
+        prompt = prompt.replace("{{EXTRA_IMPORTANT_DETAILS}}", TRADING_DEACTIVATED_NOTICE)
+        prompt = self._clear_remaining_placeholders(prompt)
         return prompt
+
+    def _require(self, d: dict, key: str):
+        if key not in d:
+            raise KeyError(f"Missing required key from Webull payload: {key}")
+        return d[key]
+
+
+    def _require_currency_asset(self, account_balance: dict) -> dict:
+        assets = self._require(account_balance, "account_currency_assets")
+        if not isinstance(assets, list) or not assets:
+            raise ValueError("account_currency_assets missing or empty")
+        return assets[0]
+
 
     def _render_prompt_with_account(
         self,
         message_text: str,
         author_name: str,
         channel_id: Optional[int] = None,
-        account_balance: Optional[Dict[str, Any]] = None,
-        account_positions: Optional[Dict[str, Any]] = None,
+        trading_account: Optional[Any] = None,
     ) -> str:
-        """
-        Render the unified AI prompt with account context.
-        Uses ai_parser_with_account.prompt template.
-        """
-        # Try to load the account-aware prompt template
-        account_prompt_path = Path("config/ai_parser_with_account.prompt")
-        try:
-            template = account_prompt_path.read_text(encoding="utf-8")
-        except Exception as exc:
-            logger.warning(f"Failed to load account-aware prompt template: {exc}")
-            # Fallback to simple prompt
+
+        template = Path("config/ai_parser_with_account.prompt").read_text(encoding="utf-8")
+
+        analyst_rules = get_analyst_for_channel(channel_id) if channel_id else None
+        analyst_name = analyst_rules.get("name", "Unknown") if analyst_rules else "Unknown"
+        analyst_prefs = analyst_rules.get("analyst_preferences", "") if analyst_rules else ""
+
+        account_balance = trading_account.get_account_balance() if trading_account else None
+        if not account_balance:
+            logger.warning("No account balance data available for prompt; using simple prompt instead")
             return self._render_prompt(message_text, author_name)
 
-        # Get analyst rules if channel_id provided
-        analyst_rules = None
-        if channel_id:
-            analyst_rules = get_analyst_for_channel(channel_id)
+        # ---- REQUIRED Webull fields ----
+        total_market_value = float(self._require(account_balance, "total_market_value"))
+        maintenance_margin = float(self._require(account_balance, "maintenance_margin"))
+        net_liq = float(self._require(account_balance, "total_net_liquidation_value"))
 
-        analyst_name = analyst_rules.get("name", "Unknown") if analyst_rules else "Unknown"
-        commons_multiplier = analyst_rules.get("commons_multiplier", 1.0) if analyst_rules else 1.0
-        options_multiplier = analyst_rules.get("options_multiplier", 1.0) if analyst_rules else 1.0
-        analyst_options_prefs = analyst_rules.get("options_preferences", "") if analyst_rules else ""
-        margin_buffer_required = analyst_rules.get("margin_buffer_required", 1000) if analyst_rules else 1000
+        currency = self._require_currency_asset(account_balance)
+        day_buying_power = self._require(currency, "day_buying_power")
+        overnight_buying_power = self._require(currency, "overnight_buying_power")
+        option_buying_power = self._require(currency, "option_buying_power")
 
-        # Extract account stats (these should come from the Webull API response)
-        account_balance_str = self._format_account_balance(account_balance)
-        positions_str = self._format_account_positions(account_positions)
-        margin_stats = self._extract_margin_stats(account_balance)
+        # Your exact definition
+        margin_buffer = total_market_value - maintenance_margin
 
-        # Get natural language constraints
         account_constraints = get_account_constraints()
 
-        # Build the prompt by substituting all placeholders
         prompt = template
+        eastern = timezone('US/Eastern')
+        current_time = datetime.now(eastern).strftime("%Y-%m-%d %H:%M:%S %Z")
+        prompt = prompt.replace("{{CURRENT_TIME}}", current_time)
         prompt = prompt.replace("{{AUTHOR_NAME}}", str(author_name))
         prompt = prompt.replace("{{MESSAGE_TEXT}}", str(message_text))
-        prompt = prompt.replace("{{ACCOUNT_BALANCE}}", account_balance_str)
-        prompt = prompt.replace("{{AVAILABLE_MARGIN}}", margin_stats.get("available", "unknown"))
-        prompt = prompt.replace("{{MARGIN_BUFFER}}", margin_stats.get("buffer", "unknown"))
-        prompt = prompt.replace("{{POSITION_COUNT}}", margin_stats.get("position_count", "unknown"))
-        prompt = prompt.replace("{{CURRENT_POSITIONS}}", positions_str)
+        prompt = prompt.replace("{{ACCOUNT_BALANCE}}", f"{net_liq:,.2f}")
+        prompt = prompt.replace("{{DAY_BUYING_POWER}}", f"{day_buying_power:,.2f}")
+        prompt = prompt.replace("{{OVERNIGHT_BUYING_POWER}}", f"{overnight_buying_power:,.2f}")
+        prompt = prompt.replace("{{OPTION_BUYING_POWER}}", f"{option_buying_power:,.2f}")
+        prompt = prompt.replace("{{MARGIN_BUFFER}}", f"{margin_buffer:,.2f}")
         prompt = prompt.replace("{{ANALYST_NAME}}", analyst_name)
-        prompt = prompt.replace("{{COMMONS_MULTIPLIER}}", str(commons_multiplier))
-        prompt = prompt.replace("{{OPTIONS_MULTIPLIER}}", str(options_multiplier))
-        prompt = prompt.replace("{{MARGIN_BUFFER_REQUIRED}}", str(margin_buffer_required))
-        prompt = prompt.replace("{{ANALYST_OPTIONS_PREFERENCES}}", analyst_options_prefs)
+        prompt = prompt.replace("{{ANALYST_PREFERENCES}}", analyst_prefs)
+        prompt = prompt.replace("{{OPTIONS_CHAIN}}", "")
         prompt = prompt.replace("{{ACCOUNT_CONSTRAINTS}}", account_constraints)
+        prompt = self._clear_remaining_placeholders(prompt)
 
         return prompt
 
@@ -311,8 +342,14 @@ class AIParser:
 
     def _load_prompt_template(self) -> str:
         path = self.config.get("prompt_file") if isinstance(self.config, dict) else None
-        path = path or "config/ai_parser.prompt"
-        prompt_path = Path(path)
+        if not path:
+            raise ValueError("prompt_file must be defined in config")
+
+        # Resolve relative to project root (not cwd)
+        project_root = Path(__file__).resolve().parents[1]
+        prompt_path = (project_root / path).resolve()
+
+        logger.warning(f"Loading prompt template from: {prompt_path}")
 
         try:
             return prompt_path.read_text(encoding="utf-8")
@@ -378,37 +415,3 @@ class AIParser:
             text = re.sub(r'^```(?:json)?\n', '', text)
             text = re.sub(r'\n```$', '', text)
         return text.strip()
-    
-    def _fallback_parse(self, message_text):
-        """Fallback regex parser if AI fails"""
-        logger.warning("Using fallback regex parser")
-        
-        picks = []
-        
-        # Look for explicit buy patterns
-        buy_patterns = [
-            r'(?:Added|Buying|New position:?)\s+\$?([A-Z]{1,5})',
-            r'\$([A-Z]{1,5})\s+at\s+\$?([\d.]+)',
-        ]
-        
-        for pattern in buy_patterns:
-            matches = re.finditer(pattern, message_text, re.IGNORECASE)
-            for match in matches:
-                ticker = match.group(1).upper()
-                price = float(match.group(2)) if len(match.groups()) > 1 else None
-                
-                picks.append({
-                    'ticker': ticker,
-                    'action': 'BUY',
-                    'confidence': 0.6,
-                    'weight': None,
-                    'price': price,
-                    'strike': None,
-                    'option_type': 'STOCK',
-                    'expiry': None,
-                    'reasoning': 'Fallback regex match',
-                    'urgency': 'MEDIUM',
-                    'sentiment': 'BULLISH'
-                })
-        
-        return picks
