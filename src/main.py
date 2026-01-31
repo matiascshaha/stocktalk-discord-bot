@@ -54,8 +54,18 @@ def main():
     # Initialize Webull trader if auto-trading enabled
     trader = None
     if TRADING_CONFIG['auto_trade']:
+        paper_trade = TRADING_CONFIG['paper_trade']
+        app_key = WEBULL_CONFIG.get('test_app_key') if paper_trade else os.getenv('WEBULL_APP_KEY')
+        app_secret = WEBULL_CONFIG.get('test_app_secret') if paper_trade else os.getenv('WEBULL_APP_SECRET')
+        account_id = WEBULL_CONFIG.get('test_account_id') if paper_trade else os.getenv('WEBULL_ACCOUNT_ID')
         logger.info("Initializing Webull trader.")
-        trader = WebullTrader(WEBULL_CONFIG, TRADING_CONFIG)
+        trader = WebullTrader(
+            app_key=app_key,
+            app_secret=app_secret,
+            paper_trade=paper_trade,
+            region="US",
+            account_id=account_id
+        )
 
         if trader.login():
             logger.info("Webull trader ready.")

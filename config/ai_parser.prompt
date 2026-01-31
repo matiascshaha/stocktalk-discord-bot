@@ -9,11 +9,11 @@ You are analyzing a trading alert message from a professional stock trading Disc
 # CONTEXT: ACCOUNT STATE
 Current Time: {{CURRENT_TIME}}
 Account Balance: ${{ACCOUNT_BALANCE}}
-Day Buying Power: ${{DAY_BUYING_POWER}}
-Overnight Buying Power: ${{OVERNIGHT_BUYING_POWER}}
+Margin Power: ${{MARGIN_POWER}}
+Cash Power: ${{CASH_POWER}}
 Option Buying Power: ${{OPTION_BUYING_POWER}}
 Available Margin: ${{AVAILABLE_MARGIN}}
-Margin Maintenance Buffer: ${{MARGIN_BUFFER}}
+Margin Equity Percentage: {{MARGIN_EQUITY_PERCENTAGE}}%
 Current Positions: {{POSITION_COUNT}} open positions
 
 CURRENT HOLDINGS (brief snapshot):

@@ -6,6 +6,8 @@ from src.ai_parser import AIParser
 from src.notifier import Notifier
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
+from src.webull_trader import WebullTrader
+from src.models.webull_models import *
 from config.settings import DISCORD_TOKEN, CHANNEL_ID
 
 logger = setup_logger('discord_client')
@@ -13,7 +15,7 @@ logger = setup_logger('discord_client')
 class StockMonitorClient:
     """Discord client for monitoring stock picks"""
     
-    def __init__(self, trader=None):
+    def __init__(self, trader : WebullTrader = None):
         self.trader = trader
         self.parser = AIParser()
         self.notifier = Notifier()
@@ -83,8 +85,15 @@ class StockMonitorClient:
 
             # Execute trades if trader available
             if self.trader:
-                for pick in picks:
-                    self.trader.execute_trade(pick)
+                for pick in pick_objs:
+                    order = StockOrderRequest(
+                        symbol=pick['ticker'],
+                        side=OrderSide.BUY,
+                        quantity=1,
+                        order_type=OrderType.MARKET,
+                        time_in_force="GTC"
+                    )
+                    self.trader.place_stock_order(order, weighting=pick.get('weight_percent'))
         else:
             logger.info("No stock picks detected.")
     

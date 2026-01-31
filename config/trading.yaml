@@ -61,10 +61,13 @@ trading:
 # Use natural language to describe your account rules.
 account_constraints: |
   MARGIN CONSTRAINTS:
-  - Never let margin maintenance buffer fall below $1,000. Don't place the trade if it would lower margin buffer below 1000$
-  
+  - Never let Margin Equity % fall below 35% after a trade.
+  - Do not place the trade if the resulting Margin Equity % would be < 35%.
+
   TRADING RULES:
-  - Only execute LONG positions or PUT positions. only commons or options (PUT/CALL). no short selling.
+  - Only execute LONG positions or PUT positions.
+  - Allowed instruments: common stock, CALL options, PUT options.
+  - No short selling.
 
 # =============================================================================
 # CHANNEL-TO-ANALYST MAPPING

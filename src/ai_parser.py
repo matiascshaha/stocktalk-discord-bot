@@ -205,7 +205,7 @@ class AIParser:
         trading_account: Optional[Any] = None,
     ) -> str:
 
-        template = Path("config/ai_parser_with_account.prompt").read_text(encoding="utf-8")
+        template = Path("config/ai_parser.prompt").read_text(encoding="utf-8")
 
         analyst_rules = get_analyst_for_channel(channel_id) if channel_id else None
         analyst_name = analyst_rules.get("name", "Unknown") if analyst_rules else "Unknown"
@@ -218,16 +218,12 @@ class AIParser:
 
         # ---- REQUIRED Webull fields ----
         total_market_value = float(self._require(account_balance, "total_market_value"))
-        maintenance_margin = float(self._require(account_balance, "maintenance_margin"))
-        net_liq = float(self._require(account_balance, "total_net_liquidation_value"))
 
         currency = self._require_currency_asset(account_balance)
-        day_buying_power = self._require(currency, "day_buying_power")
-        overnight_buying_power = self._require(currency, "overnight_buying_power")
-        option_buying_power = self._require(currency, "option_buying_power")
-
-        # Your exact definition
-        margin_buffer = total_market_value - maintenance_margin
+        net_liquidation_value = float(self._require(currency, "net_liquidation_value"))
+        margin_equity_percentage = (net_liquidation_value / total_market_value * 100.0) if total_market_value > 0 else 100.0
+        margin_power = float(self._require(currency, "margin_power"))
+        cash_power = float(self._require(currency, "cash_power"))
 
         account_constraints = get_account_constraints()
 
@@ -237,11 +233,10 @@ class AIParser:
         prompt = prompt.replace("{{CURRENT_TIME}}", current_time)
         prompt = prompt.replace("{{AUTHOR_NAME}}", str(author_name))
         prompt = prompt.replace("{{MESSAGE_TEXT}}", str(message_text))
-        prompt = prompt.replace("{{ACCOUNT_BALANCE}}", f"{net_liq:,.2f}")
-        prompt = prompt.replace("{{DAY_BUYING_POWER}}", f"{day_buying_power:,.2f}")
-        prompt = prompt.replace("{{OVERNIGHT_BUYING_POWER}}", f"{overnight_buying_power:,.2f}")
-        prompt = prompt.replace("{{OPTION_BUYING_POWER}}", f"{option_buying_power:,.2f}")
-        prompt = prompt.replace("{{MARGIN_BUFFER}}", f"{margin_buffer:,.2f}")
+        prompt = prompt.replace("{{ACCOUNT_BALANCE}}", f"{net_liquidation_value:,.2f}")
+        prompt = prompt.replace("{{MARGIN_POWER}}", f"{margin_power:,.2f}")
+        prompt = prompt.replace("{{CASH_POWER}}", f"{cash_power:,.2f}")
+        prompt = prompt.replace("{{MARGIN_EQUITY_PERCENTAGE}}", f"{margin_equity_percentage:,.2f}")
         prompt = prompt.replace("{{ANALYST_NAME}}", analyst_name)
         prompt = prompt.replace("{{ANALYST_PREFERENCES}}", analyst_prefs)
         prompt = prompt.replace("{{OPTIONS_CHAIN}}", "")

@@ -8,11 +8,10 @@ from unicodedata import category
 import uuid
 from typing import Any, Dict, Optional, List
 
-# from webull.core.client import ApiClient
 from webullsdktrade.api import API
 from webullsdkcore.client import ApiClient
 from webullsdkcore.common.region import Region
-# from webull.trade.trade_client import TradeClient
+from webullsdktrade.common.currency import Currency
 
 from src.utils.logger import setup_logger
 from src.models import *
@@ -129,10 +128,11 @@ class WebullTrader:
             return data.get('accounts') or data.get('data') or data.get('list', [])
         return []
 
-    def get_account_balance(self) -> Dict[str, Any]:
+    def get_account_balance(self, currency: str = Currency.USD.name) -> Dict[str, Any]:
         """Get account balance"""
         account_id = self.resolve_account_id()
-        res = self.trade_client.account_v2.get_account_balance(account_id)
+
+        res = self.trade_client.account.get_account_balance(account_id, currency)
         self._check_response(res, "get_account_balance")
         return res.json()
 
@@ -200,7 +200,7 @@ class WebullTrader:
         """Get buying power (returns None if fails)"""
         try:
             balance = self.get_account_balance()
-            return float(balance.get('buying_power', 0))
+            return float(balance.get('account_currency_assets', {})[0].get('margin_power'))
         except:
             return None
 
@@ -208,22 +208,16 @@ class WebullTrader:
     # Order Placement - Stocks
     # ============================================================================
 
-    def place_stock_order(self, order: StockOrderRequest, skip_preview: bool = False) -> Dict[str, Any]:
+    def place_stock_order(self, order: StockOrderRequest, notional_dollar_amount: float = None, weighting: float = None) -> Dict[str, Any]:
         """Place stock order"""
         # Build and send
-        payload = self._build_stock_payload(order)
+        payload = self._build_stock_payload(order, weighting=weighting, notional_dollar_amount=notional_dollar_amount)
+        
+
         return self._execute_order(payload, f"{order.side} {order.quantity} {order.symbol}")
 
-    def test(self):
-        """Test method"""
-        logger.info("Test method called")
-        from webullsdkquotescore.grpc.grpc_client import GrpcApiClient
-        grpc_client = GrpcApiClient(self.app_key, self.app_secret, self.region)
-        api = API(grpc_client)
-        a = api.market_data.get_snapshot("AAPL", category="US_STOCK")
-        logger.info(f"Snapshot: {a}")
 
-    def _build_stock_payload(self, order: StockOrderRequest) -> Dict[str, Any]:
+    def _build_stock_payload(self, order: StockOrderRequest, notional_dollar_amount: float = None, weighting: float = None) -> Dict[str, Any]:
         """Build stock order payload"""
         instrument = self.get_instrument(order.symbol)  # to get
         if not instrument:
@@ -231,11 +225,32 @@ class WebullTrader:
         
         instrument_id = instrument[0].get("instrument_id")
         
+        # if notional_dollar_amount is specified, calculate quantity
+        if notional_dollar_amount is not None:
+            price = instrument[0].get("last_price")
+            if price is None or price <= 0:
+                raise ValueError(f"Invalid price for symbol {order.symbol}: {price}")
+            order.quantity = notional_dollar_amount / price
+        elif weighting is not None:
+            buying_power = self._get_buying_power()
+            if buying_power is None:
+                raise ValueError("Unable to fetch buying power for weighting calculation")
+            
+            # Convert percentage (5.0) to decimal (0.05)
+            weighting_decimal = weighting / 100.0
+            
+            stock_price = self.get_current_stock_quote(order.symbol)
+            if stock_price is None:
+                raise ValueError(f"Unable to fetch current price for symbol {order.symbol}")
+            dollar_amount = buying_power * weighting_decimal
+            
+            order.quantity = int(dollar_amount / stock_price)
+
         payload = {
             "client_order_id": uuid.uuid4().hex,
             "instrument_id": instrument_id,
             "order_type": order.order_type,
-            "qty": self._format_quantity(order.quantity),
+            "qty": order.quantity,
             "side": order.side,
             "tif": order.time_in_force,
             "extended_hours_trading": order.extended_hours_trading,
@@ -376,6 +391,19 @@ class WebullTrader:
             instruments = response.json()
         logger.info(f"Fetched {len(instruments)} instruments for symbols: {symbols}")
         return instruments
+
+    def get_market_snapshot(self, symbols: str, category: str = "US_STOCK") -> List[Dict[str, Any]]:
+        response = self.api.market_data.get_snapshot(symbols, category)
+        if response.status_code == 200:
+            snapshots = response.json()
+        logger.info(f"Fetched {len(snapshots)} market snapshots for symbols: {symbols}")
+        return snapshots
+    
+    def get_current_stock_quote(self, symbol: str) -> Optional[float]:
+        snapshots = self.get_market_snapshot(symbol, category="US_STOCK")
+        if snapshots:
+            return float(snapshots[0].get('price'))
+        return None
 
     # ============================================================================
     # Helper Methods
