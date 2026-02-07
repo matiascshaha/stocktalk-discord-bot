@@ -1,6 +1,6 @@
 import json
+import logging
 import os
-from pathlib import Path
 from typing import Any, Optional, Dict
 
 from dotenv import load_dotenv
@@ -12,43 +12,48 @@ except Exception:  # pragma: no cover - optional dependency
 
 load_dotenv()
 
+from src.utils.paths import resolve_config_path
+
+
+logger = logging.getLogger(__name__)
 CONFIG_DATA = {}
 
 
 def _load_config() -> dict:
-    path = Path(_config_path())
+    path = resolve_config_path()
+    logger.info("Loading configuration from %s", path)
+
     if not path.exists():
+        logger.warning("Configuration file not found at %s", path)
         return {}
 
     try:
         text = path.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed reading configuration file %s: %s", path, exc)
         return {}
 
     suffix = path.suffix.lower()
     if suffix in (".yaml", ".yml"):
         if not yaml:
+            logger.warning("PyYAML is unavailable; cannot parse %s", path)
             return {}
         try:
             data = yaml.safe_load(text) or {}
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed parsing YAML configuration %s: %s", path, exc)
             return {}
     elif suffix == ".json":
         try:
             data = json.loads(text) or {}
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed parsing JSON configuration %s: %s", path, exc)
             return {}
     else:
+        logger.warning("Unsupported configuration extension for %s", path)
         return {}
 
     return data if isinstance(data, dict) else {}
-
-
-def _config_path() -> str:
-    env_override = os.getenv("CONFIG_PATH")
-    if env_override:
-        return str(Path(env_override).expanduser())
-    return str(Path.cwd() / "config" / "trading.yaml")
 
 
 def _cfg(path: str, default: Optional[Any] = None) -> Any:

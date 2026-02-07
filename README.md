@@ -2,6 +2,12 @@
 
 An intelligent stock monitoring and auto-trading system that watches Discord channels for stock picks and optionally executes trades on Webull using AI-powered message interpretation.
 
+## Validation & Testing
+
+Testing strategy, confidence gates, smoke policy, and health report format live in:
+
+- `tests/README.md`
+
 ## 🎯 What It Does
 
 This application monitors a specific Discord channel for stock trading signals and:
@@ -88,6 +94,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
+pip install -e .
 
 # Copy environment template
 cp .env.example .env
@@ -129,8 +136,14 @@ USE_MARKET_ORDERS=true
 
 ### Run
 ```bash
-python src/main.py
+python -m src.main
 ```
+
+### IDE Setup
+
+- Open the repository root in your IDE (not only the `src/` folder)
+- Select interpreter: `/Users/matiasperichon/Documents/dev/projects/stocktalk-discord-bot/venv/bin/python`
+- If imports/references still look stale, reload the IDE window and re-index
 
 ## 📋 Features
 
@@ -250,15 +263,20 @@ DEFAULT_AMOUNT=500
 System automatically trades picks with 85%+ confidence.
 
 ## 🧪 Testing
+
+For full reliability policy, confidence gates, and test matrix, see:
+
+- `tests/README.md`
+
 ```bash
-# Run tests
+# Deterministic suite (default safety profile)
 pytest tests/
 
-# Test AI parser
-python -m pytest tests/test_parser.py -v
+# Smoke suite (live checks are still marker-gated by env flags)
+pytest -m smoke
 
-# Test trader (paper trading mode)
-python -m pytest tests/test_trader.py -v
+# Unified reliability health check + JSON artifact
+python -m scripts.healthcheck
 ```
 
 ## 📈 Monitoring Performance
@@ -293,6 +311,7 @@ Modify `src/notifier.py` to add Telegram, Slack, or webhook integrations.
 - [Credentials Setup](docs/CREDENTIALS_SETUP.md) - Detailed credential setup instructions
 - [AI Provider Comparison](docs/AI_PROVIDER_COMPARISON.md) - Choose the best AI provider
 - [Helper Scripts](docs/SCRIPTS.md) - Test credentials and utilities
+- [Testing Guide](tests/README.md) - Reliability contract, confidence gates, and smoke policy
 - [Architecture Details](docs/ARCHITECTURE.md) - System design and data flow
 - [API Reference](docs/API.md) - Code documentation
 

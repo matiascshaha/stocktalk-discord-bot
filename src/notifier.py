@@ -104,7 +104,10 @@ class Notifier:
     def _copy_to_clipboard(self, picks):
         """Copy ticker(s) to clipboard"""
         try:
-            tickers = [pick['ticker'] for pick in picks]
+            pick_objs = picks.get("picks", [])
+            tickers = [pick['ticker'] for pick in pick_objs if pick.get("ticker")]
+            if not tickers:
+                return
             ticker_str = ', '.join(tickers)
             pyperclip.copy(ticker_str)
             logger.debug(f"Copied {ticker_str} to clipboard")

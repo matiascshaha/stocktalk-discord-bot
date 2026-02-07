@@ -63,6 +63,7 @@ source venv/bin/activate
 **Install Dependencies:**
 ```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
 ### 4. Get Credentials
@@ -77,7 +78,7 @@ Quick summary:
 
 **Quick Test**: After setting up credentials, test them with:
 ```bash
-python scripts/test_credentials.py
+python -m scripts.test_credentials
 ```
 
 ### 8. Create Environment File
@@ -139,7 +140,7 @@ The `.gitkeep` file should already be there.
 
 **Recommended: Use the credential testing script:**
 ```bash
-python scripts/test_credentials.py
+python -m scripts.test_credentials
 ```
 
 This will test all your credentials (Discord, AI API, Webull) and verify they work correctly.
@@ -155,7 +156,7 @@ See [SCRIPTS.md](SCRIPTS.md) for more information about helper scripts.
 
 **Monitor-Only Mode (Safest):**
 ```bash
-python src/main.py
+python -m src.main
 ```
 
 You should see:
@@ -279,7 +280,7 @@ After=network.target
 Type=simple
 User=your_username
 WorkingDirectory=/path/to/discord-stock-monitor
-ExecStart=/path/to/venv/bin/python src/main.py
+ExecStart=/path/to/venv/bin/python -m src.main
 Restart=always
 
 [Install]
@@ -302,9 +303,20 @@ WantedBy=multi-user.target
 5. **Monitor first trades manually** before full automation
 6. **Set up alerts** for unexpected behavior
 
+## IDE Configuration (Recommended)
+
+For reliable go-to-definition and references:
+
+1. Open the project root folder (not `src/` by itself)
+2. Select interpreter: `/Users/matiasperichon/Documents/dev/projects/stocktalk-discord-bot/venv/bin/python`
+3. Install the project in editable mode:
+   ```bash
+   ./venv/bin/pip install -e .
+   ```
+
 ## Next Steps
 
-1. **Test Credentials**: Run `python scripts/test_credentials.py` to verify everything works
+1. **Test Credentials**: Run `python -m scripts.test_credentials` to verify everything works
 2. **Review AI Providers**: See [AI_PROVIDER_COMPARISON.md](AI_PROVIDER_COMPARISON.md) to choose the best provider
 3. **Review Architecture**: Read `docs/ARCHITECTURE.md`
 4. **Understand API**: Read `docs/API.md`

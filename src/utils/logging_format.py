@@ -24,7 +24,7 @@ def format_startup_status(user: Any, channel_id: Any, ai_provider: Optional[str]
     ]
 
 
-def format_pick_summary(picks: List[Dict[str, Any]]) -> str:
+def format_pick_summary(picks: Dict[str, Any]) -> str:
     if not picks.get("picks"):
         return "No stock picks detected."
 
@@ -33,7 +33,7 @@ def format_pick_summary(picks: List[Dict[str, Any]]) -> str:
     actions = [p.get("action") for p in pick_objs if p.get("action")]
     ticker_str = ", ".join(tickers) if tickers else "N/A"
     action_str = ", ".join(actions) if actions else "N/A"
-    return f"Picks: count={len(picks)} | tickers={ticker_str} | actions={action_str}"
+    return f"Picks: count={len(pick_objs)} | tickers={ticker_str} | actions={action_str}"
 
 
 def _flag(value: Any) -> str:

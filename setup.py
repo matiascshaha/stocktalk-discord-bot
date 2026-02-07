@@ -7,6 +7,10 @@ setup(
     author="Your Name",
     author_email="your.email@example.com",
     packages=find_packages(),
+    package_data={
+        "config": ["*.prompt", "*.yaml", "*.yml", "*.json"],
+    },
+    include_package_data=True,
     install_requires=[
         "discord.py-self>=2.0.0",
         "anthropic>=0.39.0",

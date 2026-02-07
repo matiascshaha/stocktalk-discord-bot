@@ -33,6 +33,15 @@ CONFIG_PATH=/full/path/to/config/trading.yaml
 
 in `.env` (or your environment).
 
+You can also override runtime output paths:
+
+```
+DATA_DIR=data
+PICKS_LOG_PATH=data/picks_log.jsonl
+```
+
+Relative paths resolve from the repository root.
+
 ## Notes
 - If `config/trading.yaml` is missing, the app falls back to `.env` and defaults.
 - Keep secrets out of this folder if you plan to share the repo.

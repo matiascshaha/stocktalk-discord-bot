@@ -1,11 +1,11 @@
 import discord
 import json
-import os
 from datetime import datetime
 from src.ai_parser import AIParser
 from src.notifier import Notifier
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
+from src.utils.paths import PICKS_LOG_PATH
 from src.webull_trader import WebullTrader
 from src.models.webull_models import *
 from config.settings import DISCORD_TOKEN, CHANNEL_ID
@@ -52,36 +52,43 @@ class StockMonitorClient:
     
     async def on_message(self, message):
         """Called when a message is received"""
-        # Filter messages
-        # if message.channel.id != CHANNEL_ID:
-        #     logger.debug(f"Ignoring message from channel {message.channel.id}")
-        #     return
-        
-        # if message.author.id == self.client.user.id:
-        #     logger.debug("Ignoring own message")
-        #     return
-        
-        # if len(message.content) < 3:
-        #     logger.debug("Ignoring short message")
-        #     return
+        if message.channel.id != CHANNEL_ID:
+            logger.debug("Ignoring message from channel %s", message.channel.id)
+            return
+
+        if self.client.user and message.author.id == self.client.user.id:
+            logger.debug("Ignoring own message")
+            return
+
+        content = (message.content or "").strip()
+        if len(content) < 3:
+            logger.debug("Ignoring short message")
+            return
         
         logger.info(f"New message from {message.author.name}")
         logger.debug(f"Message content: {message.content[:100]}...")
         
         logger.info("AI analyzing message.")
-        picks = self.parser.parse(message.content, message.author.name, message.channel.id, self.trader)
+        parsed = self.parser.parse(message.content, message.author.name, message.channel.id, self.trader)
+        if not isinstance(parsed, dict):
+            logger.warning("Parser returned unexpected type: %s", type(parsed).__name__)
+            return
 
-        if picks.get("picks"):
-            pick_objs = picks.get("picks", [])
+        pick_objs = parsed.get("picks")
+        if not isinstance(pick_objs, list):
+            logger.warning("Parser returned invalid pick payload: picks must be a list")
+            return
+
+        if pick_objs:
             logger.info(f"Detected {len(pick_objs)} stock pick(s).")
-            logger.debug("Picks details: {}".format(json.dumps(picks, indent=2)))
-            logger.info(format_pick_summary(picks))
+            logger.debug("Picks details: %s", json.dumps(parsed, indent=2))
+            logger.info(format_pick_summary(parsed))
 
             # Send notifications
-            self.notifier.notify(picks, message.author.name)
+            self.notifier.notify(parsed, message.author.name)
 
             # Log picks
-            self._log_picks(message, picks)
+            self._log_picks(message, parsed)
 
             # Execute trades if trader available
             if self.trader:
@@ -107,12 +114,11 @@ class StockMonitorClient:
             "ai_parsed_picks": picks,
         }
 
-        # Ensure data directory exists
-        os.makedirs("data", exist_ok=True)
-        with open("data/picks_log.jsonl", "a") as f:
+        PICKS_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with PICKS_LOG_PATH.open("a", encoding="utf-8") as f:
             f.write(json.dumps(log_entry) + "\n")
 
-        logger.debug("Pick logged to picks_log.jsonl")
+        logger.debug("Pick logged to %s", PICKS_LOG_PATH)
     
     async def read_channel_history(self, limit=10):
         """

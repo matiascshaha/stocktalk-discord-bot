@@ -49,6 +49,12 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+pip install -e .
+if errorlevel 1 (
+    echo ERROR: Failed to install project in editable mode
+    pause
+    exit /b 1
+)
 echo Dependencies installed successfully.
 
 echo.
@@ -84,7 +90,7 @@ echo Next Steps:
 echo 1. Activate virtual environment: venv\Scripts\activate
 echo 2. Edit .env file with your credentials
 echo    See docs\CREDENTIALS_SETUP.md for instructions
-echo 3. Test credentials: python scripts\test_credentials.py
-echo 4. Run monitor: python src\main.py
+echo 3. Test credentials: python -m scripts.test_credentials
+echo 4. Run monitor: python -m src.main
 echo.
 pause

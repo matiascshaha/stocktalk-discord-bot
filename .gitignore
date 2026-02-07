@@ -9,6 +9,7 @@ __pycache__/
 data/*.jsonl
 data/*.csv
 !data/.gitkeep
+artifacts/
 
 # IDE
 .vscode/

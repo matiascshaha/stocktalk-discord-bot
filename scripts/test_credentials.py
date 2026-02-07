@@ -14,11 +14,6 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-# Add project root to path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 from dotenv import load_dotenv
 
 from config.settings import AI_PROVIDER
@@ -322,7 +317,7 @@ def main():
     print("\n" + "="*60)
     if required_passed:
         print("✅ All required credentials are valid!")
-        print("   You can now run: python src/main.py")
+        print("   You can now run: python -m src.main")
     else:
         print("❌ Some required credentials failed validation")
         print("   Please check your .env file and try again")

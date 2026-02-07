@@ -1,6 +1,5 @@
 import json
 import re
-from pathlib import Path
 from typing import Any, Dict, Optional
 from datetime import datetime
 from pytz import timezone
@@ -18,6 +17,7 @@ from config.settings import (
     get_analyst_for_channel,
 )
 from src.utils.logger import setup_logger
+from src.utils.paths import resolve_prompt_path
 
 logger = setup_logger('ai_parser')
 
@@ -46,7 +46,7 @@ class AIParser:
         author_name: str,
         channel_id: Optional[int] = None,
         trading_account: Optional[Any] = None,
-    ) -> list:
+    ) -> Dict[str, Any]:
         """
         Parse stock picks from message using AI with optional account context.
         
@@ -57,13 +57,17 @@ class AIParser:
             trading_account: Optional trading account object for context
 
         Returns:
-            List of picks (with new unified format if account context provided)
+            Dict with a stable shape:
+            {
+              "picks": [...],
+              "meta": {"status": "...", "provider": "...", "error": "..."}
+            }
         """
         
         if not self.client:
             logger.warning("No AI client available")
             logger.warning("Skipping because no AI provider is configured")
-            return None
+            return self._empty_result(status="no_client")
         
         prompt = self._build_prompt(
             message_text=message_text,
@@ -74,9 +78,7 @@ class AIParser:
         
         if not prompt.strip():
             logger.warning("Prompt template is empty; Doing nothing.")
-            # no fallback parse
-            # return and do nothing
-            return None
+            return self._empty_result(status="empty_prompt")
         
         try:
             if self.provider == 'anthropic':
@@ -100,36 +102,109 @@ class AIParser:
             elif self.provider == 'google':
                 response = self.client.generate_content(prompt)
                 response_text = response.text.strip()
+            else:
+                logger.error("AI provider is not set on initialized client")
+                return self._empty_result(status="unknown_provider")
             
             logger.debug(f"AI response: {response_text}")
             
-            # Clean and parse JSON
             response_text = self._clean_json(response_text)
             
-            # Try parsing as dict first (new unified format)
             try:
                 result = json.loads(response_text)
-                if isinstance(result, dict) and "picks" in result:
-                    # New unified format with summary
-                    logger.info(f"Parsed {len(result.get('picks', []))} picks with account context")
-                    return result
-                else:
-                    # Fallback: treat as list
-                    return result if isinstance(result, list) else [result]
+                return self._coerce_result(result)
             except json.JSONDecodeError:
-                # if text is not a dict, log error
                 logger.warning("AI response was not in expected format. Probably an issue with context.")
                 logger.error(f"Failed to parse AI response as JSON: {response_text}")
-                return False
+                return self._empty_result(status="invalid_json", error=response_text)
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON parsing error: {e}")
             logger.debug(f"Raw response: {response_text}")
-            return False
+            return self._empty_result(status="json_error", error=str(e))
         
         except Exception as e:
             logger.error(f"AI parsing error: {e}")
-            return False
+            return self._empty_result(status="provider_error", error=str(e))
+
+    def _empty_result(self, status: str, error: Optional[str] = None) -> Dict[str, Any]:
+        return {
+            "picks": [],
+            "meta": {
+                "status": status,
+                "provider": self.provider,
+                "error": error,
+            },
+        }
+
+    def _coerce_result(self, payload: Any) -> Dict[str, Any]:
+        picks: list = []
+        extras: Dict[str, Any] = {}
+
+        if isinstance(payload, dict):
+            if isinstance(payload.get("picks"), list):
+                picks = payload.get("picks", [])
+                extras = {k: v for k, v in payload.items() if k != "picks"}
+            elif "ticker" in payload:
+                picks = [payload]
+            else:
+                picks = []
+        elif isinstance(payload, list):
+            picks = payload
+
+        normalized_picks = []
+        for pick in picks:
+            normalized = self._normalize_pick(pick)
+            if normalized:
+                normalized_picks.append(normalized)
+
+        result = {
+            "picks": normalized_picks,
+            "meta": {
+                "status": "ok",
+                "provider": self.provider,
+                "error": None,
+            },
+        }
+        result.update(extras)
+        return result
+
+    def _normalize_pick(self, pick: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(pick, dict):
+            return None
+
+        ticker = str(pick.get("ticker", "")).upper().replace("$", "").strip()
+        if not ticker:
+            return None
+
+        action = str(pick.get("action", "BUY")).upper().strip() or "BUY"
+        if action not in {"BUY", "SELL", "HOLD"}:
+            action = "BUY"
+
+        try:
+            confidence = float(pick.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        confidence = max(0.0, min(1.0, confidence))
+
+        weight_percent = pick.get("weight_percent")
+        if weight_percent in ("", None):
+            weight_percent = None
+        else:
+            try:
+                weight_percent = float(weight_percent)
+            except (TypeError, ValueError):
+                weight_percent = None
+
+        return {
+            "ticker": ticker,
+            "action": action,
+            "confidence": confidence,
+            "weight_percent": weight_percent,
+            "urgency": str(pick.get("urgency", "MEDIUM")),
+            "sentiment": str(pick.get("sentiment", "NEUTRAL")),
+            "reasoning": str(pick.get("reasoning", "")),
+        }
     
     def _build_prompt(
         self,
@@ -204,8 +279,7 @@ class AIParser:
         channel_id: Optional[int] = None,
         trading_account: Optional[Any] = None,
     ) -> str:
-
-        template = Path("config/ai_parser.prompt").read_text(encoding="utf-8")
+        template = self.prompt_template or ""
 
         analyst_rules = get_analyst_for_channel(channel_id) if channel_id else None
         analyst_name = analyst_rules.get("name", "Unknown") if analyst_rules else "Unknown"
@@ -337,14 +411,8 @@ class AIParser:
 
     def _load_prompt_template(self) -> str:
         path = self.config.get("prompt_file") if isinstance(self.config, dict) else None
-        if not path:
-            raise ValueError("prompt_file must be defined in config")
-
-        # Resolve relative to project root (not cwd)
-        project_root = Path(__file__).resolve().parents[1]
-        prompt_path = (project_root / path).resolve()
-
-        logger.warning(f"Loading prompt template from: {prompt_path}")
+        prompt_path = resolve_prompt_path(path)
+        logger.info("Loading prompt template from: %s", prompt_path)
 
         try:
             return prompt_path.read_text(encoding="utf-8")

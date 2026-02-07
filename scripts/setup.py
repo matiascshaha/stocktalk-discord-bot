@@ -111,12 +111,19 @@ def install_requirements(venv_path):
     print(f"Installing packages from {requirements_file}...")
     result = run_command([pip_cmd, 'install', '-r', requirements_file], check=True)
     
-    if result:
-        print("✅ All dependencies installed successfully")
-        return True
-    else:
+    if not result:
         print("❌ Failed to install dependencies")
         return False
+
+    # Install project in editable mode for stable imports and IDE indexing
+    print("Installing project in editable mode...")
+    editable_result = run_command([pip_cmd, 'install', '-e', project_root], check=True)
+    if not editable_result:
+        print("❌ Failed to install project in editable mode")
+        return False
+
+    print("✅ All dependencies installed successfully")
+    return True
 
 def create_env_file():
     """Create .env file from .env.example if it doesn't exist"""
@@ -195,10 +202,10 @@ def print_activation_instructions(venv_path):
     print(f"   See docs/CREDENTIALS_SETUP.md for detailed instructions")
     
     print(f"\n3. Test your credentials:")
-    print(f"   python scripts/test_credentials.py")
+    print(f"   python -m scripts.test_credentials")
     
     print(f"\n4. Run the monitor:")
-    print(f"   python src/main.py")
+    print(f"   python -m src.main")
     
     print("\n" + "="*60)
 

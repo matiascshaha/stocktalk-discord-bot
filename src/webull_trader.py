@@ -159,24 +159,35 @@ class WebullTrader:
     # ============================================================================
 
 
-    def preview_stock_order(self, order: StockOrderRequest) -> Dict[str, Any]:
+    def preview_stock_order(self, order: StockOrderRequest) -> OrderPreviewResponse:
         """
-        Preview stock order using Webull's API.
-        Returns raw response from Webull.
+        Build a local stock order estimate.
+        The installed SDK does not expose a stock preview endpoint like options do.
         """
-        account_id = self.resolve_account_id()
-        payload = self._build_stock_payload(order)
-        
-        logger.info(f"Previewing {order.side} {order.quantity} {order.symbol}...")
-        
-        res = self.trade_client.order.preview_order(account_id, [payload])
-        self._check_response(res, "preview_order")
-        
-        preview_data = res.json()
-        logger.info(f"Preview response: {preview_data}")
-        
-        # Best practice: use model_validate
-        return OrderPreviewResponse.model_validate(preview_data)
+        instrument = self.get_instrument(order.symbol)
+        if not instrument:
+            raise ValueError(f"Instrument not found for symbol: {order.symbol}")
+
+        market_price = instrument[0].get("last_price")
+        if market_price is None:
+            raise ValueError(f"Instrument missing last_price for symbol: {order.symbol}")
+
+        unit_price = float(order.limit_price) if order.order_type == OrderType.LIMIT else float(market_price)
+        estimated_cost = unit_price * float(order.quantity)
+        preview = OrderPreviewResponse(
+            estimated_cost=f"{estimated_cost:.2f}",
+            estimated_transaction_fee="0.00",
+            currency=WEBULL_CONFIG.get("currency", "USD"),
+        )
+        logger.info(
+            "Local stock preview: %s %s %s @ %.4f (estimated_cost=%s)",
+            order.side,
+            order.quantity,
+            order.symbol,
+            unit_price,
+            preview.estimated_cost,
+        )
+        return preview
 
     def preview_option_order(self, order: OptionOrderRequest) -> OrderPreviewResponse:
         """Preview option order using Webull's preview_option API"""
@@ -387,15 +398,15 @@ class WebullTrader:
 
     def get_instrument(self, symbols: str, category: str = "US_STOCK") -> List[Dict[str, Any]]:
         response = self.api.instrument.get_instrument(symbols, category)
-        if response.status_code == 200:
-            instruments = response.json()
+        self._check_response(response, "get_instrument")
+        instruments = response.json()
         logger.info(f"Fetched {len(instruments)} instruments for symbols: {symbols}")
         return instruments
 
     def get_market_snapshot(self, symbols: str, category: str = "US_STOCK") -> List[Dict[str, Any]]:
         response = self.api.market_data.get_snapshot(symbols, category)
-        if response.status_code == 200:
-            snapshots = response.json()
+        self._check_response(response, "get_market_snapshot")
+        snapshots = response.json()
         logger.info(f"Fetched {len(snapshots)} market snapshots for symbols: {symbols}")
         return snapshots
     

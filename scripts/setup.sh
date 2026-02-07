@@ -53,6 +53,11 @@ if [ $? -ne 0 ]; then
     echo "ERROR: Failed to install dependencies"
     exit 1
 fi
+pip install -e .
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to install project in editable mode"
+    exit 1
+fi
 echo "Dependencies installed successfully."
 
 # Step 3: Setup environment file
@@ -90,6 +95,6 @@ echo "Next Steps:"
 echo "1. Activate virtual environment: source venv/bin/activate"
 echo "2. Edit .env file with your credentials"
 echo "   See docs/CREDENTIALS_SETUP.md for instructions"
-echo "3. Test credentials: python scripts/test_credentials.py"
-echo "4. Run monitor: python src/main.py"
+echo "3. Test credentials: python -m scripts.test_credentials"
+echo "4. Run monitor: python -m src.main"
 echo ""

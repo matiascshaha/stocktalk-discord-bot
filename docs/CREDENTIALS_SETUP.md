@@ -309,7 +309,7 @@ After setting up your `.env` file:
 
 3. **Test all credentials** (Recommended)
    ```bash
-   python scripts/test_credentials.py
+   python -m scripts.test_credentials
    ```
    This script will test:
    - Discord token validity
@@ -326,7 +326,7 @@ After setting up your `.env` file:
 
 5. **Run the monitor** (monitor-only mode)
    ```bash
-   python src/main.py
+   python -m src.main
    ```
 
 ---
