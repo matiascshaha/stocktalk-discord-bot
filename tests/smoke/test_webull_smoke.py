@@ -1,34 +1,26 @@
-import json
 import os
-from datetime import datetime, timezone
 from pathlib import Path
+from typing import List
 
 import pytest
 
 from config.settings import WEBULL_CONFIG
 from src.models.webull_models import OptionLeg, OptionOrderRequest, OptionType, OrderSide, OrderType, StockOrderRequest, TimeInForce
 from src.webull_trader import WebullTrader
+from tests.support.artifacts import append_smoke_check
 
 
 REPORT_PATH = Path("artifacts/webull_smoke_report.json")
 
 
-def _append_check(name: str, status: str, details: dict):
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if REPORT_PATH.exists():
-        report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
-    else:
-        report = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "checks": [],
-        }
-    report["checks"].append({"name": name, "status": status, "details": details})
-    REPORT_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
-
-
 def _paper_trade_enabled() -> bool:
-    raw = os.getenv("PAPER_TRADE", "true").strip().lower()
+    raw = os.getenv("WEBULL_SMOKE_PAPER_TRADE", os.getenv("PAPER_TRADE", "true")).strip().lower()
     return raw in {"1", "true", "yes", "on"}
+
+
+def _require_webull_enabled(broker_matrix: List[str]) -> None:
+    if "webull" not in broker_matrix:
+        pytest.skip(f"Webull broker not enabled in TEST_BROKERS={','.join(broker_matrix)}")
 
 
 def _build_trader() -> WebullTrader:
@@ -62,31 +54,54 @@ def _build_trader() -> WebullTrader:
 
 @pytest.mark.smoke
 @pytest.mark.live
-def test_webull_read_smoke_login():
+def test_webull_read_smoke_login(broker_matrix):
+    _require_webull_enabled(broker_matrix)
     if os.getenv("RUN_WEBULL_READ_SMOKE") != "1":
         pytest.skip("RUN_WEBULL_READ_SMOKE != 1")
 
     trader = _build_trader()
-    ok = trader.login()
+    error = None
+    ok = False
+    account_id = None
+    try:
+        account_id = trader.resolve_account_id()
+        ok = True
+    except Exception as exc:  # pragma: no cover - live smoke diagnostic
+        error = str(exc)
     details = {
         "paper_trade": trader.paper_trade,
         "region": trader.region,
         "endpoint": trader._get_endpoint(),
+        "request_class": "account_v2.get_account_list",
+        "account_id_masked": trader._mask_id(account_id) if account_id else None,
+        "error": error,
     }
-    _append_check("webull_read_login", "passed" if ok else "failed", details)
+    append_smoke_check(REPORT_PATH, "webull_read_login", "passed" if ok else "failed", details)
     assert ok is True
 
 
 @pytest.mark.smoke
 @pytest.mark.live
-def test_webull_read_smoke_balance_and_instrument():
+def test_webull_read_smoke_balance_and_instrument(broker_matrix):
+    _require_webull_enabled(broker_matrix)
     if os.getenv("RUN_WEBULL_READ_SMOKE") != "1":
         pytest.skip("RUN_WEBULL_READ_SMOKE != 1")
 
     trader = _build_trader()
-    account_id = trader.resolve_account_id()
-    balance = trader.get_account_balance()
-    instruments = trader.get_instrument("AAPL")
+    try:
+        account_id = trader.resolve_account_id()
+        balance = trader.get_account_balance()
+        instruments = trader.get_instrument("AAPL")
+    except Exception as exc:
+        details = {
+            "paper_trade": trader.paper_trade,
+            "region": trader.region,
+            "endpoint": trader._get_endpoint(),
+            "request_class": "account.get_account_balance + instrument.get_instrument",
+            "error": str(exc),
+        }
+        append_smoke_check(REPORT_PATH, "webull_read_balance_instrument", "failed", details)
+        raise
 
     details = {
         "paper_trade": trader.paper_trade,
@@ -95,15 +110,17 @@ def test_webull_read_smoke_balance_and_instrument():
         "account_id_masked": trader._mask_id(account_id),
         "balance_keys": sorted(list(balance.keys()))[:8],
         "instrument_count": len(instruments),
+        "request_class": "account.get_account_balance + instrument.get_instrument",
     }
-    _append_check("webull_read_balance_instrument", "passed", details)
+    append_smoke_check(REPORT_PATH, "webull_read_balance_instrument", "passed", details)
     assert len(instruments) > 0
 
 
 @pytest.mark.smoke
 @pytest.mark.live
 @pytest.mark.webull_write
-def test_webull_write_smoke_stock_order_opt_in():
+def test_webull_write_smoke_stock_order_opt_in(broker_matrix):
+    _require_webull_enabled(broker_matrix)
     if os.getenv("RUN_WEBULL_WRITE_TESTS") != "1":
         pytest.skip("RUN_WEBULL_WRITE_TESTS != 1")
 
@@ -124,16 +141,18 @@ def test_webull_write_smoke_stock_order_opt_in():
     details = {
         "paper_trade": trader.paper_trade,
         "endpoint": trader._get_endpoint(),
+        "request_class": "order.place_order",
         "result_keys": sorted(list(result.keys()))[:8] if isinstance(result, dict) else [],
     }
-    _append_check("webull_write_stock_order", "passed", details)
+    append_smoke_check(REPORT_PATH, "webull_write_stock_order", "passed", details)
     assert isinstance(result, dict)
 
 
 @pytest.mark.smoke
 @pytest.mark.live
 @pytest.mark.webull_write
-def test_webull_write_smoke_option_order_opt_in_non_blocking():
+def test_webull_write_smoke_option_order_opt_in_non_blocking(broker_matrix):
+    _require_webull_enabled(broker_matrix)
     if os.getenv("RUN_WEBULL_WRITE_TESTS") != "1":
         pytest.skip("RUN_WEBULL_WRITE_TESTS != 1")
 
@@ -166,15 +185,17 @@ def test_webull_write_smoke_option_order_opt_in_non_blocking():
         details = {
             "paper_trade": trader.paper_trade,
             "endpoint": trader._get_endpoint(),
+            "request_class": "order.place_option",
             "error": str(exc),
         }
-        _append_check("webull_write_option_order", "xfailed", details)
+        append_smoke_check(REPORT_PATH, "webull_write_option_order", "xfailed", details)
         pytest.xfail(f"Option endpoint unavailable/non-deterministic in this environment: {exc}")
 
     details = {
         "paper_trade": trader.paper_trade,
         "endpoint": trader._get_endpoint(),
+        "request_class": "order.place_option",
         "result_keys": sorted(list(result.keys()))[:8] if isinstance(result, dict) else [],
     }
-    _append_check("webull_write_option_order", "passed", details)
+    append_smoke_check(REPORT_PATH, "webull_write_option_order", "passed", details)
     assert isinstance(result, dict)

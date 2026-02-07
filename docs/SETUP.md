@@ -145,6 +145,11 @@ python -m scripts.test_credentials
 
 This will test all your credentials (Discord, AI API, Webull) and verify they work correctly.
 
+**Then run full confidence checks:**
+```bash
+python -m scripts.full_confidence
+```
+
 **Alternative: Quick validation:**
 ```bash
 python -c "from config.settings import validate_config; errors = validate_config(); print('✅ Valid' if not errors else f'❌ Errors: {errors}')"

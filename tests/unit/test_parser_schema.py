@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.ai_parser import AIParser
+from src.models.parser_models import ParsedMessage
 
 
 class _FakeOpenAIClient:
@@ -32,6 +33,8 @@ def test_parser_output_has_required_fields_for_discord_client():
     )
 
     result = parser.parse("Adding AAPL", "tester")
+    parsed = ParsedMessage.model_validate(result)
+    assert len(parsed.picks) == 1
     assert len(result["picks"]) == 1
     pick = result["picks"][0]
 
@@ -60,5 +63,27 @@ def test_parser_drops_invalid_pick_entries():
     )
 
     result = parser.parse("Adding MSFT", "tester")
+    parsed = ParsedMessage.model_validate(result)
+    assert len(parsed.picks) == 1
     assert len(result["picks"]) == 1
     assert result["picks"][0]["ticker"] == "MSFT"
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_parser_normalizes_invalid_action_to_buy():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _FakeOpenAIClient(
+        """
+        {
+          "picks": [
+            {"ticker": "TSLA", "action": "ADD", "confidence": 0.8}
+          ]
+        }
+        """
+    )
+
+    result = parser.parse("Adding TSLA", "tester")
+    parsed = ParsedMessage.model_validate(result)
+    assert parsed.picks[0].action == "BUY"

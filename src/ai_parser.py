@@ -6,6 +6,7 @@ from pytz import timezone
 
 import anthropic
 import openai
+from pydantic import ValidationError
 
 from config.settings import (
     AI_CONFIG,
@@ -16,6 +17,7 @@ from config.settings import (
     get_account_constraints,
     get_analyst_for_channel,
 )
+from src.models.parser_models import ParsedMessage, ParsedPick, ParserMeta
 from src.utils.logger import setup_logger
 from src.utils.paths import resolve_prompt_path
 
@@ -128,14 +130,10 @@ class AIParser:
             return self._empty_result(status="provider_error", error=str(e))
 
     def _empty_result(self, status: str, error: Optional[str] = None) -> Dict[str, Any]:
-        return {
-            "picks": [],
-            "meta": {
-                "status": status,
-                "provider": self.provider,
-                "error": error,
-            },
-        }
+        return ParsedMessage(
+            picks=[],
+            meta=ParserMeta(status=status, provider=self.provider, error=error),
+        ).model_dump()
 
     def _coerce_result(self, payload: Any) -> Dict[str, Any]:
         picks: list = []
@@ -144,7 +142,7 @@ class AIParser:
         if isinstance(payload, dict):
             if isinstance(payload.get("picks"), list):
                 picks = payload.get("picks", [])
-                extras = {k: v for k, v in payload.items() if k != "picks"}
+                extras = {k: v for k, v in payload.items() if k not in {"picks", "meta"}}
             elif "ticker" in payload:
                 picks = [payload]
             else:
@@ -156,55 +154,22 @@ class AIParser:
         for pick in picks:
             normalized = self._normalize_pick(pick)
             if normalized:
-                normalized_picks.append(normalized)
+                normalized_picks.append(normalized.model_dump())
 
-        result = {
-            "picks": normalized_picks,
-            "meta": {
-                "status": "ok",
-                "provider": self.provider,
-                "error": None,
-            },
-        }
-        result.update(extras)
-        return result
+        result = ParsedMessage(
+            picks=normalized_picks,
+            meta=ParserMeta(status="ok", provider=self.provider, error=None),
+            **extras,
+        )
+        return result.model_dump()
 
-    def _normalize_pick(self, pick: Any) -> Optional[Dict[str, Any]]:
+    def _normalize_pick(self, pick: Any) -> Optional[ParsedPick]:
         if not isinstance(pick, dict):
             return None
-
-        ticker = str(pick.get("ticker", "")).upper().replace("$", "").strip()
-        if not ticker:
-            return None
-
-        action = str(pick.get("action", "BUY")).upper().strip() or "BUY"
-        if action not in {"BUY", "SELL", "HOLD"}:
-            action = "BUY"
-
         try:
-            confidence = float(pick.get("confidence", 0.0))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        confidence = max(0.0, min(1.0, confidence))
-
-        weight_percent = pick.get("weight_percent")
-        if weight_percent in ("", None):
-            weight_percent = None
-        else:
-            try:
-                weight_percent = float(weight_percent)
-            except (TypeError, ValueError):
-                weight_percent = None
-
-        return {
-            "ticker": ticker,
-            "action": action,
-            "confidence": confidence,
-            "weight_percent": weight_percent,
-            "urgency": str(pick.get("urgency", "MEDIUM")),
-            "sentiment": str(pick.get("sentiment", "NEUTRAL")),
-            "reasoning": str(pick.get("reasoning", "")),
-        }
+            return ParsedPick.model_validate(pick)
+        except ValidationError:
+            return None
     
     def _build_prompt(
         self,

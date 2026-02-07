@@ -1,345 +1,133 @@
-# Discord Stock Monitor 📊
+# Discord Stock Monitor
 
-An intelligent stock monitoring and auto-trading system that watches Discord channels for stock picks and optionally executes trades on Webull using AI-powered message interpretation.
+Monitors one Discord channel, extracts trade signals with AI, notifies/logs picks, and can optionally place stock orders on Webull.
 
-## Validation & Testing
+## Mission
 
-Testing strategy, confidence gates, smoke policy, and health report format live in:
+Make Discord trade alerts operational with a clear, testable flow:
+Discord message -> structured pick -> optional trade execution.
 
-- `tests/README.md`
+## What The App Does
 
-## 🎯 What It Does
+1. Watches a configured Discord channel.
+2. Sends each relevant message to your configured AI provider.
+3. Normalizes AI output into a strict parser contract.
+4. Sends notifications and appends logs.
+5. Optionally places stock orders through Webull when `AUTO_TRADE=true`.
 
-This application monitors a specific Discord channel for stock trading signals and:
+## System Design (Simplified)
 
-1. **Monitors Discord** - Listens to messages in real-time
-2. **AI Analysis** - Uses Claude AI to intelligently parse stock picks from natural language
-3. **Smart Detection** - Identifies tickers, actions (BUY/SELL/HOLD), confidence levels, and urgency
-4. **Notifications** - Sends desktop alerts and copies tickers to clipboard
-5. **Auto-Trading** - Optionally executes trades automatically on Webull
-6. **Complete Logging** - Records all picks and trades for analysis
-
-## 🏗️ Architecture
-┌─────────────────┐
-│  Discord API    │ ← Monitors channel for messages
-└────────┬────────┘
-│
-▼
-┌─────────────────┐
-│  AI Parser      │ ← Claude AI analyzes message content
-│  (Anthropic)    │   - Extracts tickers
-└────────┬────────┘   - Determines action (BUY/SELL/HOLD)
-│            - Calculates confidence
-│            - Assesses urgency & sentiment
-▼
-┌─────────────────┐
-│  Decision       │ ← Validates pick against thresholds
-│  Engine         │   - Confidence > MIN_CONFIDENCE?
-└────────┬────────┘   - AUTO_TRADE enabled?
-│            - Sufficient funds?
-│
-├──────────────┐
-│              │
-▼              ▼
-┌─────────────────┐  ┌─────────────────┐
-│  Notifier       │  │  Webull Trader  │
-│  - Desktop alert│  │  - Place order  │
-│  - Sound        │  │  - Log trade    │
-│  - Clipboard    │  └─────────────────┘
-└─────────────────┘
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.8+
-- Discord account (with access to target channel)
-- Anthropic API key
-- Webull account (optional, for trading)
-
-### Installation
-
-**Quick Setup (Recommended):**
-
-**Windows:**
-```bash
-git clone https://github.com/yourusername/discord-stock-monitor.git
-cd discord-stock-monitor
-scripts\setup.bat
+```mermaid
+flowchart LR
+    D["Discord Channel"] --> C["StockMonitorClient"]
+    F["config/ai_parser.prompt"] --> P["AIParser"]
+    C --> P["AIParser"]
+    P --> A["AI Provider API"]
+    P --> M["ParsedMessage"]
+    M --> C
+    C --> N["Notifier"]
+    C --> L1["data/picks_log.jsonl"]
+    C -->|AUTO_TRADE=true| T["WebullTrader"]
+    T --> W["Webull OpenAPI"]
+    T --> L2["data/trades_log.jsonl"]
 ```
 
-**Linux/macOS:**
+## Runtime Flow
+
+1. `python -m src.main` starts the app and validates config.
+2. If auto-trade is enabled, `WebullTrader` is initialized and login is attempted.
+3. `StockMonitorClient` receives Discord messages.
+4. Guard checks run (target channel, not self message, minimum content).
+5. `AIParser.parse(...)` builds prompt context and calls provider (`openai`/`anthropic`/`google`).
+6. AI output is normalized to `ParsedMessage`/`ParsedPick`.
+7. Picks are notified/logged and mapped into stock orders (`BUY`/`SELL`; `HOLD` skipped).
+
+## Core Components
+
+| Component | Responsibility | File |
+|---|---|---|
+| Entrypoint | Bootstraps config, trader, and client | `src/main.py` |
+| Discord client | Message handling and orchestration | `src/discord_client.py` |
+| AI parser | Prompt rendering, provider call, output normalization | `src/ai_parser.py` |
+| Parser models | Parser output contract | `src/models/parser_models.py` |
+| Trader | Webull API integration and order placement | `src/webull_trader.py` |
+| Config loader | Env + YAML config resolution | `config/settings.py` |
+
+## Parser -> Trader Contract
+
+`StockMonitorClient` only uses these parser fields for trading decisions:
+
+| Parser field | Used for |
+|---|---|
+| `ticker` | Target symbol |
+| `action` | `BUY` / `SELL` / `HOLD` routing |
+| `weight_percent` | Optional sizing hint to trader |
+| `meta.*` | Observability and debug context |
+
+Other AI fields may exist but do not currently change order routing.
+
+## AI Prompt Template (Rules + Variables)
+
+Prompt template source: `config/ai_parser.prompt`.
+
+Runtime variables currently injected by `AIParser`:
+
+- Always: `CURRENT_TIME`, `AUTHOR_NAME`, `MESSAGE_TEXT`, `ANALYST_NAME`, `ANALYST_PREFERENCES`, `ACCOUNT_CONSTRAINTS`.
+- When trader/account context exists: `ACCOUNT_BALANCE`, `MARGIN_POWER`, `CASH_POWER`, `MARGIN_EQUITY_PERCENTAGE`.
+- Current gaps: placeholders like full live `OPTIONS_CHAIN` are not fully populated yet.
+
+Core parsing rules from the template:
+
+- Extract only clear action picks (`Added`, `Buying`, `Trimming`, `Exiting`, `Selling`).
+- Ignore commentary/watchlist text with no explicit action.
+- Apply the options-intent rule: intent language for calls/puts counts as actionable options BUY intent.
+- Return structured JSON with `picks` and `summary`.
+
+Contract boundary note:
+
+- `AIParser` normalizes provider output through `ParsedMessage`/`ParsedPick`.
+- Trading adapter currently routes only `ticker`, `action`, and optional `weight_percent`.
+- Extra AI keys outside model contract are ignored for execution.
+
+## Current Behavior Limits
+
+- `MIN_CONFIDENCE` is configured but not currently enforced as a hard pre-trade gate.
+- Auto-trading path places stock orders; option-specific execution is not wired yet.
+- Some advanced prompt placeholders (like live options chain) are not fully populated yet.
+
+## Quick Start
+
 ```bash
-git clone https://github.com/yourusername/discord-stock-monitor.git
-cd discord-stock-monitor
-chmod +x scripts/setup.sh
-./scripts/setup.sh
-```
-
-The setup script will automatically:
-- Create virtual environment
-- Install all dependencies
-- Create `.env` file from template
-- Set up data directory
-
-**Manual Setup (Alternative):**
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/discord-stock-monitor.git
-cd discord-stock-monitor
-
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
-
-# Copy environment template
 cp .env.example .env
-
-# Edit .env with your credentials
-nano .env  # Or use your preferred editor
-```
-
-### Configuration
-
-Edit `.env` file for secrets, then use the configuration files for everything else:
-
-```bash
-# No-code configuration files
-config/trading.yaml
-config/ai_parser.prompt
-```
-
-`.env` (secrets only):
-```env
-# Discord
-DISCORD_TOKEN=your_discord_token_here
-CHANNEL_ID=1234567890
-
-# Anthropic AI
-ANTHROPIC_API_KEY=sk-ant-your-key-here
-
-# Webull OpenAPI (optional)
-WEBULL_APP_KEY=your_webull_app_key
-WEBULL_APP_SECRET=your_webull_app_secret
-WEBULL_REGION=US
-
-# Trading Settings
-AUTO_TRADE=false
-MIN_CONFIDENCE=0.7
-DEFAULT_AMOUNT=1000
-USE_MARKET_ORDERS=true
-```
-
-### Run
-```bash
 python -m src.main
 ```
 
-### IDE Setup
+## Configuration Files
 
-- Open the repository root in your IDE (not only the `src/` folder)
-- Select interpreter: `/Users/matiasperichon/Documents/dev/projects/stocktalk-discord-bot/venv/bin/python`
-- If imports/references still look stale, reload the IDE window and re-index
+- Secrets: `.env`
+- Main app settings: `config/trading.yaml`
+- AI prompt template: `config/ai_parser.prompt`
 
-## 📋 Features
+## Testing And Confidence
 
-### AI-Powered Parsing
-
-The system uses Claude AI to understand natural language:
-
-**Example Messages:**
-- "Loading up on AAPL 20%, TSLA 15%" → BUY signals with allocations
-- "Taking profits on NVDA" → SELL signal
-- "SPY 450C 12/29 looking juicy" → Options call detection
-- "All in on MSFT now!!!" → HIGH urgency BUY
-
-**AI Extracts:**
-- **Ticker**: Stock symbol
-- **Action**: BUY, SELL, or HOLD
-- **Confidence**: 0.0-1.0 (how certain the AI is)
-- **Weight**: Portfolio allocation percentage
-- **Urgency**: LOW, MEDIUM, or HIGH
-- **Sentiment**: BULLISH, BEARISH, or NEUTRAL
-- **Reasoning**: Why it identified this as a pick
-
-### Smart Trading Logic
-
-Only executes trades when:
-- ✅ `AUTO_TRADE` is enabled
-- ✅ AI confidence ≥ `MIN_CONFIDENCE` threshold
-- ✅ Sufficient buying power available
-- ✅ Action is BUY (SELL requires manual confirmation)
-- ✅ Stock is supported (not options, for now)
-
-### Comprehensive Logging
-
-All activity logged to:
-- `data/picks_log.jsonl` - Every detected pick
-- `data/trades_log.jsonl` - Every executed trade
-
-JSON format for easy analysis with pandas/Excel.
-
-## ⚙️ Configuration
-
-### Trading Parameters
-```python
-# config/settings.py
-
-# Minimum AI confidence to execute trade (0.0-1.0)
-MIN_CONFIDENCE = 0.7  # Only trade if 70%+ confident
-
-# Default trade size if no weight specified
-DEFAULT_AMOUNT = 1000  # $1000 per trade
-
-# Order type
-USE_MARKET_ORDERS = True  # False for limit orders
-
-# Enable/disable auto-trading
-AUTO_TRADE = False  # Start with False!
-```
-
-### Notification Settings
-```python
-DESKTOP_NOTIFICATIONS = True  # Popup alerts
-SOUND_ALERT = True           # Beep on new pick
-COPY_TO_CLIPBOARD = True     # Auto-copy ticker
-```
-
-## 🔐 Security
-
-- **Never commit `.env`** - Contains sensitive credentials
-- **Use paper trading** - Test with Webull paper account first
-- **Start with `AUTO_TRADE=False`** - Verify picks manually initially
-- **Keep API keys secret** - Your Discord token = full account access
-
-## ⚠️ Warnings
-
-### Discord Terms of Service
-
-Using a self-bot (running as your user account) technically violates Discord's Terms of Service. However:
-- This is **passive monitoring only** (not spamming/botting)
-- Enforcement is typically focused on disruptive behavior
-- Use at your own discretion and risk
-
-### Trading Risks
-
-- **Automated trading carries significant financial risk**
-- **Start with small amounts** (`DEFAULT_AMOUNT = 100`)
-- **Test thoroughly with paper trading**
-- **Monitor the first several trades manually**
-- **This is not financial advice**
-
-## 📊 Usage Examples
-
-### Monitor Only Mode (Safest)
-```env
-AUTO_TRADE=false
-```
-
-You'll get notifications but no trades execute. Perfect for:
-- Testing the system
-- Manually reviewing picks
-- Learning the channel's patterns
-
-### Semi-Automated Mode
-```env
-AUTO_TRADE=false
-MIN_CONFIDENCE=0.8
-```
-
-High confidence picks notify you, but you manually execute trades.
-
-### Full Auto Mode (Advanced)
-```env
-AUTO_TRADE=true
-MIN_CONFIDENCE=0.85
-DEFAULT_AMOUNT=500
-```
-
-System automatically trades picks with 85%+ confidence.
-
-## 🧪 Testing
-
-For full reliability policy, confidence gates, and test matrix, see:
+Detailed confidence policy and suite organization live in:
 
 - `tests/README.md`
 
-```bash
-# Deterministic suite (default safety profile)
-pytest tests/
+Main commands:
 
-# Smoke suite (live checks are still marker-gated by env flags)
+```bash
+pytest
 pytest -m smoke
-
-# Unified reliability health check + JSON artifact
 python -m scripts.healthcheck
+python -m scripts.full_confidence
 ```
 
-## 📈 Monitoring Performance
-```bash
-# View recent picks
-tail -f data/picks_log.jsonl | jq
+## Extensibility
 
-# View executed trades
-tail -f data/trades_log.jsonl | jq
-
-# Analyze with Python
-python scripts/analyze_performance.py
-```
-
-## 🛠️ Development
-
-### Adding Custom Parsers
-
-Edit `src/ai_parser.py` to customize AI prompts or add fallback logic.
-
-### Adding New Brokers
-
-Extend `src/webull_trader.py` or create new trader modules for other brokers.
-
-### Custom Notifications
-
-Modify `src/notifier.py` to add Telegram, Slack, or webhook integrations.
-
-## 📚 Documentation
-
-- [Setup Guide](docs/SETUP.md) - Quick start and installation
-- [Credentials Setup](docs/CREDENTIALS_SETUP.md) - Detailed credential setup instructions
-- [AI Provider Comparison](docs/AI_PROVIDER_COMPARISON.md) - Choose the best AI provider
-- [Helper Scripts](docs/SCRIPTS.md) - Test credentials and utilities
-- [Testing Guide](tests/README.md) - Reliability contract, confidence gates, and smoke policy
-- [Architecture Details](docs/ARCHITECTURE.md) - System design and data flow
-- [API Reference](docs/API.md) - Code documentation
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new features
-4. Submit a pull request
-
-## 📝 License
-
-MIT License - See LICENSE file for details
-
-## 🙏 Acknowledgments
-
-- Anthropic Claude AI for intelligent parsing
-- Discord.py community
-- Webull API contributors
-
-## 📞 Support
-
-For issues or questions:
-- Open a GitHub issue
-- Check existing discussions
-- Review documentation in `/docs`
-
----
-
-**Disclaimer**: This software is provided as-is. Use at your own risk. Always test with paper trading before real money. Not financial advice.
+- AI provider strategy is pluggable through `AI_PROVIDER` and parser/provider init logic.
+- Brokerage integration can be extended by adding trader adapters alongside `src/webull_trader.py`.

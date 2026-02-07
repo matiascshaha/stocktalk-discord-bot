@@ -86,9 +86,12 @@ python -m scripts.healthcheck
 #### What It Runs
 
 1. Config/path validation
-2. Parser deterministic suite
-3. Discord mocked suite
-4. Webull read smoke (only when `RUN_WEBULL_READ_SMOKE=1`)
+2. Deterministic path/parser/Discord/Webull contract checks
+3. AI live smoke (only when `RUN_LIVE_AI_TESTS=1`)
+4. AI->trader live pipeline smoke (only when `RUN_LIVE_AI_TESTS=1`)
+5. Discord live smoke (only when `RUN_DISCORD_LIVE_SMOKE=1`)
+6. Webull read smoke (only when `RUN_WEBULL_READ_SMOKE=1`)
+7. Webull write smoke (only when `RUN_WEBULL_WRITE_TESTS=1`)
 
 #### Output
 
@@ -104,6 +107,48 @@ Exit codes:
 - `0` = green
 - `1` = deterministic failure
 - `2` = external-smoke-only failure
+
+---
+
+### `scripts/full_confidence.py`
+
+One-command confidence runner for deterministic + full end-to-end profiles.
+
+#### Usage
+
+```bash
+# strict full profile (default)
+python -m scripts.full_confidence
+
+# deterministic-only profile
+python -m scripts.full_confidence --mode deterministic
+
+# include Webull write-path smoke (opt-in)
+python -m scripts.full_confidence --include-webull-write
+
+# force Webull smoke against paper/UAT endpoint
+python -m scripts.full_confidence --webull-smoke-paper-trade
+```
+
+#### What It Does
+
+1. Loads `.env`
+2. Applies profile flags (`FULL_CONFIDENCE_REQUIRED`, smoke env toggles)
+3. Runs deterministic `pytest` first
+4. Runs `python -m scripts.healthcheck`
+5. Prints report path (`artifacts/health_report.json`)
+
+Note:
+- Default full profile uses production Webull read smoke (`WEBULL_SMOKE_PAPER_TRADE=0`).
+- Write profile follows your configured `PAPER_TRADE` unless `--webull-smoke-paper-trade` is passed.
+- Live AI pipeline uses one representative message by default for cost control; set `RUN_LIVE_AI_PIPELINE_FULL=1` to run all fixture messages.
+- Production write smoke can fail outside market hours; this is expected and should be rerun during trading hours for full write-path validation.
+
+#### Why Use It
+
+- Single canonical command for confidence verification
+- Preflight warnings for missing credentials
+- Clear strict gate behavior in one place
 
 ---
 

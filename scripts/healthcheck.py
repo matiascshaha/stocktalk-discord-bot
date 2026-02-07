@@ -35,7 +35,12 @@ def _run(command: List[str], name: str, external: bool = False) -> CheckResult:
     elapsed = time.time() - started
     combined = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
     excerpt = combined[-2500:] if combined else ""
-    status = "passed" if proc.returncode == 0 else "failed"
+    if proc.returncode != 0:
+        status = "failed"
+    else:
+        has_skips = " skipped" in combined
+        has_passes = " passed" in combined
+        status = "skipped" if has_skips and not has_passes else "passed"
     return CheckResult(
         name=name,
         status=status,
@@ -59,7 +64,16 @@ def _git_sha() -> str:
 
 def main() -> int:
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    for stale_artifact in (
+        ARTIFACTS_DIR / "webull_smoke_report.json",
+        ARTIFACTS_DIR / "discord_live_smoke.json",
+    ):
+        if stale_artifact.exists():
+            stale_artifact.unlink()
+
     py = sys.executable
+    full_confidence_required = os.getenv("FULL_CONFIDENCE_REQUIRED") == "1"
+    required_external_checks = set()
 
     checks: List[CheckResult] = []
 
@@ -80,7 +94,21 @@ def main() -> int:
 
     checks.append(
         _run(
-            [py, "-m", "pytest", "tests/test_gpt_integration.py", "-m", "not live"],
+            [py, "-m", "pytest", "tests/unit/test_paths.py"],
+            name="pathing_contracts",
+            external=False,
+        )
+    )
+
+    checks.append(
+        _run(
+            [
+                py,
+                "-m",
+                "pytest",
+                "tests/contract/test_ai_parser_contract.py",
+                "tests/unit/test_parser_schema.py",
+            ],
             name="parser_deterministic",
             external=False,
         )
@@ -88,21 +116,107 @@ def main() -> int:
 
     checks.append(
         _run(
-            [py, "-m", "pytest", "tests/test_discord_integration.py"],
+            [py, "-m", "pytest", "tests/integration"],
             name="discord_mocked",
             external=False,
         )
     )
 
-    run_webull_read = os.getenv("RUN_WEBULL_READ_SMOKE") == "1"
-    if run_webull_read:
+    checks.append(
+        _run(
+            [py, "-m", "pytest", "tests/contract/test_webull_contract.py"],
+            name="webull_contract",
+            external=False,
+        )
+    )
+
+    run_live_ai = os.getenv("RUN_LIVE_AI_TESTS") == "1"
+    if run_live_ai:
+        required_external_checks.add("ai_live_smoke")
+        checks.append(
+            _run(
+                [py, "-m", "pytest", "tests/smoke/test_ai_live_smoke.py", "-m", "smoke and live"],
+                name="ai_live_smoke",
+                external=True,
+            )
+        )
+        required_external_checks.add("ai_to_trader_live_pipeline")
         checks.append(
             _run(
                 [
                     py,
                     "-m",
                     "pytest",
-                    "tests/test_webull_smoke.py",
+                    "tests/integration/test_discord_flow.py",
+                    "-k",
+                    "live_ai_pipeline_message_to_trader",
+                    "-m",
+                    "smoke and live",
+                ],
+                name="ai_to_trader_live_pipeline",
+                external=True,
+            )
+        )
+    else:
+        checks.append(
+            CheckResult(
+                name="ai_live_smoke",
+                status="skipped",
+                command=f"{py} -m pytest tests/smoke/test_ai_live_smoke.py -m 'smoke and live'",
+                exit_code=0,
+                duration_seconds=0.0,
+                external=True,
+                output_excerpt="RUN_LIVE_AI_TESTS != 1",
+            )
+        )
+        checks.append(
+            CheckResult(
+                name="ai_to_trader_live_pipeline",
+                status="skipped",
+                command=(
+                    f"{py} -m pytest tests/integration/test_discord_flow.py "
+                    "-k live_ai_pipeline_message_to_trader -m 'smoke and live'"
+                ),
+                exit_code=0,
+                duration_seconds=0.0,
+                external=True,
+                output_excerpt="RUN_LIVE_AI_TESTS != 1",
+            )
+        )
+
+    run_discord_live = os.getenv("RUN_DISCORD_LIVE_SMOKE") == "1"
+    if run_discord_live:
+        required_external_checks.add("discord_live_smoke")
+        checks.append(
+            _run(
+                [py, "-m", "pytest", "tests/smoke/test_discord_live_smoke.py", "-m", "discord_live"],
+                name="discord_live_smoke",
+                external=True,
+            )
+        )
+    else:
+        checks.append(
+            CheckResult(
+                name="discord_live_smoke",
+                status="skipped",
+                command=f"{py} -m pytest tests/smoke/test_discord_live_smoke.py -m discord_live",
+                exit_code=0,
+                duration_seconds=0.0,
+                external=True,
+                output_excerpt="RUN_DISCORD_LIVE_SMOKE != 1",
+            )
+        )
+
+    run_webull_read = os.getenv("RUN_WEBULL_READ_SMOKE") == "1"
+    if run_webull_read:
+        required_external_checks.add("webull_read_smoke")
+        checks.append(
+            _run(
+                [
+                    py,
+                    "-m",
+                    "pytest",
+                    "tests/smoke/test_webull_smoke.py",
                     "-m",
                     "smoke and live and not webull_write",
                 ],
@@ -115,7 +229,7 @@ def main() -> int:
             CheckResult(
                 name="webull_read_smoke",
                 status="skipped",
-                command=f"{py} -m pytest tests/test_webull_smoke.py -m 'smoke and live and not webull_write'",
+                command=f"{py} -m pytest tests/smoke/test_webull_smoke.py -m 'smoke and live and not webull_write'",
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
@@ -123,13 +237,50 @@ def main() -> int:
             )
         )
 
+    run_webull_write = os.getenv("RUN_WEBULL_WRITE_TESTS") == "1"
+    if run_webull_write:
+        required_external_checks.add("webull_write_smoke")
+        checks.append(
+            _run(
+                [
+                    py,
+                    "-m",
+                    "pytest",
+                    "tests/smoke/test_webull_smoke.py",
+                    "-m",
+                    "smoke and live and webull_write",
+                ],
+                name="webull_write_smoke",
+                external=True,
+            )
+        )
+    else:
+        checks.append(
+            CheckResult(
+                name="webull_write_smoke",
+                status="skipped",
+                command=f"{py} -m pytest tests/smoke/test_webull_smoke.py -m 'smoke and live and webull_write'",
+                exit_code=0,
+                duration_seconds=0.0,
+                external=True,
+                output_excerpt="RUN_WEBULL_WRITE_TESTS != 1",
+            )
+        )
+
     deterministic_failures = [c for c in checks if not c.external and c.status == "failed"]
     external_failures = [c for c in checks if c.external and c.status == "failed"]
     skips = [c for c in checks if c.status == "skipped"]
+    required_external_skips = [c for c in checks if c.name in required_external_checks and c.status == "skipped"]
 
     if deterministic_failures:
         overall_status = "red"
         exit_code = 1
+    elif full_confidence_required and any(c.name in required_external_checks for c in external_failures):
+        overall_status = "red"
+        exit_code = 1
+    elif full_confidence_required and required_external_skips:
+        overall_status = "yellow"
+        exit_code = 2
     elif external_failures:
         overall_status = "yellow"
         exit_code = 2
@@ -157,10 +308,15 @@ def main() -> int:
         "skips": [c.name for c in skips],
         "external_dependencies": {
             "RUN_LIVE_AI_TESTS": os.getenv("RUN_LIVE_AI_TESTS", "0"),
+            "RUN_LIVE_AI_PIPELINE_FULL": os.getenv("RUN_LIVE_AI_PIPELINE_FULL", "0"),
             "RUN_DISCORD_LIVE_SMOKE": os.getenv("RUN_DISCORD_LIVE_SMOKE", "0"),
             "RUN_WEBULL_READ_SMOKE": os.getenv("RUN_WEBULL_READ_SMOKE", "0"),
             "RUN_WEBULL_WRITE_TESTS": os.getenv("RUN_WEBULL_WRITE_TESTS", "0"),
+            "WEBULL_SMOKE_PAPER_TRADE": os.getenv("WEBULL_SMOKE_PAPER_TRADE", os.getenv("PAPER_TRADE", "true")),
             "WEBULL_PAPER_REQUIRED": os.getenv("WEBULL_PAPER_REQUIRED", "1"),
+            "TEST_AI_PROVIDERS": os.getenv("TEST_AI_PROVIDERS", "openai,anthropic,google"),
+            "TEST_BROKERS": os.getenv("TEST_BROKERS", "webull"),
+            "FULL_CONFIDENCE_REQUIRED": os.getenv("FULL_CONFIDENCE_REQUIRED", "0"),
         },
     }
     REPORT_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")

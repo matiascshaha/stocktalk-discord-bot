@@ -23,7 +23,7 @@ jobs:
       - name: Run deterministic tests
         run: |
           mkdir -p artifacts
-          pytest -m "unit or contract" --junitxml=artifacts/junit-deterministic.xml
+          pytest tests/unit tests/contract tests/integration --junitxml=artifacts/junit-deterministic.xml
 
       - name: Run healthcheck (deterministic profile)
         run: |
@@ -44,6 +44,11 @@ jobs:
     continue-on-error: true
     env:
       RUN_WEBULL_READ_SMOKE: ${{ secrets.WEBULL_APP_KEY != '' && '1' || '0' }}
+      RUN_LIVE_AI_TESTS: ${{ secrets.OPENAI_API_KEY != '' && '1' || '0' }}
+      TEST_AI_PROVIDERS: "openai"
+      TEST_BROKERS: "webull"
+      AI_PROVIDER: "openai"
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       WEBULL_APP_KEY: ${{ secrets.WEBULL_APP_KEY }}
       WEBULL_APP_SECRET: ${{ secrets.WEBULL_APP_SECRET }}
       WEBULL_ACCOUNT_ID: ${{ secrets.WEBULL_ACCOUNT_ID }}
@@ -64,7 +69,11 @@ jobs:
       - name: Run external smoke (read-only)
         run: |
           mkdir -p artifacts
-          pytest tests/test_webull_smoke.py -m "smoke and live and not webull_write" --junitxml=artifacts/junit-external-smoke.xml
+          pytest tests/smoke -m "smoke and live and not webull_write and not discord_live" --junitxml=artifacts/junit-external-smoke.xml
+
+      - name: Run healthcheck (external profile)
+        run: |
+          python -m scripts.healthcheck || true
 
       - name: Upload external smoke artifacts
         uses: actions/upload-artifact@v4
@@ -72,6 +81,7 @@ jobs:
           name: external-smoke-artifacts
           path: |
             artifacts/junit-external-smoke.xml
+            artifacts/health_report.json
             artifacts/webull_smoke_report.json
 
   summary:

@@ -1,5 +1,4 @@
 import json
-import os
 from types import SimpleNamespace
 
 import pytest
@@ -88,25 +87,6 @@ def test_regression_real_messages_with_fixed_ai_contract(msg_id, author, text, s
     assert isinstance(result["picks"], list)
 
     found = {p["ticker"] for p in result["picks"] if isinstance(p, dict) and p.get("ticker")}
-    if should_pick:
-        for ticker in tickers:
-            assert ticker in found, f"{msg_id} missing ticker {ticker}"
-    else:
-        assert found == set(), f"{msg_id} should not produce picks"
-
-
-@pytest.mark.smoke
-@pytest.mark.live
-@pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", REAL_MESSAGES)
-def test_live_ai_smoke(msg_id, author, text, should_pick, tickers):
-    if os.getenv("RUN_LIVE_AI_TESTS") != "1":
-        pytest.skip("RUN_LIVE_AI_TESTS != 1")
-
-    parser = AIParser()
-    result = parser.parse(text, author)
-    picks = result.get("picks", [])
-    found = {p["ticker"] for p in picks if isinstance(p, dict) and p.get("ticker")}
-
     if should_pick:
         for ticker in tickers:
             assert ticker in found, f"{msg_id} missing ticker {ticker}"

@@ -1,13 +1,15 @@
 import discord
 import json
 from datetime import datetime
+from pydantic import ValidationError
 from src.ai_parser import AIParser
+from src.models.parser_models import ParsedMessage, ParsedPick
 from src.notifier import Notifier
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
 from src.utils.paths import PICKS_LOG_PATH
 from src.webull_trader import WebullTrader
-from src.models.webull_models import *
+from src.models.webull_models import OrderSide, OrderType, StockOrderRequest, TimeInForce
 from config.settings import DISCORD_TOKEN, CHANNEL_ID
 
 logger = setup_logger('discord_client')
@@ -74,35 +76,49 @@ class StockMonitorClient:
             logger.warning("Parser returned unexpected type: %s", type(parsed).__name__)
             return
 
-        pick_objs = parsed.get("picks")
-        if not isinstance(pick_objs, list):
-            logger.warning("Parser returned invalid pick payload: picks must be a list")
+        try:
+            parsed_message = ParsedMessage.model_validate(parsed)
+        except ValidationError as exc:
+            logger.warning("Parser returned invalid payload: %s", exc)
             return
+
+        pick_objs = parsed_message.picks
+        parsed_payload = parsed_message.model_dump()
 
         if pick_objs:
             logger.info(f"Detected {len(pick_objs)} stock pick(s).")
-            logger.debug("Picks details: %s", json.dumps(parsed, indent=2))
-            logger.info(format_pick_summary(parsed))
+            logger.debug("Picks details: %s", json.dumps(parsed_payload, indent=2))
+            logger.info(format_pick_summary(parsed_payload))
 
             # Send notifications
-            self.notifier.notify(parsed, message.author.name)
+            self.notifier.notify(parsed_payload, message.author.name)
 
             # Log picks
-            self._log_picks(message, parsed)
+            self._log_picks(message, parsed_payload)
 
             # Execute trades if trader available
             if self.trader:
                 for pick in pick_objs:
-                    order = StockOrderRequest(
-                        symbol=pick['ticker'],
-                        side=OrderSide.BUY,
-                        quantity=1,
-                        order_type=OrderType.MARKET,
-                        time_in_force="GTC"
-                    )
-                    self.trader.place_stock_order(order, weighting=pick.get('weight_percent'))
+                    order = self._pick_to_stock_order(pick)
+                    if not order:
+                        continue
+                    self.trader.place_stock_order(order, weighting=pick.weight_percent)
         else:
             logger.info("No stock picks detected.")
+
+    def _pick_to_stock_order(self, pick: ParsedPick):
+        if pick.action == "HOLD":
+            logger.info("Skipping HOLD pick for %s", pick.ticker)
+            return None
+
+        side = OrderSide.SELL if pick.action == "SELL" else OrderSide.BUY
+        return StockOrderRequest(
+            symbol=pick.ticker,
+            side=side,
+            quantity=1,
+            order_type=OrderType.MARKET,
+            time_in_force=TimeInForce.GTC,
+        )
     
     def _log_picks(self, message, picks):
         """Log picks to file"""

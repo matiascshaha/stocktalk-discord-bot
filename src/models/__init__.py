@@ -24,6 +24,14 @@ from src.models.webull_models import (
     # Response Models
     OrderPreviewResponse
 )
+from src.models.parser_models import (
+    PickAction,
+    PickSentiment,
+    PickUrgency,
+    ParsedMessage,
+    ParsedPick,
+    ParserMeta,
+)
 
 __all__ = [
     
@@ -45,6 +53,14 @@ __all__ = [
 
     # Response Models
     "OrderPreviewResponse",
+
+    # Parser contract models
+    "PickAction",
+    "PickSentiment",
+    "PickUrgency",
+    "ParsedMessage",
+    "ParsedPick",
+    "ParserMeta",
 ]
 
 __version__ = "1.0.0"
