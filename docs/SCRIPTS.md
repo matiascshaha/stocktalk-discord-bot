@@ -7,6 +7,7 @@ This project includes helper scripts to make setup and testing easier.
 ### `scripts/setup.py` / `scripts/setup.bat` / `scripts/setup.sh`
 
 **Automated setup script** that handles the entire project setup process.
+`setup.bat` and `setup.sh` are thin wrappers around `scripts/setup.py`.
 
 #### Usage
 
@@ -134,9 +135,8 @@ python -m scripts.full_confidence --webull-smoke-paper-trade
 
 1. Loads `.env`
 2. Applies profile flags (`FULL_CONFIDENCE_REQUIRED`, smoke env toggles)
-3. Runs deterministic `pytest` first
-4. Runs `python -m scripts.healthcheck`
-5. Prints report path (`artifacts/health_report.json`)
+3. Runs `python -m scripts.healthcheck`
+4. Prints report path (`artifacts/health_report.json`)
 
 Note:
 - Default full profile uses production Webull read smoke (`WEBULL_SMOKE_PAPER_TRADE=0`).

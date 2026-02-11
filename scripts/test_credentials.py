@@ -17,7 +17,6 @@ if sys.platform == 'win32':
 from dotenv import load_dotenv
 
 from config.settings import AI_PROVIDER
-import asyncio
 
 # Load environment variables
 load_dotenv()

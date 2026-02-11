@@ -130,6 +130,7 @@ Configured in `pytest.ini`:
 
 Runner defaults:
 
+- `python -m scripts.full_confidence` delegates execution to `python -m scripts.healthcheck` after setting env flags for the selected profile.
 - `python -m scripts.full_confidence` enables strict gates and live smoke checks.
 - Default full run uses production Webull read smoke (`WEBULL_SMOKE_PAPER_TRADE=0`).
 - `--include-webull-write` follows your `PAPER_TRADE` setting unless you force `--webull-smoke-paper-trade`.

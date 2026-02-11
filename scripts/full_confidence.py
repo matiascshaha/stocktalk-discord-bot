@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""One-command end-to-end confidence runner."""
+"""One-command confidence runner.
+
+This script configures environment flags and runs ``scripts.healthcheck``.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +20,24 @@ AI_PROVIDER_KEYS: Dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "google": "GOOGLE_API_KEY",
+}
+
+
+PROFILE_FLAGS: Dict[str, Dict[str, str]] = {
+    "full": {
+        "FULL_CONFIDENCE_REQUIRED": "1",
+        "RUN_LIVE_AI_TESTS": "1",
+        "RUN_LIVE_AI_PIPELINE_FULL": "0",
+        "RUN_DISCORD_LIVE_SMOKE": "1",
+        "RUN_WEBULL_READ_SMOKE": "1",
+    },
+    "deterministic": {
+        "FULL_CONFIDENCE_REQUIRED": "0",
+        "RUN_LIVE_AI_TESTS": "0",
+        "RUN_DISCORD_LIVE_SMOKE": "0",
+        "RUN_WEBULL_READ_SMOKE": "0",
+        "RUN_WEBULL_WRITE_TESTS": "0",
+    },
 }
 
 
@@ -91,7 +112,7 @@ def _preflight(env: Dict[str, str]) -> PreflightResult:
 
 
 def _run(command: List[str], env: Dict[str, str]) -> int:
-    print(f"\n$ {' '.join(command)}")
+    print(f"\n$ {' '.join(command)}", flush=True)
     proc = subprocess.run(command, env=env)
     return int(proc.returncode)
 
@@ -99,28 +120,23 @@ def _run(command: List[str], env: Dict[str, str]) -> int:
 def _build_env(args: argparse.Namespace) -> Dict[str, str]:
     env = dict(os.environ)
 
-    # Deterministic defaults
+    # Baseline defaults used by both profiles.
     env.setdefault("TEST_AI_PROVIDERS", "openai,anthropic,google")
     env.setdefault("TEST_BROKERS", "webull")
+    env.setdefault("RUN_LIVE_AI_PIPELINE_FULL", "0")
 
-    # Full confidence defaults
+    # Profile defaults can still be overridden by explicitly set env vars.
+    for key, value in PROFILE_FLAGS[args.mode].items():
+        env.setdefault(key, value)
+
     if args.mode == "full":
-        env["FULL_CONFIDENCE_REQUIRED"] = "1"
-        env.setdefault("RUN_LIVE_AI_TESTS", "1")
-        env.setdefault("RUN_LIVE_AI_PIPELINE_FULL", "0")
-        env.setdefault("RUN_DISCORD_LIVE_SMOKE", "1")
-        env.setdefault("RUN_WEBULL_READ_SMOKE", "1")
-        env.setdefault("RUN_WEBULL_WRITE_TESTS", "1" if args.include_webull_write else "0")
         if args.include_webull_write:
-            env.setdefault("WEBULL_SMOKE_PAPER_TRADE", env.get("PAPER_TRADE", "true"))
+            env["RUN_WEBULL_WRITE_TESTS"] = "1"
         else:
-            env.setdefault("WEBULL_SMOKE_PAPER_TRADE", "0")
+            env.setdefault("RUN_WEBULL_WRITE_TESTS", "0")
+        default_paper_value = env.get("PAPER_TRADE", "true") if args.include_webull_write else "0"
+        env.setdefault("WEBULL_SMOKE_PAPER_TRADE", default_paper_value)
     else:
-        env["FULL_CONFIDENCE_REQUIRED"] = "0"
-        env.setdefault("RUN_LIVE_AI_TESTS", "0")
-        env.setdefault("RUN_DISCORD_LIVE_SMOKE", "0")
-        env.setdefault("RUN_WEBULL_READ_SMOKE", "0")
-        env.setdefault("RUN_WEBULL_WRITE_TESTS", "0")
         env.setdefault("WEBULL_SMOKE_PAPER_TRADE", env.get("PAPER_TRADE", "true"))
 
     if args.ai_provider:
@@ -183,34 +199,29 @@ def main() -> int:
     env = _build_env(args)
     preflight = _preflight(env)
 
-    print("== Full Confidence Runner ==")
-    print(f"Mode: {args.mode}")
-    print(f"Strict gate (FULL_CONFIDENCE_REQUIRED): {env.get('FULL_CONFIDENCE_REQUIRED')}")
+    print("== Full Confidence Runner ==", flush=True)
+    print(f"Mode: {args.mode}", flush=True)
+    print(f"Strict gate (FULL_CONFIDENCE_REQUIRED): {env.get('FULL_CONFIDENCE_REQUIRED')}", flush=True)
     print(
         "Live flags: "
         f"AI={env.get('RUN_LIVE_AI_TESTS')} "
         f"AIPipelineFull={env.get('RUN_LIVE_AI_PIPELINE_FULL', '0')} "
         f"Discord={env.get('RUN_DISCORD_LIVE_SMOKE')} "
         f"WebullRead={env.get('RUN_WEBULL_READ_SMOKE')} "
-        f"WebullWrite={env.get('RUN_WEBULL_WRITE_TESTS')}"
+        f"WebullWrite={env.get('RUN_WEBULL_WRITE_TESTS')}",
+        flush=True,
     )
-    print(f"Webull smoke paper mode: {env.get('WEBULL_SMOKE_PAPER_TRADE')}")
-    print(f"Provider matrix: {env.get('TEST_AI_PROVIDERS')}")
-    print(f"Broker matrix: {env.get('TEST_BROKERS')}")
+    print(f"Webull smoke paper mode: {env.get('WEBULL_SMOKE_PAPER_TRADE')}", flush=True)
+    print(f"Provider matrix: {env.get('TEST_AI_PROVIDERS')}", flush=True)
+    print(f"Broker matrix: {env.get('TEST_BROKERS')}", flush=True)
 
     for item in preflight.info:
-        print(f"[info] {item}")
+        print(f"[info] {item}", flush=True)
     for warning in preflight.warnings:
-        print(f"[warn] {warning}")
-
-    # Always run deterministic suite first for fast failure.
-    deterministic_exit = _run([sys.executable, "-m", "pytest"], env=env)
-    if deterministic_exit != 0:
-        print("\nDeterministic suite failed. Skipping full healthcheck.")
-        return deterministic_exit
+        print(f"[warn] {warning}", flush=True)
 
     health_exit = _run([sys.executable, "-m", "scripts.healthcheck"], env=env)
-    print("\nReport: artifacts/health_report.json")
+    print("\nReport: artifacts/health_report.json", flush=True)
     return health_exit
 
 
