@@ -28,7 +28,7 @@ jobs:
 
       - name: Run healthcheck (deterministic profile)
         run: |
-          python -m scripts.healthcheck || true
+          python -m scripts.quality.run_health_checks || true
 
       - name: Upload deterministic artifacts
         uses: actions/upload-artifact@v4
@@ -76,7 +76,7 @@ jobs:
 
       - name: Run healthcheck (external profile)
         run: |
-          python -m scripts.healthcheck || true
+          python -m scripts.quality.run_health_checks || true
 
       - name: Upload external smoke artifacts
         uses: actions/upload-artifact@v4

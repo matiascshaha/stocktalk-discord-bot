@@ -1,6 +1,6 @@
 from argparse import Namespace
 
-from scripts.full_confidence import _build_env
+from scripts.quality.run_confidence_suite import _build_env
 
 
 def _args(**overrides):

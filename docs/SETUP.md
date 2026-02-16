@@ -22,18 +22,18 @@ cd discord-stock-monitor
 
 **Windows:**
 ```bash
-scripts\setup.bat
+scripts\bootstrap\setup_windows.bat
 ```
 
 **Linux/macOS:**
 ```bash
-chmod +x scripts/setup.sh
-./scripts/setup.sh
+chmod +x scripts/bootstrap/setup_unix.sh
+./scripts/bootstrap/setup_unix.sh
 ```
 
 **Or use Python script (cross-platform):**
 ```bash
-python scripts/setup.py
+python scripts/bootstrap/project_setup.py
 ```
 
 This will automatically:
@@ -79,7 +79,7 @@ Quick summary:
 
 **Quick Test**: After setting up credentials, test them with:
 ```bash
-python -m scripts.test_credentials
+python -m scripts.diagnostics.verify_credentials
 ```
 
 ### 8. Create Environment File
@@ -141,14 +141,14 @@ The `.gitkeep` file should already be there.
 
 **Recommended: Use the credential testing script:**
 ```bash
-python -m scripts.test_credentials
+python -m scripts.diagnostics.verify_credentials
 ```
 
 This will test all your credentials (Discord, AI API, Webull) and verify they work correctly.
 
 **Then run full confidence checks:**
 ```bash
-python -m scripts.full_confidence
+python -m scripts.quality.run_confidence_suite
 ```
 
 **Alternative: Quick validation:**
@@ -322,7 +322,7 @@ For reliable go-to-definition and references:
 
 ## Next Steps
 
-1. **Test Credentials**: Run `python -m scripts.test_credentials` to verify everything works
+1. **Test Credentials**: Run `python -m scripts.diagnostics.verify_credentials` to verify everything works
 2. **Review AI Providers**: See [AI_PROVIDER_COMPARISON.md](AI_PROVIDER_COMPARISON.md) to choose the best provider
 3. **Review Architecture**: Read `docs/ARCHITECTURE.md`
 4. **Understand API**: Read `docs/API.md`

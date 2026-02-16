@@ -4,6 +4,7 @@ import pytest
 
 from src.ai_parser import AIParser
 from src.models.parser_models import ParsedMessage
+from tests.data.stocktalk_real_messages import REAL_MESSAGES
 
 
 class _FakeOpenAIClient:
@@ -223,3 +224,22 @@ def test_openai_request_failure_returns_provider_error():
     assert result["signals"] == []
     assert len(parser.client.calls) == 1
     assert "response_format" in parser.client.calls[0]
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_portfolio_summary_is_blocked_before_model_call():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _ErrorOpenAIClient()
+
+    portfolio_message = next(
+        text
+        for _msg_id, _author, text, should_pick, _tickers in REAL_MESSAGES
+        if not should_pick and "PORTFOLIO UPDATE" in text
+    )
+
+    result = parser.parse(portfolio_message, "stocktalkweekly")
+    assert result["meta"]["status"] == "no_action"
+    assert result["signals"] == []
+    assert len(parser.client.calls) == 0

@@ -1,6 +1,6 @@
 import pytest
 
-from scripts.test_flags import resolve_test_flags
+from scripts.quality.quality_flags import resolve_test_flags
 
 
 def test_resolve_test_flags_local_defaults():

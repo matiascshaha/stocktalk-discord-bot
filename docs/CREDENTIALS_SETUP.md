@@ -309,7 +309,7 @@ After setting up your `.env` file:
 
 3. **Test all credentials** (Recommended)
    ```bash
-   python -m scripts.test_credentials
+   python -m scripts.diagnostics.verify_credentials
    ```
    This script will test:
    - Discord token validity

@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
-from scripts.test_flags import resolve_test_flags
+from scripts.quality.quality_flags import resolve_test_flags
 
 
 ARTIFACTS_DIR = Path("artifacts")

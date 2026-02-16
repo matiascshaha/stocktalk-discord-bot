@@ -1,4 +1,4 @@
-from scripts.full_matrix import _select_scenarios, build_scenarios
+from scripts.quality.run_full_matrix import _select_scenarios, build_scenarios
 
 
 def test_build_scenarios_defaults():

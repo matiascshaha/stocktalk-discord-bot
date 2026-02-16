@@ -70,20 +70,20 @@ Behavior mapping:
 Canonical commands:
 
 ```bash
-python -m scripts.full_matrix
-python -m scripts.full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
-python -m scripts.full_matrix --only webull_read_paper,webull_write_paper
-python -m scripts.full_confidence
-python -m scripts.full_confidence --webull-env paper
-python -m scripts.full_confidence --webull-write 1
-python -m scripts.full_confidence --mode local
+python -m scripts.quality.run_full_matrix
+python -m scripts.quality.run_full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
+python -m scripts.quality.run_full_matrix --only webull_read_paper,webull_write_paper
+python -m scripts.quality.run_confidence_suite
+python -m scripts.quality.run_confidence_suite --webull-env paper
+python -m scripts.quality.run_confidence_suite --webull-write 1
+python -m scripts.quality.run_confidence_suite --mode local
 pytest
 pytest -m smoke
-python -m scripts.healthcheck
-TEST_MODE=strict python -m scripts.healthcheck
+python -m scripts.quality.run_health_checks
+TEST_MODE=strict python -m scripts.quality.run_health_checks
 ```
 
-`python -m scripts.healthcheck` writes `artifacts/health_report.json` with:
+`python -m scripts.quality.run_health_checks` writes `artifacts/health_report.json` with:
 
 - `timestamp`
 - `git_sha`
@@ -132,9 +132,9 @@ Configured in `pytest.ini`:
 
 Runner defaults:
 
-- `python -m scripts.full_matrix` runs deterministic + AI live (full scope) + Webull paper/prod read/write + Discord live by default.
+- `python -m scripts.quality.run_full_matrix` runs deterministic + AI live (full scope) + Webull paper/prod read/write + Discord live by default.
 - Use `--skip-discord-live`, `--skip-webull-prod-write`, or `--ai-scope sample` for a faster subset.
-- `python -m scripts.full_confidence` delegates execution to `python -m scripts.healthcheck` after setting env flags for the selected mode.
-- `python -m scripts.full_confidence` defaults to `TEST_MODE=strict`.
+- `python -m scripts.quality.run_confidence_suite` delegates execution to `python -m scripts.quality.run_health_checks` after setting env flags for the selected mode.
+- `python -m scripts.quality.run_confidence_suite` defaults to `TEST_MODE=strict`.
 - Default strict run uses production Webull target (`TEST_WEBULL_ENV=production`) with write smoke off.
 - Enable write smoke explicitly with `--webull-write 1`.

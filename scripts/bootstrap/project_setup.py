@@ -12,7 +12,7 @@ import platform
 
 MIN_PYTHON = (3, 11)
 MAX_PYTHON_EXCLUSIVE = (3, 12)
-PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 VENV_DIRNAME = ".venv"
 
 def print_step(step_num, message):
@@ -230,7 +230,7 @@ def print_activation_instructions(venv_path):
     print(f"   See docs/CREDENTIALS_SETUP.md for detailed instructions")
     
     print(f"\n3. Test your credentials:")
-    print(f"   python -m scripts.test_credentials")
+    print(f"   python -m scripts.diagnostics.verify_credentials")
     
     print(f"\n4. Run the monitor:")
     print(f"   python -m src.main")

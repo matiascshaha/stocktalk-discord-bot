@@ -4,30 +4,30 @@ This project includes helper scripts to make setup and testing easier.
 
 ## Available Scripts
 
-### `scripts/setup.py` / `scripts/setup.bat` / `scripts/setup.sh`
+### `scripts/bootstrap/project_setup.py` / `scripts/bootstrap/setup_windows.bat` / `scripts/bootstrap/setup_unix.sh`
 
 **Automated setup script** that handles the entire project setup process.
-`setup.bat` and `setup.sh` are thin wrappers around `scripts/setup.py`.
+`setup_windows.bat` and `setup_unix.sh` are thin wrappers around `scripts/bootstrap/project_setup.py`.
 
 #### Usage
 
 **Windows:**
 ```bash
 # Option 1: Run the batch script (easiest)
-scripts\setup.bat
+scripts\bootstrap\setup_windows.bat
 
 # Option 2: Run the Python script
-python scripts\setup.py
+python scripts\bootstrap\project_setup.py
 ```
 
 **Linux/macOS:**
 ```bash
 # Option 1: Run the shell script (easiest)
-chmod +x scripts/setup.sh
-./scripts/setup.sh
+chmod +x scripts/bootstrap/setup_unix.sh
+./scripts/bootstrap/setup_unix.sh
 
 # Option 2: Run the Python script
-python3 scripts/setup.py
+python3 scripts/bootstrap/project_setup.py
 ```
 
 #### What It Does
@@ -74,14 +74,14 @@ Installing packages from requirements.txt...
 
 ---
 
-### `scripts/healthcheck.py`
+### `scripts/quality/run_health_checks.py`
 
 Reliability health check runner for deterministic checks and optional smoke checks.
 
 #### Usage
 
 ```bash
-python -m scripts.healthcheck
+python -m scripts.quality.run_health_checks
 ```
 
 #### What It Runs
@@ -111,7 +111,7 @@ Exit codes:
 
 ---
 
-### `scripts/full_confidence.py`
+### `scripts/quality/run_confidence_suite.py`
 
 One-command confidence runner for deterministic + full end-to-end profiles.
 
@@ -119,23 +119,23 @@ One-command confidence runner for deterministic + full end-to-end profiles.
 
 ```bash
 # strict profile (default)
-python -m scripts.full_confidence
+python -m scripts.quality.run_confidence_suite
 
 # local deterministic-only profile
-python -m scripts.full_confidence --mode local
+python -m scripts.quality.run_confidence_suite --mode local
 
 # include Webull write-path smoke (opt-in)
-python -m scripts.full_confidence --webull-write 1
+python -m scripts.quality.run_confidence_suite --webull-write 1
 
 # force Webull smoke against paper/UAT endpoint
-python -m scripts.full_confidence --webull-env paper
+python -m scripts.quality.run_confidence_suite --webull-env paper
 ```
 
 #### What It Does
 
 1. Loads `.env`
 2. Applies mode + explicit test flags (`TEST_MODE`, `TEST_*`)
-3. Runs `python -m scripts.healthcheck`
+3. Runs `python -m scripts.quality.run_health_checks`
 4. Prints report path (`artifacts/health_report.json`)
 
 Note:
@@ -151,7 +151,7 @@ Note:
 
 ---
 
-### `scripts/full_matrix.py`
+### `scripts/quality/run_full_matrix.py`
 
 Runs all key reliability scenarios in one command and prints a scenario-by-scenario summary.
 
@@ -159,16 +159,16 @@ Runs all key reliability scenarios in one command and prints a scenario-by-scena
 
 ```bash
 # default matrix: deterministic + AI live (full) + Webull paper/prod read/write + Discord live
-python -m scripts.full_matrix
+python -m scripts.quality.run_full_matrix
 
 # list scenario names without running
-python -m scripts.full_matrix --list
+python -m scripts.quality.run_full_matrix --list
 
 # run only selected scenarios
-python -m scripts.full_matrix --only webull_read_paper,webull_write_paper
+python -m scripts.quality.run_full_matrix --only webull_read_paper,webull_write_paper
 
 # faster subset
-python -m scripts.full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
+python -m scripts.quality.run_full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
 ```
 
 #### Default Scenarios
@@ -189,14 +189,14 @@ Exit code:
 
 ---
 
-### `scripts/test_credentials.py`
+### `scripts/diagnostics/verify_credentials.py`
 
 Tests all configured credentials to ensure they're valid before running the monitor.
 
 #### Usage
 
 ```bash
-python -m scripts.test_credentials
+python -m scripts.diagnostics.verify_credentials
 ```
 
 #### What It Tests
@@ -283,7 +283,7 @@ The script will automatically test credentials based on what's in your `.env` fi
 cd discord-stock-monitor
 
 # Run the credential tester
-python -m scripts.test_credentials
+python -m scripts.diagnostics.verify_credentials
 ```
 
 ### With Virtual Environment
@@ -295,7 +295,7 @@ source .venv/bin/activate  # Linux/macOS
 .venv\Scripts\activate  # Windows
 
 # Then run scripts
-python -m scripts.test_credentials
+python -m scripts.diagnostics.verify_credentials
 ```
 
 ---
@@ -304,11 +304,11 @@ python -m scripts.test_credentials
 
 To add new helper scripts:
 
-1. Create the script in `scripts/` directory
+1. Create the script in a domain folder under `scripts/` (for example: `scripts/bootstrap/`, `scripts/quality/`, or `scripts/diagnostics/`)
 2. Add a shebang line: `#!/usr/bin/env python3`
-3. Keep imports package-based (`src.*`, `config.*`) and run scripts with `python -m scripts.<name>`
+3. Keep imports package-based (`src.*`, `config.*`) and run scripts with `python -m scripts.<domain>.<name>`
 4. Document the script in this file
-5. Make it executable (optional): `chmod +x scripts/your_script.py`
+5. Make it executable (optional): `chmod +x scripts/<domain>/your_script.py`
 
 ---
 
@@ -320,7 +320,7 @@ To add new helper scripts:
 - Make sure you're running from project root
 - Install project in editable mode: `pip install -e .`
 - Check that `scripts/` directory exists
-- Ensure the command uses module style: `python -m scripts.test_credentials`
+- Ensure the command uses module style: `python -m scripts.diagnostics.verify_credentials`
 
 **Error: "ModuleNotFoundError"**
 - Install dependencies: `pip install -r requirements.txt`
@@ -349,7 +349,7 @@ To add new helper scripts:
 
 Potential scripts to add:
 
-- `scripts/setup_wizard.py` - Interactive setup guide
-- `scripts/analyze_logs.py` - Analyze picks_log.jsonl and trades_log.jsonl
-- `scripts/backup_config.py` - Backup and restore configuration
-- `scripts/monitor_status.py` - Check if monitor is running
+- `scripts/bootstrap/setup_wizard.py` - Interactive setup guide
+- `scripts/diagnostics/analyze_logs.py` - Analyze picks_log.jsonl and trades_log.jsonl
+- `scripts/bootstrap/backup_config.py` - Backup and restore configuration
+- `scripts/diagnostics/monitor_status.py` - Check if monitor is running
