@@ -9,6 +9,7 @@ Edit `config/trading.yaml`.
 - Non-secret settings live here (AI provider/model, trading toggles, notifications).
 
 Common changes:
+- Set Discord channel ID: `discord.channel_id`
 - Enable auto-trading: set `trading.auto_trade: true`
 - Enable option vehicle execution: set `trading.options_enabled: true`
 - Force paper trading: set `trading.paper_trade: true`
