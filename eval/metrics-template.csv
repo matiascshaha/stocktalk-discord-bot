@@ -1,0 +1,2 @@
+﻿date,task_id,domain,success,first_pass_green,time_to_first_green_minutes,iterations_to_green,reprompts_count,defect_escape,flaky_reruns,notes
+2026-01-01,EVT-000,automation,1,0,45,3,4,0,1,example row
