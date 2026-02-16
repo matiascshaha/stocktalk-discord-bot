@@ -29,7 +29,6 @@ class _CapturingOpenAIClient:
         message = SimpleNamespace(content=self._response_text)
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-
 class _ErrorOpenAIClient:
     def __init__(self):
         self.calls = []

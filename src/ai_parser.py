@@ -80,6 +80,95 @@ Rules:
 - Never add or rename top-level keys.
 """.strip()
 
+OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["contract_version", "source", "signals", "meta"],
+    "properties": {
+        "contract_version": {"type": "string", "enum": [CONTRACT_VERSION]},
+        "source": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["author", "channel_id", "message_id", "message_text"],
+            "properties": {
+                "author": {"type": ["string", "null"]},
+                "channel_id": {"type": ["string", "null"]},
+                "message_id": {"type": ["string", "null"]},
+                "message_text": {"type": ["string", "null"]},
+            },
+        },
+        "signals": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "ticker",
+                    "action",
+                    "confidence",
+                    "reasoning",
+                    "weight_percent",
+                    "urgency",
+                    "sentiment",
+                    "is_actionable",
+                    "vehicles",
+                ],
+                "properties": {
+                    "ticker": {"type": "string", "minLength": 1},
+                    "action": {"type": "string", "enum": ["BUY", "SELL", "HOLD", "NONE"]},
+                    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "reasoning": {"type": "string"},
+                    "weight_percent": {"type": ["number", "null"]},
+                    "urgency": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
+                    "sentiment": {"type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"]},
+                    "is_actionable": {"type": "boolean"},
+                    "vehicles": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "type",
+                                "enabled",
+                                "intent",
+                                "side",
+                                "option_type",
+                                "strike",
+                                "expiry",
+                                "quantity_hint",
+                            ],
+                            "properties": {
+                                "type": {"type": "string", "enum": ["STOCK", "OPTION"]},
+                                "enabled": {"type": "boolean"},
+                                "intent": {"type": "string", "enum": ["EXECUTE", "WATCH", "INFO"]},
+                                "side": {"type": "string", "enum": ["BUY", "SELL", "NONE"]},
+                                "option_type": {"type": ["string", "null"], "enum": ["CALL", "PUT", None]},
+                                "strike": {"type": ["number", "null"]},
+                                "expiry": {"type": ["string", "null"]},
+                                "quantity_hint": {"type": ["number", "null"]},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        "meta": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["status", "provider", "error", "warnings"],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["ok", "no_action", "invalid_json", "provider_error"],
+                },
+                "provider": {"type": ["string", "null"], "enum": ["openai", "anthropic", "google", None]},
+                "error": {"type": ["string", "null"]},
+                "warnings": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+    },
+}
+
 
 class AIParser:
     """AI-powered parser that normalizes output to a strict, predictable contract."""
@@ -88,6 +177,7 @@ class AIParser:
         self.client = None
         self.provider = None
         self.config = AI_CONFIG
+        self.openai_structured_output = bool(self.config.get("openai", {}).get("use_structured_output", True))
         self.options_enabled = bool(TRADING_CONFIG.get("options_enabled", False))
         self.prompt_template = self._load_prompt_template()
 
@@ -367,6 +457,66 @@ class AIParser:
             logger.warning("Failed to load prompt template from %s: %s", prompt_path, exc)
             return ""
 
+    def _call_openai(self, prompt: str) -> str:
+        params: Dict[str, Any] = {
+            "model": self.config["openai"]["model"],
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": self.config["openai"]["max_tokens"],
+            "temperature": self.config["openai"]["temperature"],
+        }
+
+        if self.openai_structured_output:
+            try:
+                response = self.client.chat.completions.create(
+                    **params,
+                    response_format=self._openai_response_format(),
+                )
+                return self._extract_openai_content(response)
+            except Exception as exc:
+                logger.warning("OpenAI structured output unavailable; falling back to prompt JSON: %s", exc)
+
+        response = self.client.chat.completions.create(**params)
+        return self._extract_openai_content(response)
+
+    def _openai_response_format(self) -> Dict[str, Any]:
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "stocktalk_parser_contract",
+                "strict": True,
+                "schema": OPENAI_PARSER_JSON_SCHEMA,
+            },
+        }
+
+    def _extract_openai_content(self, response: Any) -> str:
+        message = response.choices[0].message
+        content = getattr(message, "content", "")
+        if isinstance(content, str):
+            return content.strip()
+
+        if isinstance(content, list):
+            text_chunks: List[str] = []
+            for item in content:
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str):
+                        text_chunks.append(text)
+                else:
+                    text = getattr(item, "text", None)
+                    if isinstance(text, str):
+                        text_chunks.append(text)
+            joined = "".join(text_chunks).strip()
+            if joined:
+                return joined
+
+        parsed = getattr(message, "parsed", None)
+        if parsed is not None:
+            if hasattr(parsed, "model_dump"):
+                return json.dumps(parsed.model_dump())
+            return json.dumps(parsed)
+
+        raise ValueError("OpenAI response contained no parseable message content")
+
     def _init_client(self):
         provider = (AI_PROVIDER or "").lower().strip()
         fallback = bool(self.config.get("fallback_to_available_provider"))
@@ -399,7 +549,6 @@ class AIParser:
 
     def _try_init_provider(self, provider: str):
         try:
-<<<<<<< HEAD
             client = build_provider_client(
                 provider=provider,
                 config=self.config,
@@ -409,18 +558,6 @@ class AIParser:
             )
             if client is None:
                 return
-=======
-            if provider == "anthropic" and ANTHROPIC_API_KEY:
-                self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-                self.provider = "anthropic"
-                logger.info("Using Anthropic for AI parsing")
-            elif provider == "openai" and OPENAI_API_KEY:
-                self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
-                self.provider = "openai"
-                logger.info("Using OpenAI for AI parsing")
-            elif provider == "google" and GOOGLE_API_KEY:
-                import google.generativeai as genai
->>>>>>> 5bd4376 (refactor(parser): enforce canonical signals contract and vehicle model)
 
             self.client = client
             self.provider = provider
