@@ -60,20 +60,21 @@ For each pick:
 
 # IMPORTANT RULES FOR ALERT PARSING
 
-1. Only extract picks where there is CLEAR ACTION: "Added", "Buying", "New position", "Trimming", "Exiting", "Selling"
-2. IGNORE portfolio updates, commentary, market analysis, reminders, or general discussion
-3. IGNORE mentions of stocks without clear action (e.g., "watching XYZ" or "interesting stock")
-4. For options, extract strike price and expiration date when available
+1. First classify the message intent:
+   - TRADE_ALERT: explicit new execution language appears in THIS message ("Added", "New position", "Buying", "Trimming", "Exiting", "Sold", "Reduced")
+   - PORTFOLIO_SUMMARY: holdings recap/watchlist/performance snapshot/commentary without an explicit new execution command
+2. If the message is PORTFOLIO_SUMMARY, return no picks.
+   - Common summary cues include: "PORTFOLIO UPDATE", "LISTING FORMAT", "All positions are alerted live", "for the sake of completeness", "does not mean stock was bought or sold", and tables like "20-21%: $TICKER ..."
+3. Do NOT treat holdings inventory lines as execution signals, even when options are listed in parentheses.
+4. Only extract picks where there is a clear, current execution action in this specific message.
+5. Ignore mentions of stocks without clear action (e.g., "watching XYZ", "interesting stock", theme commentary).
+6. For options, extract strike price and expiration date when available.
 
-5. **VERY IMPORTANT -- OPTIONS INTENT RULE**:
-   If the author expresses ANY interest, intention, plan, or consideration to buy calls or puts for a ticker,
-   you MUST extract this as an OPTIONS BUY pick, even if:
-   - no expiration date is given
-   - no price is given
-   - the language is vague or future tense
-   - the contract format is incomplete
+7. **VERY IMPORTANT -- OPTIONS INTENT RULE**:
+   If the author expresses clear intent to open an options position in this message, extract an OPTIONS BUY pick, even if details are incomplete.
+   This rule does NOT apply to portfolio summaries, historical recaps, or holdings listings.
 
-   Examples of intent language that MUST trigger an options BUY:
+   Examples of intent language that should trigger options BUY:
    - "may try to work into"
    - "looking to add"
    - "will add"
@@ -83,7 +84,7 @@ For each pick:
    - "considering calls"
    - "want exposure via calls"
 
-6. CONSTRAINT ENFORCEMENT:
+8. CONSTRAINT ENFORCEMENT:
    - If any trade would violate account constraints, REJECT it
    - Provide clear reasoning for rejections
    - Suggest alternatives if constraint-compliant adjustments are possible
@@ -98,6 +99,8 @@ For each pick:
 - "Exiting $TICKER" = SELL (full)
 - "X% weight @ $Y.ZZ" = weight percentage
 - Analyst multipliers applied: base weight × multiplier
+- "20-21%: $ENS* (Shares + $115C Mar '26) - $116.63" = HOLDINGS SNAPSHOT (NOT A NEW TRADE)
+- "PORTFOLIO UPDATE -15 POSITIONS" with no explicit execution commands = NO ACTION
 
 # OPTIONS FORMAT EXAMPLES
 
@@ -262,6 +265,22 @@ Output:
     "total_picks": 2,
     "rejected_picks": 0,
     "estimated_margin_impact": "Stock: ~$18,540. Options: ~$4,200 est. Total: ~$22,740. Margin buffer remains ~$1,260 (above minimum).",
+    "warnings": []
+  }
+}
+```
+
+## Example 4: Portfolio Update (Must Return No Picks)
+Message: "PORTFOLIO UPDATE ... 20-21%: $ENS* (Shares + $115C Mar '26) ... Remember that just because weighting changes, it does not mean stock was bought or sold."
+
+Output:
+```json
+{
+  "picks": [],
+  "summary": {
+    "total_picks": 0,
+    "rejected_picks": 0,
+    "estimated_margin_impact": "",
     "warnings": []
   }
 }
