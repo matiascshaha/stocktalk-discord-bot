@@ -88,11 +88,11 @@ python -m scripts.healthcheck
 
 1. Config/path validation
 2. Deterministic path/parser/Discord/Webull contract checks
-3. AI live smoke (only when `RUN_LIVE_AI_TESTS=1`)
-4. AI->trader live pipeline smoke (only when `RUN_LIVE_AI_TESTS=1`)
-5. Discord live smoke (only when `RUN_DISCORD_LIVE_SMOKE=1`)
-6. Webull read smoke (only when `RUN_WEBULL_READ_SMOKE=1`)
-7. Webull write smoke (only when `RUN_WEBULL_WRITE_TESTS=1`)
+3. AI live smoke (only when `TEST_AI_LIVE=1`)
+4. AI->trader live pipeline smoke (only when `TEST_AI_LIVE=1`)
+5. Discord live smoke (only when `TEST_DISCORD_LIVE=1`)
+6. Webull read smoke (only when `TEST_WEBULL_READ=1`)
+7. Webull write smoke (only when `TEST_WEBULL_WRITE=1`)
 
 #### Output
 
@@ -118,30 +118,29 @@ One-command confidence runner for deterministic + full end-to-end profiles.
 #### Usage
 
 ```bash
-# strict full profile (default)
+# strict profile (default)
 python -m scripts.full_confidence
 
-# deterministic-only profile
-python -m scripts.full_confidence --mode deterministic
+# local deterministic-only profile
+python -m scripts.full_confidence --mode local
 
 # include Webull write-path smoke (opt-in)
-python -m scripts.full_confidence --include-webull-write
+python -m scripts.full_confidence --webull-write 1
 
 # force Webull smoke against paper/UAT endpoint
-python -m scripts.full_confidence --webull-smoke-paper-trade
+python -m scripts.full_confidence --webull-env paper
 ```
 
 #### What It Does
 
 1. Loads `.env`
-2. Applies profile flags (`FULL_CONFIDENCE_REQUIRED`, smoke env toggles)
+2. Applies mode + explicit test flags (`TEST_MODE`, `TEST_*`)
 3. Runs `python -m scripts.healthcheck`
 4. Prints report path (`artifacts/health_report.json`)
 
 Note:
-- Default full profile uses production Webull read smoke (`WEBULL_SMOKE_PAPER_TRADE=0`).
-- Write profile follows your configured `PAPER_TRADE` unless `--webull-smoke-paper-trade` is passed.
-- Live AI pipeline uses one representative message by default for cost control; set `RUN_LIVE_AI_PIPELINE_FULL=1` to run all fixture messages.
+- Default strict profile uses production Webull target (`TEST_WEBULL_ENV=production`) and keeps write smoke off.
+- Live AI pipeline uses one representative message by default for cost control; set `TEST_AI_SCOPE=full` to run all fixture messages.
 - Production write smoke can fail outside market hours; this is expected and should be rerun during trading hours for full write-path validation.
 
 #### Why Use It
@@ -149,6 +148,44 @@ Note:
 - Single canonical command for confidence verification
 - Preflight warnings for missing credentials
 - Clear strict gate behavior in one place
+
+---
+
+### `scripts/full_matrix.py`
+
+Runs all key reliability scenarios in one command and prints a scenario-by-scenario summary.
+
+#### Usage
+
+```bash
+# default matrix: deterministic + AI live (full) + Webull paper/prod read/write + Discord live
+python -m scripts.full_matrix
+
+# list scenario names without running
+python -m scripts.full_matrix --list
+
+# run only selected scenarios
+python -m scripts.full_matrix --only webull_read_paper,webull_write_paper
+
+# faster subset
+python -m scripts.full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
+```
+
+#### Default Scenarios
+
+- `deterministic`
+- `ai_live_smoke`
+- `ai_pipeline_live`
+- `webull_read_paper`
+- `webull_write_paper`
+- `webull_read_production`
+- `webull_write_production`
+- `discord_live_smoke`
+
+Exit code:
+
+- `0` when all selected scenarios pass
+- `1` when any selected scenario fails
 
 ---
 

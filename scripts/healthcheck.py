@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
+from scripts.test_flags import resolve_test_flags
+
 
 ARTIFACTS_DIR = Path("artifacts")
 REPORT_PATH = ARTIFACTS_DIR / "health_report.json"
@@ -72,7 +74,11 @@ def main() -> int:
             stale_artifact.unlink()
 
     py = sys.executable
-    full_confidence_required = os.getenv("FULL_CONFIDENCE_REQUIRED") == "1"
+    try:
+        flags = resolve_test_flags(os.environ, default_mode="local")
+    except ValueError as exc:
+        print(f"Flag configuration error: {exc}")
+        return 2
     required_external_checks = set()
 
     checks: List[CheckResult] = []
@@ -130,8 +136,7 @@ def main() -> int:
         )
     )
 
-    run_live_ai = os.getenv("RUN_LIVE_AI_TESTS") == "1"
-    if run_live_ai:
+    if flags.ai_live:
         required_external_checks.add("ai_live_smoke")
         checks.append(
             _run(
@@ -166,7 +171,7 @@ def main() -> int:
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
-                output_excerpt="RUN_LIVE_AI_TESTS != 1",
+                output_excerpt="TEST_AI_LIVE != 1",
             )
         )
         checks.append(
@@ -180,12 +185,11 @@ def main() -> int:
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
-                output_excerpt="RUN_LIVE_AI_TESTS != 1",
+                output_excerpt="TEST_AI_LIVE != 1",
             )
         )
 
-    run_discord_live = os.getenv("RUN_DISCORD_LIVE_SMOKE") == "1"
-    if run_discord_live:
+    if flags.discord_live:
         required_external_checks.add("discord_live_smoke")
         checks.append(
             _run(
@@ -203,12 +207,11 @@ def main() -> int:
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
-                output_excerpt="RUN_DISCORD_LIVE_SMOKE != 1",
+                output_excerpt="TEST_DISCORD_LIVE != 1",
             )
         )
 
-    run_webull_read = os.getenv("RUN_WEBULL_READ_SMOKE") == "1"
-    if run_webull_read:
+    if flags.webull_read:
         required_external_checks.add("webull_read_smoke")
         checks.append(
             _run(
@@ -233,12 +236,11 @@ def main() -> int:
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
-                output_excerpt="RUN_WEBULL_READ_SMOKE != 1",
+                output_excerpt="TEST_WEBULL_READ != 1",
             )
         )
 
-    run_webull_write = os.getenv("RUN_WEBULL_WRITE_TESTS") == "1"
-    if run_webull_write:
+    if flags.webull_write:
         required_external_checks.add("webull_write_smoke")
         checks.append(
             _run(
@@ -263,7 +265,7 @@ def main() -> int:
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
-                output_excerpt="RUN_WEBULL_WRITE_TESTS != 1",
+                output_excerpt="TEST_WEBULL_WRITE != 1",
             )
         )
 
@@ -275,12 +277,12 @@ def main() -> int:
     if deterministic_failures:
         overall_status = "red"
         exit_code = 1
-    elif full_confidence_required and any(c.name in required_external_checks for c in external_failures):
+    elif flags.strict_external and any(c.name in required_external_checks for c in external_failures):
         overall_status = "red"
         exit_code = 1
-    elif full_confidence_required and required_external_skips:
-        overall_status = "yellow"
-        exit_code = 2
+    elif flags.strict_external and required_external_skips:
+        overall_status = "red"
+        exit_code = 1
     elif external_failures:
         overall_status = "yellow"
         exit_code = 2
@@ -307,16 +309,15 @@ def main() -> int:
         "failures": [c.name for c in checks if c.status == "failed"],
         "skips": [c.name for c in skips],
         "external_dependencies": {
-            "RUN_LIVE_AI_TESTS": os.getenv("RUN_LIVE_AI_TESTS", "0"),
-            "RUN_LIVE_AI_PIPELINE_FULL": os.getenv("RUN_LIVE_AI_PIPELINE_FULL", "0"),
-            "RUN_DISCORD_LIVE_SMOKE": os.getenv("RUN_DISCORD_LIVE_SMOKE", "0"),
-            "RUN_WEBULL_READ_SMOKE": os.getenv("RUN_WEBULL_READ_SMOKE", "0"),
-            "RUN_WEBULL_WRITE_TESTS": os.getenv("RUN_WEBULL_WRITE_TESTS", "0"),
-            "WEBULL_SMOKE_PAPER_TRADE": os.getenv("WEBULL_SMOKE_PAPER_TRADE", os.getenv("PAPER_TRADE", "true")),
-            "WEBULL_PAPER_REQUIRED": os.getenv("WEBULL_PAPER_REQUIRED", "1"),
-            "TEST_AI_PROVIDERS": os.getenv("TEST_AI_PROVIDERS", "openai,anthropic,google"),
-            "TEST_BROKERS": os.getenv("TEST_BROKERS", "webull"),
-            "FULL_CONFIDENCE_REQUIRED": os.getenv("FULL_CONFIDENCE_REQUIRED", "0"),
+            "TEST_MODE": flags.mode,
+            "TEST_AI_LIVE": "1" if flags.ai_live else "0",
+            "TEST_AI_SCOPE": flags.ai_scope,
+            "TEST_DISCORD_LIVE": "1" if flags.discord_live else "0",
+            "TEST_WEBULL_READ": "1" if flags.webull_read else "0",
+            "TEST_WEBULL_WRITE": "1" if flags.webull_write else "0",
+            "TEST_WEBULL_ENV": flags.webull_env,
+            "TEST_AI_PROVIDERS": flags.ai_providers,
+            "TEST_BROKERS": flags.brokers,
         },
     }
     REPORT_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")

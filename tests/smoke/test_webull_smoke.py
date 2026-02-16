@@ -21,9 +21,20 @@ KNOWN_WEBULL_WRITE_XFAIL_MARKERS = (
 )
 
 
+def _looks_like_placeholder(value: str) -> bool:
+    candidate = (value or "").strip().lower()
+    if not candidate:
+        return True
+    if candidate.endswith("here"):
+        return True
+    return any(marker in candidate for marker in ("your_", "replace", "example", "changeme", "<", ">"))
+
+
 def _paper_trade_enabled() -> bool:
-    raw = os.getenv("WEBULL_SMOKE_PAPER_TRADE", os.getenv("PAPER_TRADE", "true")).strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    target = os.getenv("TEST_WEBULL_ENV", "paper").strip().lower()
+    if target not in {"paper", "production"}:
+        pytest.skip("TEST_WEBULL_ENV must be one of: paper, production")
+    return target == "paper"
 
 
 def _require_webull_enabled(broker_matrix: List[str]) -> None:
@@ -55,8 +66,13 @@ def _build_trader() -> WebullTrader:
         app_secret = os.getenv("WEBULL_APP_SECRET")
         account_id = os.getenv("WEBULL_ACCOUNT_ID")
 
-    if not app_key or not app_secret:
-        pytest.skip("Webull credentials are not configured for smoke tests")
+    if _looks_like_placeholder(app_key) or _looks_like_placeholder(app_secret):
+        if paper_trade:
+            pytest.fail(
+                "Webull paper smoke requires valid credentials (set WEBULL_TEST_APP_KEY/WEBULL_TEST_APP_SECRET "
+                "or config.webull.test_app_key/test_app_secret)"
+            )
+        pytest.fail("Webull production smoke requires valid WEBULL_APP_KEY/WEBULL_APP_SECRET credentials")
 
     return WebullTrader(
         app_key=app_key,
@@ -71,8 +87,8 @@ def _build_trader() -> WebullTrader:
 @pytest.mark.live
 def test_webull_read_smoke_login(broker_matrix):
     _require_webull_enabled(broker_matrix)
-    if os.getenv("RUN_WEBULL_READ_SMOKE") != "1":
-        pytest.skip("RUN_WEBULL_READ_SMOKE != 1")
+    if os.getenv("TEST_WEBULL_READ", "0") != "1":
+        pytest.skip("TEST_WEBULL_READ != 1")
 
     trader = _build_trader()
     error = None
@@ -99,8 +115,8 @@ def test_webull_read_smoke_login(broker_matrix):
 @pytest.mark.live
 def test_webull_read_smoke_balance_and_instrument(broker_matrix):
     _require_webull_enabled(broker_matrix)
-    if os.getenv("RUN_WEBULL_READ_SMOKE") != "1":
-        pytest.skip("RUN_WEBULL_READ_SMOKE != 1")
+    if os.getenv("TEST_WEBULL_READ", "0") != "1":
+        pytest.skip("TEST_WEBULL_READ != 1")
 
     trader = _build_trader()
     try:
@@ -136,11 +152,8 @@ def test_webull_read_smoke_balance_and_instrument(broker_matrix):
 @pytest.mark.webull_write
 def test_webull_write_smoke_stock_order_opt_in(broker_matrix):
     _require_webull_enabled(broker_matrix)
-    if os.getenv("RUN_WEBULL_WRITE_TESTS") != "1":
-        pytest.skip("RUN_WEBULL_WRITE_TESTS != 1")
-
-    if os.getenv("WEBULL_PAPER_REQUIRED", "1") == "1" and not _paper_trade_enabled():
-        pytest.skip("WEBULL_PAPER_REQUIRED=1 requires PAPER_TRADE=true for write tests")
+    if os.getenv("TEST_WEBULL_WRITE", "0") != "1":
+        pytest.skip("TEST_WEBULL_WRITE != 1")
 
     trader = _build_trader()
     order = StockOrderRequest(
@@ -186,11 +199,8 @@ def test_webull_write_smoke_stock_order_opt_in(broker_matrix):
 @pytest.mark.webull_write
 def test_webull_write_smoke_option_order_opt_in_non_blocking(broker_matrix):
     _require_webull_enabled(broker_matrix)
-    if os.getenv("RUN_WEBULL_WRITE_TESTS") != "1":
-        pytest.skip("RUN_WEBULL_WRITE_TESTS != 1")
-
-    if os.getenv("WEBULL_PAPER_REQUIRED", "1") == "1" and not _paper_trade_enabled():
-        pytest.skip("WEBULL_PAPER_REQUIRED=1 requires PAPER_TRADE=true for write tests")
+    if os.getenv("TEST_WEBULL_WRITE", "0") != "1":
+        pytest.skip("TEST_WEBULL_WRITE != 1")
 
     trader = _build_trader()
     order = OptionOrderRequest(

@@ -10,6 +10,7 @@ import src.discord_client as discord_client_module
 from src.ai_parser import AIParser
 from src.discord_client import StockMonitorClient
 from tests.data.stocktalk_real_messages import REAL_MESSAGES
+from tests.support.matrix import ai_provider_has_credentials
 
 TEST_CHANNEL_ID = 123456789
 WRONG_CHANNEL_ID = TEST_CHANNEL_ID + 1
@@ -87,7 +88,7 @@ PIPELINE_CASES = REAL_MESSAGES[:]
 
 
 def _select_live_pipeline_cases():
-    if os.getenv("RUN_LIVE_AI_PIPELINE_FULL") == "1":
+    if os.getenv("TEST_AI_SCOPE", "sample").strip().lower() == "full":
         return REAL_MESSAGES[:]
     return [case for case in REAL_MESSAGES if case[3]][:1]
 
@@ -232,8 +233,14 @@ async def test_real_message_pipeline_fake_ai_to_trader(msg_id, author, text, sho
 @pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", LIVE_PIPELINE_CASES)
 async def test_live_ai_pipeline_message_to_trader(msg_id, author, text, should_pick, tickers):
     _ = msg_id
-    if os.getenv("RUN_LIVE_AI_TESTS") != "1":
-        pytest.skip("RUN_LIVE_AI_TESTS != 1")
+    if os.getenv("TEST_AI_LIVE", "0") != "1":
+        pytest.skip("TEST_AI_LIVE != 1")
+    parser_probe = AIParser()
+    resolved_provider = (parser_probe.provider or "").lower()
+    if not resolved_provider:
+        pytest.fail("Live AI pipeline test requires a resolved AI provider")
+    if not ai_provider_has_credentials(resolved_provider):
+        pytest.fail(f"Live AI pipeline test requires valid credentials for provider '{resolved_provider}'")
 
     trader = _TraderProbe()
     client = StockMonitorClient(trader=trader)

@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""One-command confidence runner.
-
-This script configures environment flags and runs ``scripts.healthcheck``.
-"""
+"""One-command confidence runner."""
 
 from __future__ import annotations
 
@@ -15,29 +12,13 @@ from typing import Dict, List, Tuple
 
 from dotenv import load_dotenv
 
+from scripts.test_flags import TestFlags, resolve_test_flags
+
 
 AI_PROVIDER_KEYS: Dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "google": "GOOGLE_API_KEY",
-}
-
-
-PROFILE_FLAGS: Dict[str, Dict[str, str]] = {
-    "full": {
-        "FULL_CONFIDENCE_REQUIRED": "1",
-        "RUN_LIVE_AI_TESTS": "1",
-        "RUN_LIVE_AI_PIPELINE_FULL": "0",
-        "RUN_DISCORD_LIVE_SMOKE": "1",
-        "RUN_WEBULL_READ_SMOKE": "1",
-    },
-    "deterministic": {
-        "FULL_CONFIDENCE_REQUIRED": "0",
-        "RUN_LIVE_AI_TESTS": "0",
-        "RUN_DISCORD_LIVE_SMOKE": "0",
-        "RUN_WEBULL_READ_SMOKE": "0",
-        "RUN_WEBULL_WRITE_TESTS": "0",
-    },
 }
 
 
@@ -61,47 +42,36 @@ def _enabled_ai_keys(env: Dict[str, str]) -> Tuple[List[str], List[str]]:
     return providers, keys
 
 
-def _preflight(env: Dict[str, str]) -> PreflightResult:
+def _preflight(env: Dict[str, str], flags: TestFlags) -> PreflightResult:
     warnings: List[str] = []
     info: List[str] = []
 
-    if env.get("RUN_LIVE_AI_TESTS") == "1":
+    if flags.ai_live:
         providers, keys = _enabled_ai_keys(env)
         if not any(env.get(k) for k in keys):
             warnings.append(
-                "Live AI smoke enabled but no provider key found for "
+                "AI live smoke is enabled but no provider key was found for "
                 f"providers={','.join(providers)}."
             )
         else:
             info.append(f"AI smoke providers: {','.join(providers)}")
 
-    if env.get("RUN_DISCORD_LIVE_SMOKE") == "1":
+    if flags.discord_live:
         if not env.get("DISCORD_TOKEN"):
-            warnings.append("Discord live smoke enabled but DISCORD_TOKEN is missing.")
+            warnings.append("Discord live smoke is enabled but DISCORD_TOKEN is missing.")
         if not env.get("CHANNEL_ID"):
-            warnings.append("Discord live smoke enabled but CHANNEL_ID is missing.")
+            warnings.append("Discord live smoke is enabled but CHANNEL_ID is missing.")
 
-    if env.get("RUN_WEBULL_READ_SMOKE") == "1" or env.get("RUN_WEBULL_WRITE_TESTS") == "1":
+    if flags.webull_read or flags.webull_write:
         if not env.get("WEBULL_APP_KEY"):
-            warnings.append("Webull smoke enabled but WEBULL_APP_KEY is missing.")
+            warnings.append("Webull smoke is enabled but WEBULL_APP_KEY is missing.")
         if not env.get("WEBULL_APP_SECRET"):
-            warnings.append("Webull smoke enabled but WEBULL_APP_SECRET is missing.")
+            warnings.append("Webull smoke is enabled but WEBULL_APP_SECRET is missing.")
 
-    if env.get("RUN_WEBULL_WRITE_TESTS") == "1":
-        paper_required = env.get("WEBULL_PAPER_REQUIRED", "1") == "1"
-        paper_trade = env.get("WEBULL_SMOKE_PAPER_TRADE", env.get("PAPER_TRADE", "true")).strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        if paper_required and not paper_trade:
+    if flags.webull_write:
+        if flags.webull_env == "paper":
             warnings.append(
-                "Webull write smoke is enabled with WEBULL_PAPER_REQUIRED=1 but WEBULL_SMOKE_PAPER_TRADE is not true."
-            )
-        if paper_trade:
-            warnings.append(
-                "Webull write smoke in paper/UAT mode may fail with 404 depending on account/environment provisioning."
+                "Webull write smoke in paper mode may fail with 404 depending on account/environment provisioning."
             )
         else:
             warnings.append(
@@ -119,56 +89,78 @@ def _run(command: List[str], env: Dict[str, str]) -> int:
 
 def _build_env(args: argparse.Namespace) -> Dict[str, str]:
     env = dict(os.environ)
-
-    # Baseline defaults used by both profiles.
     env.setdefault("TEST_AI_PROVIDERS", "openai,anthropic,google")
     env.setdefault("TEST_BROKERS", "webull")
-    env.setdefault("RUN_LIVE_AI_PIPELINE_FULL", "0")
 
-    # Profile defaults can still be overridden by explicitly set env vars.
-    for key, value in PROFILE_FLAGS[args.mode].items():
-        env.setdefault(key, value)
-
-    if args.mode == "full":
-        if args.include_webull_write:
-            env["RUN_WEBULL_WRITE_TESTS"] = "1"
-        else:
-            env.setdefault("RUN_WEBULL_WRITE_TESTS", "0")
-        default_paper_value = env.get("PAPER_TRADE", "true") if args.include_webull_write else "0"
-        env.setdefault("WEBULL_SMOKE_PAPER_TRADE", default_paper_value)
-    else:
-        env.setdefault("WEBULL_SMOKE_PAPER_TRADE", env.get("PAPER_TRADE", "true"))
+    env["TEST_MODE"] = args.mode
+    if args.ai_live is not None:
+        env["TEST_AI_LIVE"] = args.ai_live
+    if args.discord_live is not None:
+        env["TEST_DISCORD_LIVE"] = args.discord_live
+    if args.webull_read is not None:
+        env["TEST_WEBULL_READ"] = args.webull_read
+    if args.webull_write is not None:
+        env["TEST_WEBULL_WRITE"] = args.webull_write
+    if args.webull_env is not None:
+        env["TEST_WEBULL_ENV"] = args.webull_env
+    if args.ai_scope is not None:
+        env["TEST_AI_SCOPE"] = args.ai_scope
 
     if args.ai_provider:
         env["AI_PROVIDER"] = args.ai_provider.strip().lower()
-        env["TEST_AI_PROVIDERS"] = env["AI_PROVIDER"]
+        if env["AI_PROVIDER"] in AI_PROVIDER_KEYS:
+            env["TEST_AI_PROVIDERS"] = env["AI_PROVIDER"]
 
     if args.brokers:
         env["TEST_BROKERS"] = args.brokers
 
-    if args.webull_paper_required:
-        env["WEBULL_PAPER_REQUIRED"] = "1"
-    elif args.mode == "full":
-        env.setdefault("WEBULL_PAPER_REQUIRED", "1")
-
-    if args.webull_smoke_paper_trade:
-        env["WEBULL_SMOKE_PAPER_TRADE"] = "1"
-
-    return env
+    flags = resolve_test_flags(env, default_mode=args.mode)
+    return flags.to_env(env)
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run deterministic or full end-to-end confidence checks.")
+    parser = argparse.ArgumentParser(description="Run local/smoke/strict confidence checks.")
     parser.add_argument(
         "--mode",
-        choices=["deterministic", "full"],
-        default="full",
-        help="Run profile. 'full' enables strict confidence and live smokes by default.",
+        choices=["local", "smoke", "strict"],
+        default="strict",
+        help="Base test mode (strict by default for full confidence checks).",
     )
     parser.add_argument(
-        "--include-webull-write",
-        action="store_true",
-        help="Include Webull write-path smoke tests (opt-in).",
+        "--ai-live",
+        choices=["0", "1"],
+        default=None,
+        help="Override TEST_AI_LIVE.",
+    )
+    parser.add_argument(
+        "--discord-live",
+        choices=["0", "1"],
+        default=None,
+        help="Override TEST_DISCORD_LIVE.",
+    )
+    parser.add_argument(
+        "--webull-read",
+        choices=["0", "1"],
+        default=None,
+        help="Override TEST_WEBULL_READ.",
+    )
+    parser.add_argument(
+        "--webull-write",
+        choices=["0", "1"],
+        default=None,
+        help="Override TEST_WEBULL_WRITE.",
+    )
+    parser.add_argument(
+        "--webull-env",
+        choices=["paper", "production"],
+        default=None,
+        help="Override TEST_WEBULL_ENV.",
+    )
+    parser.add_argument(
+        "--ai-scope",
+        choices=["sample", "full"],
+        default=None,
+        help="Override TEST_AI_SCOPE for the live AI pipeline subset.",
     )
     parser.add_argument(
         "--ai-provider",
@@ -180,38 +172,34 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="Comma-separated broker matrix override (default from TEST_BROKERS/webull).",
     )
-    parser.add_argument(
-        "--webull-paper-required",
-        action="store_true",
-        help="Force WEBULL_PAPER_REQUIRED=1 for this run.",
-    )
-    parser.add_argument(
-        "--webull-smoke-paper-trade",
-        action="store_true",
-        help="Force Webull smoke tests to use paper/UAT endpoint.",
-    )
     return parser
 
 
 def main() -> int:
     load_dotenv(override=False)
     args = _parser().parse_args()
-    env = _build_env(args)
-    preflight = _preflight(env)
+    try:
+        env = _build_env(args)
+        flags = resolve_test_flags(env, default_mode=args.mode)
+    except ValueError as exc:
+        print(f"Flag configuration error: {exc}", flush=True)
+        return 2
+
+    preflight = _preflight(env, flags)
 
     print("== Full Confidence Runner ==", flush=True)
-    print(f"Mode: {args.mode}", flush=True)
-    print(f"Strict gate (FULL_CONFIDENCE_REQUIRED): {env.get('FULL_CONFIDENCE_REQUIRED')}", flush=True)
+    print(f"Mode: {flags.mode}", flush=True)
+    print(f"Strict gate: {'1' if flags.strict_external else '0'}", flush=True)
     print(
         "Live flags: "
-        f"AI={env.get('RUN_LIVE_AI_TESTS')} "
-        f"AIPipelineFull={env.get('RUN_LIVE_AI_PIPELINE_FULL', '0')} "
-        f"Discord={env.get('RUN_DISCORD_LIVE_SMOKE')} "
-        f"WebullRead={env.get('RUN_WEBULL_READ_SMOKE')} "
-        f"WebullWrite={env.get('RUN_WEBULL_WRITE_TESTS')}",
+        f"AI={env.get('TEST_AI_LIVE')} "
+        f"AIScope={env.get('TEST_AI_SCOPE')} "
+        f"Discord={env.get('TEST_DISCORD_LIVE')} "
+        f"WebullRead={env.get('TEST_WEBULL_READ')} "
+        f"WebullWrite={env.get('TEST_WEBULL_WRITE')}",
         flush=True,
     )
-    print(f"Webull smoke paper mode: {env.get('WEBULL_SMOKE_PAPER_TRADE')}", flush=True)
+    print(f"Webull target: {env.get('TEST_WEBULL_ENV')}", flush=True)
     print(f"Provider matrix: {env.get('TEST_AI_PROVIDERS')}", flush=True)
     print(f"Broker matrix: {env.get('TEST_BROKERS')}", flush=True)
 
