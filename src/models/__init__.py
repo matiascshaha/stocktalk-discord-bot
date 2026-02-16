@@ -12,29 +12,33 @@ from src.models.webull_models import (
     TradingSession,
     InstrumentType,
     OptionType,
-    
+
     # Request Models
     StockOrderRequest,
     OptionOrderRequest,
-    
+
     # Account Models
     AccountBalance,
     Position,
 
     # Response Models
-    OrderPreviewResponse
+    OrderPreviewResponse,
 )
 from src.models.parser_models import (
+    CONTRACT_VERSION,
     PickAction,
     PickSentiment,
     PickUrgency,
     ParsedMessage,
-    ParsedPick,
+    ParsedSignal,
+    ParsedVehicle,
     ParserMeta,
+    VehicleIntent,
+    VehicleSide,
+    VehicleType,
 )
 
 __all__ = [
-    
     # Enums
     "OrderSide",
     "OrderType",
@@ -42,11 +46,11 @@ __all__ = [
     "TradingSession",
     "InstrumentType",
     "OptionType",
-    
+
     # Request Models
     "StockOrderRequest",
     "OptionOrderRequest",
-    
+
     # Account Models
     "AccountBalance",
     "Position",
@@ -55,12 +59,17 @@ __all__ = [
     "OrderPreviewResponse",
 
     # Parser contract models
+    "CONTRACT_VERSION",
     "PickAction",
     "PickSentiment",
     "PickUrgency",
     "ParsedMessage",
-    "ParsedPick",
+    "ParsedSignal",
+    "ParsedVehicle",
     "ParserMeta",
+    "VehicleIntent",
+    "VehicleSide",
+    "VehicleType",
 ]
 
 __version__ = "1.0.0"

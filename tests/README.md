@@ -32,8 +32,9 @@ Trading adapter consumes this contract in:
 
 Required structure:
 
-- top-level: `{"picks": [...], "meta": {...}}`
-- pick fields: `ticker`, `action`, `confidence`, `weight_percent`, `urgency`, `sentiment`, `reasoning`
+- top-level: `{"contract_version": "...", "source": {...}, "signals": [...], "meta": {...}}`
+- signal fields: `ticker`, `action`, `confidence`, `weight_percent`, `urgency`, `sentiment`, `reasoning`, `is_actionable`, `vehicles`
+- vehicle fields: `type`, `enabled`, `intent`, `side` (+ option fields when `type=OPTION`)
 
 Behavior mapping:
 

@@ -6,6 +6,13 @@
 version: 1
 
 # =============================================================================
+# DISCORD CONFIGURATION
+# =============================================================================
+discord:
+  # Target channel to monitor for analyst signals
+  channel_id: 1229546005788098580
+
+# =============================================================================
 # AI/PARSING CONFIGURATION
 # =============================================================================
 ai:
@@ -31,6 +38,10 @@ ai:
 trading:
   # Enable automatic trade execution via Webull API
   auto_trade: true
+
+  # Enable option trade vehicles from parser output for execution workflows.
+  # false = keep option signals visible/observable but non-executable.
+  options_enabled: false
   
   # CRITICAL: Toggle between paper trading (UAT/test) and live trading (production)
   # true = Paper trading (us-openapi-alb.uat.webullbroker.com) - SAFE FOR TESTING

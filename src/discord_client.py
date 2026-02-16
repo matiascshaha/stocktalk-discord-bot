@@ -3,14 +3,14 @@ import json
 from datetime import datetime
 from pydantic import ValidationError
 from src.ai_parser import AIParser
-from src.models.parser_models import ParsedMessage, ParsedPick
+from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSignal
 from src.notifier import Notifier
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
 from src.utils.paths import PICKS_LOG_PATH
 from src.webull_trader import WebullTrader
 from src.models.webull_models import OrderSide, OrderType, StockOrderRequest, TimeInForce
-from config.settings import DISCORD_TOKEN, CHANNEL_ID
+from config.settings import DISCORD_TOKEN, CHANNEL_ID, TRADING_CONFIG
 
 logger = setup_logger('discord_client')
 
@@ -47,6 +47,8 @@ class StockMonitorClient:
             CHANNEL_ID,
             self.parser.provider,
             bool(self.trader),
+            bool(TRADING_CONFIG.get("options_enabled")),
+            CONTRACT_VERSION,
         ):
             logger.info(line)
         logger.info("="*60)
@@ -82,52 +84,64 @@ class StockMonitorClient:
             logger.warning("Parser returned invalid payload: %s", exc)
             return
 
-        pick_objs = parsed_message.picks
+        signal_objs = parsed_message.signals
         parsed_payload = parsed_message.model_dump()
 
-        if pick_objs:
-            logger.info(f"Detected {len(pick_objs)} stock pick(s).")
+        if signal_objs:
+            logger.info(f"Detected {len(signal_objs)} signal(s).")
             logger.debug("Picks details: %s", json.dumps(parsed_payload, indent=2))
             logger.info(format_pick_summary(parsed_payload))
 
             # Send notifications
             self.notifier.notify(parsed_payload, message.author.name)
 
-            # Log picks
-            self._log_picks(message, parsed_payload)
+            # Log parsed signals
+            self._log_signals(message, parsed_payload)
 
             # Execute trades if trader available
             if self.trader:
-                for pick in pick_objs:
-                    order = self._pick_to_stock_order(pick)
+                for signal in signal_objs:
+                    order = self._signal_to_stock_order(signal)
                     if not order:
                         continue
-                    self.trader.place_stock_order(order, weighting=pick.weight_percent)
+                    self.trader.place_stock_order(order, weighting=signal.weight_percent)
         else:
-            logger.info("No stock picks detected.")
+            logger.info("No actionable signals detected.")
 
-    def _pick_to_stock_order(self, pick: ParsedPick):
-        if pick.action == "HOLD":
-            logger.info("Skipping HOLD pick for %s", pick.ticker)
+    def _signal_to_stock_order(self, signal: ParsedSignal):
+        stock_vehicle = None
+        for vehicle in signal.vehicles:
+            if vehicle.type == "STOCK":
+                stock_vehicle = vehicle
+                break
+
+        if not stock_vehicle:
             return None
 
-        side = OrderSide.SELL if pick.action == "SELL" else OrderSide.BUY
+        if not stock_vehicle.enabled or stock_vehicle.intent != "EXECUTE":
+            return None
+
+        if stock_vehicle.side == "NONE":
+            logger.info("Skipping non-executable stock signal for %s", signal.ticker)
+            return None
+
+        side = OrderSide.SELL if stock_vehicle.side == "SELL" else OrderSide.BUY
         return StockOrderRequest(
-            symbol=pick.ticker,
+            symbol=signal.ticker,
             side=side,
             quantity=1,
             order_type=OrderType.MARKET,
             time_in_force=TimeInForce.GTC,
         )
     
-    def _log_picks(self, message, picks):
-        """Log picks to file"""
+    def _log_signals(self, message, parsed_message):
+        """Log parsed signals to file."""
         log_entry = {
             "timestamp": datetime.now().isoformat(),
             "author": str(message.author),
             "message": message.content,
             "message_url": message.jump_url,
-            "ai_parsed_picks": picks,
+            "ai_parsed_signals": parsed_message,
         }
 
         PICKS_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)

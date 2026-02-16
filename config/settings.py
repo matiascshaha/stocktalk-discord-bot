@@ -103,7 +103,7 @@ def _as_int(value: Any, default: Optional[int] = None) -> Optional[int]:
 
 # Discord Configuration
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
-CHANNEL_ID = _as_int(_cfg('discord.channel_id', os.getenv('CHANNEL_ID')))
+CHANNEL_ID = _as_int(_cfg('discord.channel_id'), None)
 
 # Anthropic Configuration
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
@@ -115,27 +115,27 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
 # AI Configuration (non-secret)
-AI_PROVIDER = _cfg('ai.provider', os.getenv('AI_PROVIDER'))
+AI_PROVIDER = _cfg('ai.provider', 'auto')
 AI_CONFIG = {
     'provider': AI_PROVIDER,
     'fallback_to_available_provider': _as_bool(
-        _cfg('ai.fallback_to_available_provider', os.getenv('AI_FALLBACK_TO_AVAILABLE_PROVIDER', 'true')),
+        _cfg('ai.fallback_to_available_provider', True),
         True,
     ),
-    'prompt_file': _cfg('ai.prompt.file', os.getenv('AI_PROMPT_FILE', 'config/ai_parser.prompt')),
+    'prompt_file': _cfg('ai.prompt.file', 'config/ai_parser.prompt'),
     'openai': {
-        'model': _cfg('ai.openai.model', os.getenv('OPENAI_MODEL', 'gpt-4o')),
-        'max_tokens': _as_int(_cfg('ai.openai.max_tokens', os.getenv('OPENAI_MAX_TOKENS')), 2000),
-        'temperature': _as_float(_cfg('ai.openai.temperature', os.getenv('OPENAI_TEMPERATURE')), 0.2),
+        'model': _cfg('ai.openai.model', 'gpt-4o'),
+        'max_tokens': _as_int(_cfg('ai.openai.max_tokens', 2000), 2000),
+        'temperature': _as_float(_cfg('ai.openai.temperature', 0.2), 0.2),
     },
     'anthropic': {
-        'model': _cfg('ai.anthropic.model', os.getenv('ANTHROPIC_MODEL', 'claude-sonnet-4-5')),
-        'max_tokens': _as_int(_cfg('ai.anthropic.max_tokens', os.getenv('ANTHROPIC_MAX_TOKENS')), 2000),
-        'temperature': _as_float(_cfg('ai.anthropic.temperature', os.getenv('ANTHROPIC_TEMPERATURE')), 0.2),
+        'model': _cfg('ai.anthropic.model', 'claude-sonnet-4-5'),
+        'max_tokens': _as_int(_cfg('ai.anthropic.max_tokens', 2000), 2000),
+        'temperature': _as_float(_cfg('ai.anthropic.temperature', 0.2), 0.2),
     },
     'google': {
-        'model': _cfg('ai.google.model', os.getenv('GOOGLE_MODEL', 'gemini-3-pro-preview')),
-        'temperature': _as_float(_cfg('ai.google.temperature', os.getenv('GOOGLE_TEMPERATURE')), 0.2),
+        'model': _cfg('ai.google.model', 'gemini-3-pro-preview'),
+        'temperature': _as_float(_cfg('ai.google.temperature', 0.2), 0.2),
     },
 }
 
@@ -145,30 +145,32 @@ WEBULL_CONFIG = {
     'app_secret': os.getenv('WEBULL_APP_SECRET'),
     'test_app_key': _cfg('webull.test_app_key'),
     'test_app_secret': _cfg('webull.test_app_secret'),
-    'region': _cfg('webull.region', os.getenv('WEBULL_REGION', 'US')),
-    'api_endpoint': _cfg('webull.api_endpoint', os.getenv('WEBULL_API_ENDPOINT')),
-    'account_id': _cfg('webull.account_id'),
+    'region': _cfg('webull.region', 'US'),
+    'api_endpoint': _cfg('webull.api_endpoint'),
+    # account IDs are credential-like and may live in env when users prefer
+    'account_id': _cfg('webull.account_id', os.getenv('WEBULL_ACCOUNT_ID')),
     'test_account_id': _cfg('webull.test_account_id', os.getenv('WEBULL_TEST_ACCOUNT_ID')),
-    'currency': _cfg('webull.currency', os.getenv('WEBULL_CURRENCY', 'USD')),
-    'account_tax_type': _cfg('webull.account_tax_type', os.getenv('WEBULL_ACCOUNT_TAX_TYPE', 'GENERAL')),
+    'currency': _cfg('webull.currency', 'USD'),
+    'account_tax_type': _cfg('webull.account_tax_type', 'GENERAL'),
 }
 
 # Trading Settings
 TRADING_CONFIG = {
-    'auto_trade': _as_bool(_cfg('trading.auto_trade', os.getenv('AUTO_TRADE', 'false')), False),
-    'paper_trade': _as_bool(_cfg('trading.paper_trade', os.getenv('PAPER_TRADE', 'False')), False),
-    'min_confidence': _as_float(_cfg('trading.min_confidence', os.getenv('MIN_CONFIDENCE', 0.7)), 0.7),
-    'default_amount': _as_float(_cfg('trading.default_amount', os.getenv('DEFAULT_AMOUNT', 1000)), 1000.0),
-    'use_market_orders': _as_bool(_cfg('trading.use_market_orders', os.getenv('USE_MARKET_ORDERS', 'true')), True),
-    'extended_hours_trading': _as_bool(_cfg('trading.extended_hours_trading', os.getenv('EXTENDED_HOURS_TRADING', 'false')), False),
-    'time_in_force': _cfg('trading.time_in_force', os.getenv('TIME_IN_FORCE', 'DAY')),
+    'auto_trade': _as_bool(_cfg('trading.auto_trade', False), False),
+    'paper_trade': _as_bool(_cfg('trading.paper_trade', False), False),
+    'options_enabled': _as_bool(_cfg('trading.options_enabled', False), False),
+    'min_confidence': _as_float(_cfg('trading.min_confidence', 0.7), 0.7),
+    'default_amount': _as_float(_cfg('trading.default_amount', 1000), 1000.0),
+    'use_market_orders': _as_bool(_cfg('trading.use_market_orders', True), True),
+    'extended_hours_trading': _as_bool(_cfg('trading.extended_hours_trading', False), False),
+    'time_in_force': _cfg('trading.time_in_force', 'DAY'),
 }
 
 # Notification Settings
 NOTIFICATION_CONFIG = {
-    'desktop_notifications': _as_bool(_cfg('notifications.desktop_notifications', os.getenv('DESKTOP_NOTIFICATIONS', 'true')), True),
-    'sound_alert': _as_bool(_cfg('notifications.sound_alert', os.getenv('SOUND_ALERT', 'true')), True),
-    'copy_to_clipboard': _as_bool(_cfg('notifications.copy_to_clipboard', os.getenv('COPY_TO_CLIPBOARD', 'true')), True),
+    'desktop_notifications': _as_bool(_cfg('notifications.desktop_notifications', True), True),
+    'sound_alert': _as_bool(_cfg('notifications.sound_alert', True), True),
+    'copy_to_clipboard': _as_bool(_cfg('notifications.copy_to_clipboard', True), True),
 }
 
 # Validate required settings

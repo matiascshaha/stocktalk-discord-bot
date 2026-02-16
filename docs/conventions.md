@@ -22,6 +22,15 @@
 - Use language features and patterns (functions, classes, inheritance, decorators, etc.) when they clearly improve readability, reuse, and API clarity.
 - Follow language and ecosystem standards and idioms so code remains predictable and easy for others to work with.
 
+## Provider integration layout
+
+- Provider-specific implementation belongs in `src/providers/<provider>/`.
+- Split provider modules by purpose:
+  - `*_contract.py` for immutable schemas/response formats.
+  - `*_client.py` for request execution and transport-level parsing.
+  - optional mapper/adapter modules for conversion into internal models.
+- Domain orchestrators (for example `AIParser`) should depend on provider entry points, not inline provider protocol details.
+
 ## API and contract rules
 
 - Preserve backward compatibility unless a breaking change is approved.

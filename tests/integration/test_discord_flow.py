@@ -1,6 +1,7 @@
 import json
 import os
 from types import SimpleNamespace
+from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,6 +25,22 @@ def _message(content: str, author_id: int, channel_id: int):
         channel=channel,
         jump_url="https://discord.com/mock/message",
     )
+
+
+def _signal_payload(ticker: str, action: str = "BUY", confidence: float = 0.9, weight_percent: Optional[float] = 5.0):
+    side = action if action in {"BUY", "SELL"} else "NONE"
+    intent = "EXECUTE" if action in {"BUY", "SELL"} else "INFO"
+    return {
+        "ticker": ticker,
+        "action": action,
+        "confidence": confidence,
+        "weight_percent": weight_percent,
+        "urgency": "MEDIUM",
+        "sentiment": "BULLISH" if action != "SELL" else "BEARISH",
+        "reasoning": "test",
+        "is_actionable": action in {"BUY", "SELL", "HOLD"},
+        "vehicles": [{"type": "STOCK", "enabled": True, "intent": intent, "side": side}],
+    }
 
 
 class _FakeOpenAIClient:
@@ -81,7 +98,6 @@ LIVE_PIPELINE_CASES = _select_live_pipeline_cases()
 
 @pytest.fixture(autouse=True)
 def _stable_channel_id(monkeypatch):
-    # Keep deterministic tests independent from local/CI CHANNEL_ID env setup.
     monkeypatch.setattr(discord_client_module, "CHANNEL_ID", TEST_CHANNEL_ID)
 
 
@@ -98,7 +114,7 @@ def test_client_initializes():
 async def test_ignores_wrong_channel():
     client = StockMonitorClient(trader=None)
     type(client.client).user = SimpleNamespace(id=999)
-    client.parser.parse = MagicMock(return_value={"picks": [], "meta": {"status": "ok"}})
+    client.parser.parse = MagicMock(return_value={"signals": [], "meta": {"status": "ok"}})
 
     await client.on_message(_message("Buy AAPL", author_id=123, channel_id=WRONG_CHANNEL_ID))
     client.parser.parse.assert_not_called()
@@ -110,7 +126,7 @@ async def test_ignores_wrong_channel():
 async def test_ignores_own_message():
     client = StockMonitorClient(trader=None)
     type(client.client).user = SimpleNamespace(id=123)
-    client.parser.parse = MagicMock(return_value={"picks": [], "meta": {"status": "ok"}})
+    client.parser.parse = MagicMock(return_value={"signals": [], "meta": {"status": "ok"}})
 
     await client.on_message(_message("Buy AAPL", author_id=123, channel_id=TEST_CHANNEL_ID))
     client.parser.parse.assert_not_called()
@@ -134,27 +150,12 @@ async def test_malformed_parser_response_does_not_notify_or_trade():
 @pytest.mark.unit
 @pytest.mark.contract
 @pytest.mark.asyncio
-async def test_valid_pick_triggers_notify_and_trade():
+async def test_valid_signal_triggers_notify_and_trade():
     trader = MagicMock()
     client = StockMonitorClient(trader=trader)
     type(client.client).user = SimpleNamespace(id=999)
     client.notifier.notify = MagicMock()
-    client.parser.parse = MagicMock(
-        return_value={
-            "picks": [
-                {
-                    "ticker": "AAPL",
-                    "action": "BUY",
-                    "confidence": 0.9,
-                    "weight_percent": 5.0,
-                    "urgency": "MEDIUM",
-                    "sentiment": "BULLISH",
-                    "reasoning": "test",
-                }
-            ],
-            "meta": {"status": "ok"},
-        }
-    )
+    client.parser.parse = MagicMock(return_value={"signals": [_signal_payload("AAPL", "BUY")], "meta": {"status": "ok"}})
 
     await client.on_message(_message("Buy AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
     client.notifier.notify.assert_called_once()
@@ -166,27 +167,12 @@ async def test_valid_pick_triggers_notify_and_trade():
 @pytest.mark.unit
 @pytest.mark.contract
 @pytest.mark.asyncio
-async def test_sell_pick_triggers_sell_order():
+async def test_sell_signal_triggers_sell_order():
     trader = MagicMock()
     client = StockMonitorClient(trader=trader)
     type(client.client).user = SimpleNamespace(id=999)
     client.notifier.notify = MagicMock()
-    client.parser.parse = MagicMock(
-        return_value={
-            "picks": [
-                {
-                    "ticker": "AAPL",
-                    "action": "SELL",
-                    "confidence": 0.9,
-                    "weight_percent": 5.0,
-                    "urgency": "MEDIUM",
-                    "sentiment": "BEARISH",
-                    "reasoning": "test",
-                }
-            ],
-            "meta": {"status": "ok"},
-        }
-    )
+    client.parser.parse = MagicMock(return_value={"signals": [_signal_payload("AAPL", "SELL")], "meta": {"status": "ok"}})
 
     await client.on_message(_message("Sell AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
     trader.place_stock_order.assert_called_once()
@@ -197,27 +183,12 @@ async def test_sell_pick_triggers_sell_order():
 @pytest.mark.unit
 @pytest.mark.contract
 @pytest.mark.asyncio
-async def test_hold_pick_does_not_trade():
+async def test_hold_signal_does_not_trade():
     trader = MagicMock()
     client = StockMonitorClient(trader=trader)
     type(client.client).user = SimpleNamespace(id=999)
     client.notifier.notify = MagicMock()
-    client.parser.parse = MagicMock(
-        return_value={
-            "picks": [
-                {
-                    "ticker": "AAPL",
-                    "action": "HOLD",
-                    "confidence": 0.9,
-                    "weight_percent": 5.0,
-                    "urgency": "LOW",
-                    "sentiment": "NEUTRAL",
-                    "reasoning": "test",
-                }
-            ],
-            "meta": {"status": "ok"},
-        }
-    )
+    client.parser.parse = MagicMock(return_value={"signals": [_signal_payload("AAPL", "HOLD")], "meta": {"status": "ok"}})
 
     await client.on_message(_message("Hold AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
     client.notifier.notify.assert_called_once()
@@ -234,12 +205,12 @@ async def test_real_message_pipeline_fake_ai_to_trader(msg_id, author, text, sho
     client = StockMonitorClient(trader=trader)
     type(client.client).user = SimpleNamespace(id=999)
     client.notifier.notify = MagicMock()
-    client._log_picks = MagicMock()
+    client._log_signals = MagicMock()
 
     if should_pick:
-        fake_payload = {"picks": [{"ticker": t, "action": "BUY", "confidence": 0.95} for t in sorted(tickers)]}
+        fake_payload = {"signals": [_signal_payload(t, "BUY", confidence=0.95, weight_percent=None) for t in sorted(tickers)]}
     else:
-        fake_payload = {"picks": []}
+        fake_payload = {"signals": []}
     client.parser = _parser_with_fake_response(json.dumps(fake_payload))
 
     await client.on_message(_message(text, author_id=321, channel_id=TEST_CHANNEL_ID))
@@ -248,7 +219,7 @@ async def test_real_message_pipeline_fake_ai_to_trader(msg_id, author, text, sho
         assert len(trader.orders) == len(tickers)
         assert trader.account_requests >= 1
         parsed_payload = client.notifier.notify.call_args[0][0]
-        found = {pick["ticker"] for pick in parsed_payload["picks"]}
+        found = {signal["ticker"] for signal in parsed_payload["signals"]}
         for ticker in tickers:
             assert ticker in found
     else:
@@ -275,7 +246,7 @@ async def test_live_ai_pipeline_message_to_trader(msg_id, author, text, should_p
     client = StockMonitorClient(trader=trader)
     type(client.client).user = SimpleNamespace(id=999)
     client.notifier.notify = MagicMock()
-    client._log_picks = MagicMock()
+    client._log_signals = MagicMock()
 
     await client.on_message(_message(text, author_id=321, channel_id=TEST_CHANNEL_ID))
 
@@ -284,8 +255,12 @@ async def test_live_ai_pipeline_message_to_trader(msg_id, author, text, should_p
         assert trader.account_requests >= 1
         notify_payload = client.notifier.notify.call_args[0][0]
         assert isinstance(notify_payload, dict)
-        assert isinstance(notify_payload.get("picks"), list)
-        found = {pick["ticker"] for pick in notify_payload["picks"] if isinstance(pick, dict) and pick.get("ticker")}
+        assert isinstance(notify_payload.get("signals"), list)
+        found = {
+            signal["ticker"]
+            for signal in notify_payload["signals"]
+            if isinstance(signal, dict) and signal.get("ticker")
+        }
         assert found & tickers
     else:
         assert trader.orders == []

@@ -17,16 +17,43 @@ class _FakeOpenAIClient:
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
+class _CapturingOpenAIClient:
+    def __init__(self, response_text: str):
+        self._response_text = response_text
+        self.calls = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls.append(kwargs)
+        message = SimpleNamespace(content=self._response_text)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+class _ErrorOpenAIClient:
+    def __init__(self):
+        self.calls = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls.append(kwargs)
+        raise RuntimeError("response_format unsupported")
+
+
 @pytest.mark.contract
 @pytest.mark.unit
-def test_parser_output_has_required_fields_for_discord_client():
+def test_parser_output_has_required_signal_fields_for_runtime():
     parser = AIParser()
     parser.provider = "openai"
     parser.client = _FakeOpenAIClient(
         """
         {
-          "picks": [
-            {"ticker": "$aapl", "action": "buy", "confidence": "0.91"}
+          "signals": [
+            {
+              "ticker": "$aapl",
+              "action": "buy",
+              "confidence": "0.91",
+              "vehicles": [{"type": "stock", "intent": "execute"}]
+            }
           ]
         }
         """
@@ -34,29 +61,49 @@ def test_parser_output_has_required_fields_for_discord_client():
 
     result = parser.parse("Adding AAPL", "tester")
     parsed = ParsedMessage.model_validate(result)
-    assert len(parsed.picks) == 1
-    assert len(result["picks"]) == 1
-    pick = result["picks"][0]
+    assert parsed.contract_version == "1.0"
+    assert len(parsed.signals) == 1
 
-    for field in ("ticker", "action", "confidence", "weight_percent", "urgency", "sentiment", "reasoning"):
-        assert field in pick
+    signal = parsed.signals[0]
+    dumped_signal = result["signals"][0]
 
-    assert pick["ticker"] == "AAPL"
-    assert pick["action"] == "BUY"
-    assert 0.0 <= pick["confidence"] <= 1.0
+    for field in (
+        "ticker",
+        "action",
+        "confidence",
+        "weight_percent",
+        "urgency",
+        "sentiment",
+        "reasoning",
+        "is_actionable",
+        "vehicles",
+    ):
+        assert field in dumped_signal
+
+    assert signal.ticker == "AAPL"
+    assert signal.action == "BUY"
+    assert 0.0 <= signal.confidence <= 1.0
+    assert len(signal.vehicles) == 1
+    assert signal.vehicles[0].type == "STOCK"
+    assert signal.vehicles[0].intent == "EXECUTE"
 
 
 @pytest.mark.contract
 @pytest.mark.unit
-def test_parser_drops_invalid_pick_entries():
+def test_parser_drops_invalid_signal_entries():
     parser = AIParser()
     parser.provider = "openai"
     parser.client = _FakeOpenAIClient(
         """
         {
-          "picks": [
+          "signals": [
             {"action": "BUY", "confidence": 0.8},
-            {"ticker": "MSFT", "action": "BUY", "confidence": 0.9}
+            {
+              "ticker": "MSFT",
+              "action": "BUY",
+              "confidence": 0.9,
+              "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}]
+            }
           ]
         }
         """
@@ -64,21 +111,25 @@ def test_parser_drops_invalid_pick_entries():
 
     result = parser.parse("Adding MSFT", "tester")
     parsed = ParsedMessage.model_validate(result)
-    assert len(parsed.picks) == 1
-    assert len(result["picks"]) == 1
-    assert result["picks"][0]["ticker"] == "MSFT"
+    assert len(parsed.signals) == 1
+    assert result["signals"][0]["ticker"] == "MSFT"
 
 
 @pytest.mark.contract
 @pytest.mark.unit
-def test_parser_normalizes_invalid_action_to_buy():
+def test_parser_normalizes_invalid_action_to_none():
     parser = AIParser()
     parser.provider = "openai"
     parser.client = _FakeOpenAIClient(
         """
         {
-          "picks": [
-            {"ticker": "TSLA", "action": "ADD", "confidence": 0.8}
+          "signals": [
+            {
+              "ticker": "TSLA",
+              "action": "ADD",
+              "confidence": 0.8,
+              "vehicles": [{"type": "STOCK"}]
+            }
           ]
         }
         """
@@ -86,4 +137,89 @@ def test_parser_normalizes_invalid_action_to_buy():
 
     result = parser.parse("Adding TSLA", "tester")
     parsed = ParsedMessage.model_validate(result)
-    assert parsed.picks[0].action == "BUY"
+    assert parsed.signals[0].action == "NONE"
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_parser_disables_option_vehicle_when_options_flag_off(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _FakeOpenAIClient(
+        """
+        {
+          "signals": [
+            {
+              "ticker": "NVDA",
+              "action": "BUY",
+              "confidence": 0.82,
+              "vehicles": [
+                {
+                  "type": "OPTION",
+                  "intent": "EXECUTE",
+                  "side": "BUY",
+                  "option_type": "CALL",
+                  "strike": 140
+                }
+              ]
+            }
+          ]
+        }
+        """
+    )
+
+    parser.options_enabled = False
+    result = parser.parse("considering NVDA 140c", "tester")
+    parsed = ParsedMessage.model_validate(result)
+
+    option_vehicle = parsed.signals[0].vehicles[0]
+    assert option_vehicle.type == "OPTION"
+    assert option_vehicle.enabled is False
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_openai_request_uses_structured_output_response_format():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _CapturingOpenAIClient(
+        """
+        {
+          "signals": [
+            {
+              "ticker": "AAPL",
+              "action": "BUY",
+              "confidence": 0.95,
+              "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}]
+            }
+          ]
+        }
+        """
+    )
+
+    result = parser.parse("Adding AAPL", "tester")
+    assert result["meta"]["status"] == "ok"
+    assert len(parser.client.calls) == 1
+
+    call = parser.client.calls[0]
+    assert "response_format" in call
+    response_format = call["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    schema = response_format["json_schema"]["schema"]
+    for key in ("contract_version", "source", "signals", "meta"):
+        assert key in schema["required"]
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_openai_request_failure_returns_provider_error():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _ErrorOpenAIClient()
+
+    result = parser.parse("Adding MSFT", "tester")
+    assert result["meta"]["status"] == "provider_error"
+    assert result["signals"] == []
+    assert len(parser.client.calls) == 1
+    assert "response_format" in parser.client.calls[0]

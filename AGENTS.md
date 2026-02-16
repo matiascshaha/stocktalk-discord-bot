@@ -47,6 +47,16 @@ Use commands from `docs/runbook.md`.
 - Do not silently change APIs/contracts.
 - If assumptions are required, state them explicitly.
 
+## Project structure policy
+
+- Use folder-first organization for integration domains with multiple responsibilities.
+- Place provider code under `src/providers/<provider>/` and split by concern:
+  - request/transport client logic
+  - contract/schema definitions
+  - mapping/normalization helpers (when needed)
+- Keep parser orchestration in parser modules and keep provider-specific protocol details in provider modules.
+- Avoid single-file dumps for growing domains; introduce subpackages early when it improves navigation and ownership.
+
 ## Memory update rules
 
 Update `docs/ai-memory.md` when discovering durable facts:

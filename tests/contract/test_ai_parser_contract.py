@@ -34,7 +34,7 @@ def test_parse_no_client_returns_empty_result():
 
     result = parser.parse("Buying AAPL now", "tester")
     assert isinstance(result, dict)
-    assert result["picks"] == []
+    assert result["signals"] == []
     assert result["meta"]["status"] == "no_client"
 
 
@@ -44,51 +44,67 @@ def test_parse_malformed_json_returns_invalid_json_status():
     parser = _parser_with_fake_response("not-json")
 
     result = parser.parse("Buying AAPL now", "tester")
-    assert result["picks"] == []
+    assert result["signals"] == []
     assert result["meta"]["status"] == "invalid_json"
 
 
 @pytest.mark.unit
 @pytest.mark.contract
-def test_parse_normalizes_list_response():
-    parser = _parser_with_fake_response('[{"ticker":"AAPL","action":"BUY","confidence":0.8}]')
+def test_parse_normalizes_signal_list_response():
+    parser = _parser_with_fake_response(
+        '[{"ticker":"AAPL","action":"BUY","confidence":0.8,"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}]'
+    )
 
     result = parser.parse("Buying AAPL now", "tester")
     assert result["meta"]["status"] == "ok"
-    assert len(result["picks"]) == 1
-    assert result["picks"][0]["ticker"] == "AAPL"
+    assert len(result["signals"]) == 1
+    assert result["signals"][0]["ticker"] == "AAPL"
 
 
 @pytest.mark.unit
 @pytest.mark.contract
-def test_parse_normalizes_single_pick_dict_response():
-    parser = _parser_with_fake_response('{"ticker":"MSFT","action":"BUY","confidence":0.7}')
+def test_parse_normalizes_single_signal_dict_response():
+    parser = _parser_with_fake_response(
+        '{"ticker":"MSFT","action":"BUY","confidence":0.7,"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}'
+    )
 
     result = parser.parse("Buying MSFT now", "tester")
     assert result["meta"]["status"] == "ok"
-    assert len(result["picks"]) == 1
-    assert result["picks"][0]["ticker"] == "MSFT"
+    assert len(result["signals"]) == 1
+    assert result["signals"][0]["ticker"] == "MSFT"
 
 
 @pytest.mark.unit
 @pytest.mark.contract
 @pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", REAL_MESSAGES)
 def test_regression_real_messages_with_fixed_ai_contract(msg_id, author, text, should_pick, tickers):
+    _ = msg_id
+
     if should_pick:
-        fake_payload = {"picks": [{"ticker": t, "action": "BUY", "confidence": 0.9} for t in sorted(tickers)]}
+        fake_payload = {
+            "signals": [
+                {
+                    "ticker": t,
+                    "action": "BUY",
+                    "confidence": 0.9,
+                    "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}],
+                }
+                for t in sorted(tickers)
+            ]
+        }
     else:
-        fake_payload = {"picks": []}
+        fake_payload = {"signals": []}
 
     parser = _parser_with_fake_response(json.dumps(fake_payload))
     result = parser.parse(text, author)
 
     assert isinstance(result, dict)
-    assert "picks" in result
-    assert isinstance(result["picks"], list)
+    assert "signals" in result
+    assert isinstance(result["signals"], list)
 
-    found = {p["ticker"] for p in result["picks"] if isinstance(p, dict) and p.get("ticker")}
+    found = {s["ticker"] for s in result["signals"] if isinstance(s, dict) and s.get("ticker")}
     if should_pick:
         for ticker in tickers:
             assert ticker in found, f"{msg_id} missing ticker {ticker}"
     else:
-        assert found == set(), f"{msg_id} should not produce picks"
+        assert found == set(), f"{msg_id} should not produce signals"
