@@ -3,28 +3,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.models.webull_models import OptionLeg, OptionOrderRequest, OptionType, OrderSide, OrderType, StockOrderRequest
-from src.webull_trader import WebullTrader
-
-
-@pytest.fixture()
-def trader():
-    return WebullTrader(
-        app_key="dummy",
-        app_secret="dummy",
-        paper_trade=True,
-        region="US",
-        account_id="TEST_ACCOUNT",
-    )
 
 
 @pytest.mark.contract
 @pytest.mark.unit
 def test_sdk_method_compatibility(trader):
-    v1_methods = {m for m in dir(trader.order_api) if not m.startswith("_")}
-    v2_methods = {m for m in dir(trader.order_v2_api) if not m.startswith("_")}
+    v1_methods = {method for method in dir(trader.order_api) if not method.startswith("_")}
+    v2_methods = {method for method in dir(trader.order_v2_api) if not method.startswith("_")}
 
     assert "place_order" in v1_methods
-
     assert "preview_option" in v2_methods
     assert "place_option" in v2_methods
 

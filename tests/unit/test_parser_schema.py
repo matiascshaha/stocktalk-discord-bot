@@ -1,43 +1,9 @@
-from types import SimpleNamespace
-
 import pytest
 
 from src.ai_parser import AIParser
 from src.models.parser_models import ParsedMessage
 from tests.data.stocktalk_real_messages import REAL_MESSAGES
-
-
-class _FakeOpenAIClient:
-    def __init__(self, response_text: str):
-        self._response_text = response_text
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
-
-    def _create(self, **kwargs):
-        _ = kwargs
-        message = SimpleNamespace(content=self._response_text)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-
-class _CapturingOpenAIClient:
-    def __init__(self, response_text: str):
-        self._response_text = response_text
-        self.calls = []
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
-
-    def _create(self, **kwargs):
-        self.calls.append(kwargs)
-        message = SimpleNamespace(content=self._response_text)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-
-class _ErrorOpenAIClient:
-    def __init__(self):
-        self.calls = []
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
-
-    def _create(self, **kwargs):
-        self.calls.append(kwargs)
-        raise RuntimeError("response_format unsupported")
+from tests.support.fakes.ai_clients import CapturingOpenAIClient, ErrorOpenAIClient, FakeOpenAIClient
 
 
 @pytest.mark.contract
@@ -45,7 +11,7 @@ class _ErrorOpenAIClient:
 def test_parser_output_has_required_signal_fields_for_runtime():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _FakeOpenAIClient(
+    parser.client = FakeOpenAIClient(
         """
         {
           "signals": [
@@ -94,7 +60,7 @@ def test_parser_output_has_required_signal_fields_for_runtime():
 def test_parser_drops_invalid_signal_entries():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _FakeOpenAIClient(
+    parser.client = FakeOpenAIClient(
         """
         {
           "signals": [
@@ -121,7 +87,7 @@ def test_parser_drops_invalid_signal_entries():
 def test_parser_normalizes_invalid_action_to_none():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _FakeOpenAIClient(
+    parser.client = FakeOpenAIClient(
         """
         {
           "signals": [
@@ -143,10 +109,10 @@ def test_parser_normalizes_invalid_action_to_none():
 
 @pytest.mark.contract
 @pytest.mark.unit
-def test_parser_disables_option_vehicle_when_options_flag_off(monkeypatch):
+def test_parser_disables_option_vehicle_when_options_flag_off():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _FakeOpenAIClient(
+    parser.client = FakeOpenAIClient(
         """
         {
           "signals": [
@@ -183,7 +149,7 @@ def test_parser_disables_option_vehicle_when_options_flag_off(monkeypatch):
 def test_openai_request_uses_structured_output_response_format():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _CapturingOpenAIClient(
+    parser.client = CapturingOpenAIClient(
         """
         {
           "signals": [
@@ -217,7 +183,7 @@ def test_openai_request_uses_structured_output_response_format():
 def test_openai_request_failure_returns_provider_error():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _ErrorOpenAIClient()
+    parser.client = ErrorOpenAIClient()
 
     result = parser.parse("Adding MSFT", "tester")
     assert result["meta"]["status"] == "provider_error"
@@ -231,7 +197,7 @@ def test_openai_request_failure_returns_provider_error():
 def test_portfolio_summary_is_prompt_handled_not_preblocked():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _CapturingOpenAIClient('{"signals": []}')
+    parser.client = CapturingOpenAIClient('{"signals": []}')
 
     portfolio_message = next(
         text

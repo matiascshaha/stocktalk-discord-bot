@@ -1,44 +1,10 @@
-from argparse import Namespace
-
 from scripts.quality.run_confidence_suite import _build_env
-
-
-def _args(**overrides):
-    data = {
-        "mode": "strict",
-        "ai_live": None,
-        "discord_live": None,
-        "webull_read": None,
-        "webull_write": None,
-        "webull_env": None,
-        "ai_scope": None,
-        "ai_provider": None,
-        "brokers": None,
-    }
-    data.update(overrides)
-    return Namespace(**data)
-
-
-def _clear_runner_env(monkeypatch):
-    keys = [
-        "TEST_MODE",
-        "TEST_AI_LIVE",
-        "TEST_AI_SCOPE",
-        "TEST_DISCORD_LIVE",
-        "TEST_WEBULL_READ",
-        "TEST_WEBULL_WRITE",
-        "TEST_WEBULL_ENV",
-        "TEST_AI_PROVIDERS",
-        "TEST_BROKERS",
-        "AI_PROVIDER",
-    ]
-    for key in keys:
-        monkeypatch.delenv(key, raising=False)
+from tests.support.tooling.full_confidence import clear_runner_env, make_full_confidence_args
 
 
 def test_build_env_local_defaults(monkeypatch):
-    _clear_runner_env(monkeypatch)
-    env = _build_env(_args(mode="local"))
+    clear_runner_env(monkeypatch)
+    env = _build_env(make_full_confidence_args(mode="local"))
 
     assert env["TEST_MODE"] == "local"
     assert env["TEST_AI_LIVE"] == "0"
@@ -50,8 +16,8 @@ def test_build_env_local_defaults(monkeypatch):
 
 
 def test_build_env_strict_defaults(monkeypatch):
-    _clear_runner_env(monkeypatch)
-    env = _build_env(_args(mode="strict"))
+    clear_runner_env(monkeypatch)
+    env = _build_env(make_full_confidence_args(mode="strict"))
 
     assert env["TEST_MODE"] == "strict"
     assert env["TEST_AI_LIVE"] == "1"
@@ -63,10 +29,10 @@ def test_build_env_strict_defaults(monkeypatch):
 
 
 def test_build_env_explicit_overrides(monkeypatch):
-    _clear_runner_env(monkeypatch)
+    clear_runner_env(monkeypatch)
 
     env = _build_env(
-        _args(
+        make_full_confidence_args(
             mode="strict",
             ai_live="1",
             discord_live="0",
@@ -86,7 +52,7 @@ def test_build_env_explicit_overrides(monkeypatch):
 
 
 def test_build_env_ai_provider_override(monkeypatch):
-    _clear_runner_env(monkeypatch)
-    env = _build_env(_args(ai_provider="openai"))
+    clear_runner_env(monkeypatch)
+    env = _build_env(make_full_confidence_args(ai_provider="openai"))
     assert env["AI_PROVIDER"] == "openai"
     assert env["TEST_AI_PROVIDERS"] == "openai"

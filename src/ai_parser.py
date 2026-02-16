@@ -147,7 +147,6 @@ class AIParser:
         except Exception as exc:
             logger.error("AI parsing error: %s", exc)
             return self._empty_result(status="provider_error", error=str(exc), source=source)
-
     def _empty_result(self, status: str, source: Dict[str, Any], error: Optional[str] = None) -> Dict[str, Any]:
         return ParsedMessage(
             contract_version=CONTRACT_VERSION,
