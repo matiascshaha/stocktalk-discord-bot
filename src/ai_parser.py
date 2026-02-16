@@ -147,7 +147,6 @@ class AIParser:
         except Exception as exc:
             logger.error("AI parsing error: %s", exc)
             return self._empty_result(status="provider_error", error=str(exc), source=source)
-
     def _empty_result(self, status: str, source: Dict[str, Any], error: Optional[str] = None) -> Dict[str, Any]:
         return ParsedMessage(
             contract_version=CONTRACT_VERSION,
@@ -400,6 +399,7 @@ class AIParser:
 
     def _try_init_provider(self, provider: str):
         try:
+<<<<<<< HEAD
             client = build_provider_client(
                 provider=provider,
                 config=self.config,
@@ -409,6 +409,18 @@ class AIParser:
             )
             if client is None:
                 return
+=======
+            if provider == "anthropic" and ANTHROPIC_API_KEY:
+                self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+                self.provider = "anthropic"
+                logger.info("Using Anthropic for AI parsing")
+            elif provider == "openai" and OPENAI_API_KEY:
+                self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                self.provider = "openai"
+                logger.info("Using OpenAI for AI parsing")
+            elif provider == "google" and GOOGLE_API_KEY:
+                import google.generativeai as genai
+>>>>>>> 5bd4376 (refactor(parser): enforce canonical signals contract and vehicle model)
 
             self.client = client
             self.provider = provider
