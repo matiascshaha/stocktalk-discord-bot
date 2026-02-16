@@ -2,9 +2,15 @@
 
 from typing import Any, Dict
 
-from src.providers.anthropic.parser_client import request_parser_completion as request_anthropic_parser_completion
-from src.providers.google.parser_client import request_parser_completion as request_google_parser_completion
-from src.providers.openai.parser_client import request_parser_completion as request_openai_parser_completion
+from src.providers.anthropic.parser_client import (
+    request_parser_completion as request_anthropic_parser_completion,
+)
+from src.providers.google.parser_client import (
+    request_parser_completion as request_google_parser_completion,
+)
+from src.providers.openai.parser_client import (
+    request_parser_completion as request_openai_parser_completion,
+)
 
 
 class UnsupportedProviderError(ValueError):
