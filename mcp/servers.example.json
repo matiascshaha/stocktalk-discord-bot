@@ -1,0 +1,16 @@
+﻿{
+  "mcpServers": {
+    "github": {
+      "command": "<GITHUB_MCP_COMMAND>",
+      "args": ["<ARGS>"]
+    },
+    "ci": {
+      "command": "<CI_MCP_COMMAND>",
+      "args": ["<ARGS>"]
+    },
+    "docs": {
+      "command": "<DOCS_MCP_COMMAND>",
+      "args": ["<ARGS>"]
+    }
+  }
+}
