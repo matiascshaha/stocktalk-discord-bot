@@ -143,4 +143,3 @@ The repository includes agent-focused assets to standardize planning, execution,
 - `docs/system-context/`: deeper system context for architecture, contracts, and operations.
 - `prompts/`: reusable prompt templates for coding and automation work.
 - `mcp/`: MCP setup references and example server configuration.
-- `eval/`: lightweight task and metrics templates for tracking improvement.
