@@ -111,6 +111,10 @@ class AIParser:
             "message_text": str(message_text) if message_text is not None else None,
         }
 
+        if self._is_portfolio_summary_without_trade_actions(message_text):
+            logger.info("Skipping portfolio summary message (no explicit trade action).")
+            return self._empty_result(status="no_action", source=source)
+
         if not self.client:
             logger.warning("No AI client available")
             return self._empty_result(status="no_client", source=source)
@@ -426,3 +430,32 @@ class AIParser:
             text = re.sub(r"^```(?:json)?\\n", "", text)
             text = re.sub(r"\\n```$", "", text)
         return text.strip()
+
+    def _is_portfolio_summary_without_trade_actions(self, message_text: str) -> bool:
+        if not message_text:
+            return False
+
+        lowered = message_text.lower()
+        if "portfolio update" not in lowered:
+            return False
+
+        explicit_trade_action_pattern = re.compile(
+            r"\b(new position|added|adding|buying|trim(?:ming|med)?|exit(?:ing|ed)?|sell(?:ing|s|sold)?)\b",
+            re.IGNORECASE,
+        )
+        if explicit_trade_action_pattern.search(message_text):
+            return False
+
+        summary_markers = (
+            "equity:options ratio",
+            "listing format",
+            "all positions are alerted live",
+            "for the sake of completeness",
+            "does not mean stock was bought or sold",
+        )
+        marker_hits = sum(1 for marker in summary_markers if marker in lowered)
+        weighted_ticker_lines = len(
+            re.findall(r"(?m)^\s*\d+\s*-\s*\d+%\s*:\s*\$?[A-Z]{1,6}\b", message_text)
+        )
+
+        return marker_hits >= 1 or weighted_ticker_lines >= 5
