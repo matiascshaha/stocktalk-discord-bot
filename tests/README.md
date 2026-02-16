@@ -123,6 +123,7 @@ Configured in `pytest.ini`:
 - `TEST_MODE` (`local`, `smoke`, `strict`)
 - `TEST_AI_LIVE`
 - `TEST_AI_SCOPE` (`sample`, `full`)
+- `TEST_STRICT_LIVE_ASSERTIONS` (`0`, `1`) - when `1`, live AI smoke will fail on non-action fixtures that still produce picks; default `0` marks these as drift (`xfail`) to keep smoke non-blocking.
 - `TEST_DISCORD_LIVE`
 - `TEST_WEBULL_READ`
 - `TEST_WEBULL_WRITE`

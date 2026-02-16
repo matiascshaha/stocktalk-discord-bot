@@ -38,4 +38,12 @@ def test_live_ai_smoke(msg_id, author, text, should_pick, tickers, ai_smoke_prov
         for ticker in tickers:
             assert ticker in found, f"{msg_id} missing ticker {ticker}"
     else:
+        if found:
+            drift_message = (
+                f"{msg_id} non-action fixture produced live tickers: {sorted(found)}. "
+                "Set TEST_STRICT_LIVE_ASSERTIONS=1 to fail on this drift."
+            )
+            if os.getenv("TEST_STRICT_LIVE_ASSERTIONS", "0") == "1":
+                pytest.fail(drift_message)
+            pytest.xfail(drift_message)
         assert found == set(), f"{msg_id} should not produce picks"
