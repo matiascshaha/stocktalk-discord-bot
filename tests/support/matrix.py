@@ -8,6 +8,16 @@ import os
 from typing import List
 
 
+PLACEHOLDER_KEY_MARKERS = (
+    "your_",
+    "replace",
+    "example",
+    "changeme",
+    "<",
+    ">",
+)
+
+
 def parse_csv_env(name: str, default: str) -> List[str]:
     raw = os.getenv(name, default)
     return [item.strip().lower() for item in raw.split(",") if item.strip()]
@@ -30,6 +40,16 @@ def ai_provider_key_env(provider: str) -> str:
     return mapping.get(provider, "")
 
 
+def has_real_credential(value: str) -> bool:
+    candidate = (value or "").strip()
+    if not candidate:
+        return False
+    lowered = candidate.lower()
+    if lowered.endswith("here"):
+        return False
+    return not any(marker in lowered for marker in PLACEHOLDER_KEY_MARKERS)
+
+
 def ai_provider_has_credentials(provider: str) -> bool:
     env_key = ai_provider_key_env(provider)
-    return bool(env_key and os.getenv(env_key))
+    return bool(env_key and has_real_credential(os.getenv(env_key, "")))

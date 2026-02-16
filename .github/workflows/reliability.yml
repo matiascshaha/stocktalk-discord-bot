@@ -44,10 +44,12 @@ jobs:
     needs: deterministic-tests
     continue-on-error: true
     env:
-      RUN_WEBULL_READ_SMOKE: ${{ secrets.WEBULL_APP_KEY != '' && '1' || '0' }}
-      RUN_LIVE_AI_TESTS: ${{ secrets.OPENAI_API_KEY != '' && '1' || '0' }}
+      TEST_MODE: "smoke"
+      TEST_WEBULL_READ: ${{ secrets.WEBULL_APP_KEY != '' && '1' || '0' }}
+      TEST_AI_LIVE: ${{ secrets.OPENAI_API_KEY != '' && '1' || '0' }}
       TEST_AI_PROVIDERS: "openai"
       TEST_BROKERS: "webull"
+      TEST_WEBULL_ENV: "production"
       AI_PROVIDER: "openai"
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       WEBULL_APP_KEY: ${{ secrets.WEBULL_APP_KEY }}

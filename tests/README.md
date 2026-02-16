@@ -58,25 +58,28 @@ Behavior mapping:
 | Discord mocked flow | Verify filtering + notifier/trader behavior deterministically | `pytest tests/integration/test_discord_flow.py` | None | Yes |
 | Message-to-trader deterministic pipeline | Verify real message fixtures flow through parser shape into trader order calls | `pytest tests/integration/test_discord_flow.py -k "real_message_pipeline_fake_ai_to_trader"` | None | Yes |
 | Webull SDK contracts | Verify adapter compatibility + payload builders | `pytest tests/contract/test_webull_contract.py` | None | Yes |
-| AI live smoke | Validate real provider behavior for enabled provider matrix | `RUN_LIVE_AI_TESTS=1 pytest tests/smoke/test_ai_live_smoke.py -m "smoke and live"` | AI key + network | No |
-| AI->Trader live pipeline | Validate live AI parses incoming message and drives trader path | `RUN_LIVE_AI_TESTS=1 pytest tests/integration/test_discord_flow.py -k "live_ai_pipeline_message_to_trader" -m "smoke and live"` | AI key + network | No |
-| Webull read smoke | Validate login/account/balance/instrument with real endpoint | `RUN_WEBULL_READ_SMOKE=1 pytest tests/smoke/test_webull_smoke.py -m "smoke and live and not webull_write"` | Webull credentials + network | No (initially) |
-| Discord live smoke | Validate real Discord connectivity and channel access | `RUN_DISCORD_LIVE_SMOKE=1 pytest tests/smoke/test_discord_live_smoke.py -m "discord_live"` | Discord token + network | No |
-| Webull write smoke | Opt-in stock/options write-path checks | `RUN_WEBULL_WRITE_TESTS=1 pytest tests/smoke/test_webull_smoke.py -m "webull_write"` | Webull trading endpoint + network + market hours (production) | No (opt-in only) |
+| AI live smoke | Validate real provider behavior for enabled provider matrix | `TEST_AI_LIVE=1 pytest tests/smoke/test_ai_live_smoke.py -m "smoke and live"` | AI key + network | No |
+| AI->Trader live pipeline | Validate live AI parses incoming message and drives trader path | `TEST_AI_LIVE=1 TEST_AI_SCOPE=sample pytest tests/integration/test_discord_flow.py -k "live_ai_pipeline_message_to_trader" -m "smoke and live"` | AI key + network | No |
+| Webull read smoke | Validate login/account/balance/instrument with real endpoint | `TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/smoke/test_webull_smoke.py -m "smoke and live and not webull_write"` | Webull credentials + network | No (initially) |
+| Discord live smoke | Validate real Discord connectivity and channel access | `TEST_DISCORD_LIVE=1 pytest tests/smoke/test_discord_live_smoke.py -m "discord_live"` | Discord token + network | No |
+| Webull write smoke | Opt-in stock/options write-path checks | `TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=paper pytest tests/smoke/test_webull_smoke.py -m "webull_write"` | Webull trading endpoint + network + market hours | No (opt-in only) |
 
 ## Health Checks
 
 Canonical commands:
 
 ```bash
+python -m scripts.full_matrix
+python -m scripts.full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
+python -m scripts.full_matrix --only webull_read_paper,webull_write_paper
 python -m scripts.full_confidence
-python -m scripts.full_confidence --webull-smoke-paper-trade
-python -m scripts.full_confidence --include-webull-write
-python -m scripts.full_confidence --mode deterministic
+python -m scripts.full_confidence --webull-env paper
+python -m scripts.full_confidence --webull-write 1
+python -m scripts.full_confidence --mode local
 pytest
 pytest -m smoke
 python -m scripts.healthcheck
-FULL_CONFIDENCE_REQUIRED=1 python -m scripts.healthcheck
+TEST_MODE=strict python -m scripts.healthcheck
 ```
 
 `python -m scripts.healthcheck` writes `artifacts/health_report.json` with:
@@ -94,7 +97,7 @@ Exit codes:
 - `0` = green
 - `1` = deterministic failure
 - `2` = external-smoke-only failure (yellow)
-- With `FULL_CONFIDENCE_REQUIRED=1`, skipped external checks also keep status non-green.
+- With `TEST_MODE=strict`, external check failures/skips are blocking.
 
 ## Markers & Defaults
 
@@ -112,25 +115,25 @@ Configured in `pytest.ini`:
 ## Safety Defaults
 
 - Default `pytest` run excludes live and write-path markers.
-- No write-path trading tests run unless explicitly enabled (`RUN_WEBULL_WRITE_TESTS=1`).
-- When `WEBULL_PAPER_REQUIRED=1` (default), write-path tests require paper mode.
+- No write-path trading tests run unless explicitly enabled (`TEST_WEBULL_WRITE=1`).
 
 ## Environment Flags
 
-- `RUN_LIVE_AI_TESTS`
-- `RUN_LIVE_AI_PIPELINE_FULL`
-- `RUN_DISCORD_LIVE_SMOKE`
-- `RUN_WEBULL_READ_SMOKE`
-- `RUN_WEBULL_WRITE_TESTS`
-- `WEBULL_PAPER_REQUIRED`
-- `WEBULL_SMOKE_PAPER_TRADE`
+- `TEST_MODE` (`local`, `smoke`, `strict`)
+- `TEST_AI_LIVE`
+- `TEST_AI_SCOPE` (`sample`, `full`)
+- `TEST_DISCORD_LIVE`
+- `TEST_WEBULL_READ`
+- `TEST_WEBULL_WRITE`
+- `TEST_WEBULL_ENV` (`paper`, `production`)
 - `TEST_AI_PROVIDERS` (default: `openai,anthropic,google`)
 - `TEST_BROKERS` (default: `webull`)
-- `FULL_CONFIDENCE_REQUIRED`
 
 Runner defaults:
 
-- `python -m scripts.full_confidence` delegates execution to `python -m scripts.healthcheck` after setting env flags for the selected profile.
-- `python -m scripts.full_confidence` enables strict gates and live smoke checks.
-- Default full run uses production Webull read smoke (`WEBULL_SMOKE_PAPER_TRADE=0`).
-- `--include-webull-write` follows your `PAPER_TRADE` setting unless you force `--webull-smoke-paper-trade`.
+- `python -m scripts.full_matrix` runs deterministic + AI live (full scope) + Webull paper/prod read/write + Discord live by default.
+- Use `--skip-discord-live`, `--skip-webull-prod-write`, or `--ai-scope sample` for a faster subset.
+- `python -m scripts.full_confidence` delegates execution to `python -m scripts.healthcheck` after setting env flags for the selected mode.
+- `python -m scripts.full_confidence` defaults to `TEST_MODE=strict`.
+- Default strict run uses production Webull target (`TEST_WEBULL_ENV=production`) with write smoke off.
+- Enable write smoke explicitly with `--webull-write 1`.

@@ -13,8 +13,8 @@ from config.settings import CHANNEL_ID, DISCORD_TOKEN
 @pytest.mark.live
 @pytest.mark.discord_live
 def test_discord_live_smoke():
-    if os.getenv("RUN_DISCORD_LIVE_SMOKE") != "1":
-        pytest.skip("RUN_DISCORD_LIVE_SMOKE != 1")
+    if os.getenv("TEST_DISCORD_LIVE", "0") != "1":
+        pytest.skip("TEST_DISCORD_LIVE != 1")
 
     if not DISCORD_TOKEN or not CHANNEL_ID:
         pytest.skip("Discord token/channel are not configured")

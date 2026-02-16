@@ -11,8 +11,8 @@ from tests.support.matrix import ai_provider_has_credentials
 @pytest.mark.live
 @pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", REAL_MESSAGES)
 def test_live_ai_smoke(msg_id, author, text, should_pick, tickers, ai_smoke_providers, configured_ai_provider):
-    if os.getenv("RUN_LIVE_AI_TESTS") != "1":
-        pytest.skip("RUN_LIVE_AI_TESTS != 1")
+    if os.getenv("TEST_AI_LIVE", "0") != "1":
+        pytest.skip("TEST_AI_LIVE != 1")
 
     if configured_ai_provider == "none":
         pytest.skip("AI_PROVIDER=none")
@@ -28,7 +28,7 @@ def test_live_ai_smoke(msg_id, author, text, should_pick, tickers, ai_smoke_prov
         )
 
     if not ai_provider_has_credentials(resolved_provider):
-        pytest.skip(f"Credentials are not configured for provider '{resolved_provider}'")
+        pytest.fail(f"Live AI smoke requires valid credentials for provider '{resolved_provider}'")
 
     result = parser.parse(text, author)
     picks = result.get("picks", [])
