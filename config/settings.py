@@ -127,7 +127,6 @@ AI_CONFIG = {
         'model': _cfg('ai.openai.model', 'gpt-4o'),
         'max_tokens': _as_int(_cfg('ai.openai.max_tokens', 2000), 2000),
         'temperature': _as_float(_cfg('ai.openai.temperature', 0.2), 0.2),
-        'use_structured_output': _as_bool(_cfg('ai.openai.use_structured_output', True), True),
     },
     'anthropic': {
         'model': _cfg('ai.anthropic.model', 'claude-sonnet-4-5'),
