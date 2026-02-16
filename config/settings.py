@@ -124,7 +124,7 @@ AI_CONFIG = {
     ),
     'prompt_file': _cfg('ai.prompt.file', 'config/ai_parser.prompt'),
     'openai': {
-        'model': _cfg('ai.openai.model', 'gpt-4o'),
+        'model': _cfg('ai.openai.model', 'gpt-4o-mini'),
         'max_tokens': _as_int(_cfg('ai.openai.max_tokens', 2000), 2000),
         'temperature': _as_float(_cfg('ai.openai.temperature', 0.2), 0.2),
     },

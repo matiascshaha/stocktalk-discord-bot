@@ -28,7 +28,7 @@ ai:
     file: ./config/ai_parser.prompt
 
   openai:
-    model: gpt-4o
+    model: gpt-4o-mini
     max_tokens: 2000
     temperature: 0.2
 
