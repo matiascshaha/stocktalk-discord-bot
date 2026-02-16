@@ -15,6 +15,7 @@ Common changes:
 - Force paper trading: set `trading.paper_trade: true`
 - Switch AI provider: set `ai.provider: openai` (or `anthropic`, `google`, `none`, `auto`)
 - Set a different AI model: change `ai.openai.model` / `ai.anthropic.model`
+- Toggle OpenAI API-enforced parser schema: `ai.openai.use_structured_output`
 - Adjust confidence threshold: `trading.min_confidence`
 
 ## 2) AI prompt
