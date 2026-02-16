@@ -32,8 +32,8 @@ python3 scripts/setup.py
 
 #### What It Does
 
-1. **Checks Python version** (requires 3.8+)
-2. **Creates virtual environment** (`venv/` directory)
+1. **Checks Python version** (requires 3.11.x)
+2. **Creates virtual environment** (`.venv/` directory)
 3. **Installs all dependencies** from `requirements.txt`
 4. **Creates `.env` file** from `.env.example` (if it doesn't exist)
 5. **Creates data directory** for logs
@@ -42,7 +42,7 @@ python3 scripts/setup.py
 
 - Cross-platform (Windows, Linux, macOS)
 - Handles existing virtual environments gracefully
-- Upgrades pip automatically
+- Installs a compatible packaging toolchain automatically
 - Provides clear next steps after setup
 
 #### Example Output
@@ -55,19 +55,19 @@ python3 scripts/setup.py
 ============================================================
 Step 1: Checking Python Version
 ============================================================
-Python version: 3.10.5
+Python version: 3.11.14
 ✅ Python version is compatible
 
 ============================================================
 Step 2: Creating Virtual Environment
 ============================================================
-Creating virtual environment at: C:\...\venv
+Creating virtual environment at: C:\...\.venv
 ✅ Virtual environment created successfully
 
 ============================================================
 Step 3: Installing Dependencies
 ============================================================
-Upgrading pip...
+Installing packaging toolchain...
 Installing packages from requirements.txt...
 ✅ All dependencies installed successfully
 ```
@@ -253,9 +253,9 @@ python -m scripts.test_credentials
 
 ```bash
 # Activate virtual environment first
-source venv/bin/activate  # Linux/macOS
+source .venv/bin/activate  # Linux/macOS
 # OR
-venv\Scripts\activate  # Windows
+.venv\Scripts\activate  # Windows
 
 # Then run scripts
 python -m scripts.test_credentials

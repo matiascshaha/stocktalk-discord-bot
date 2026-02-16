@@ -19,7 +19,7 @@ setup(
         "pyperclip>=1.8.2",
         "plyer>=2.1.0",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.11,<3.12",
     entry_points={
         "console_scripts": [
             "stock-monitor=src.main:main",

@@ -4,7 +4,7 @@
 
 Before setting up the Discord Stock Monitor, ensure you have:
 
-1. **Python 3.8+** installed
+1. **Python 3.11.x** installed
 2. **Discord account** with access to the target channel
 3. **Anthropic API key** (for Claude AI)
 4. **Webull account** (optional, only if using auto-trading)
@@ -50,19 +50,20 @@ If you prefer manual setup:
 
 **Windows:**
 ```bash
-python -m venv venv
-venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 ```
 
 **macOS/Linux:**
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 **Install Dependencies:**
 ```bash
-pip install -r requirements.txt
+pip install --upgrade "pip<25" "setuptools<70" wheel
+PIP_NO_BUILD_ISOLATION=1 pip install -r requirements.txt
 pip install -e .
 ```
 
@@ -285,7 +286,7 @@ After=network.target
 Type=simple
 User=your_username
 WorkingDirectory=/path/to/discord-stock-monitor
-ExecStart=/path/to/venv/bin/python -m src.main
+ExecStart=/path/to/.venv/bin/python -m src.main
 Restart=always
 
 [Install]
@@ -313,10 +314,10 @@ WantedBy=multi-user.target
 For reliable go-to-definition and references:
 
 1. Open the project root folder (not `src/` by itself)
-2. Select interpreter: `/Users/matiasperichon/Documents/dev/projects/stocktalk-discord-bot/venv/bin/python`
+2. Select interpreter: `/Users/matiasperichon/Documents/dev/projects/stocktalk-discord-bot/.venv/bin/python`
 3. Install the project in editable mode:
    ```bash
-   ./venv/bin/pip install -e .
+   ./.venv/bin/pip install -e .
    ```
 
 ## Next Steps
