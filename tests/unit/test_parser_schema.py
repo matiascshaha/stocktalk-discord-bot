@@ -228,10 +228,10 @@ def test_openai_request_failure_returns_provider_error():
 
 @pytest.mark.contract
 @pytest.mark.unit
-def test_portfolio_summary_is_blocked_before_model_call():
+def test_portfolio_summary_is_prompt_handled_not_preblocked():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _ErrorOpenAIClient()
+    parser.client = _CapturingOpenAIClient('{"signals": []}')
 
     portfolio_message = next(
         text
@@ -242,4 +242,8 @@ def test_portfolio_summary_is_blocked_before_model_call():
     result = parser.parse(portfolio_message, "stocktalkweekly")
     assert result["meta"]["status"] == "no_action"
     assert result["signals"] == []
-    assert len(parser.client.calls) == 0
+    assert len(parser.client.calls) == 1
+
+    prompt = parser.client.calls[0]["messages"][0]["content"]
+    assert "If the message is PORTFOLIO_SUMMARY, return no picks." in prompt
+    assert "Do NOT treat holdings inventory lines as execution signals" in prompt
