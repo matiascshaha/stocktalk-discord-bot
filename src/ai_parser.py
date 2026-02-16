@@ -367,16 +367,6 @@ class AIParser:
             logger.warning("Failed to load prompt template from %s: %s", prompt_path, exc)
             return ""
 
-    def _call_openai(self, prompt: str) -> str:
-        openai_config = self.config["openai"]
-        return request_parser_completion(
-            client=self.client,
-            model=openai_config["model"],
-            prompt=prompt,
-            max_tokens=openai_config["max_tokens"],
-            temperature=openai_config["temperature"],
-        )
-
     def _init_client(self):
         provider = (AI_PROVIDER or "").lower().strip()
         fallback = bool(self.config.get("fallback_to_available_provider"))
