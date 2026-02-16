@@ -5,12 +5,15 @@ from scripts.full_confidence import _build_env
 
 def _args(**overrides):
     data = {
-        "mode": "full",
-        "include_webull_write": False,
+        "mode": "strict",
+        "ai_live": None,
+        "discord_live": None,
+        "webull_read": None,
+        "webull_write": None,
+        "webull_env": None,
+        "ai_scope": None,
         "ai_provider": None,
         "brokers": None,
-        "webull_paper_required": False,
-        "webull_smoke_paper_trade": False,
     }
     data.update(overrides)
     return Namespace(**data)
@@ -18,60 +21,72 @@ def _args(**overrides):
 
 def _clear_runner_env(monkeypatch):
     keys = [
-        "FULL_CONFIDENCE_REQUIRED",
-        "RUN_LIVE_AI_TESTS",
-        "RUN_LIVE_AI_PIPELINE_FULL",
-        "RUN_DISCORD_LIVE_SMOKE",
-        "RUN_WEBULL_READ_SMOKE",
-        "RUN_WEBULL_WRITE_TESTS",
-        "WEBULL_SMOKE_PAPER_TRADE",
-        "WEBULL_PAPER_REQUIRED",
+        "TEST_MODE",
+        "TEST_AI_LIVE",
+        "TEST_AI_SCOPE",
+        "TEST_DISCORD_LIVE",
+        "TEST_WEBULL_READ",
+        "TEST_WEBULL_WRITE",
+        "TEST_WEBULL_ENV",
         "TEST_AI_PROVIDERS",
         "TEST_BROKERS",
         "AI_PROVIDER",
-        "PAPER_TRADE",
     ]
     for key in keys:
         monkeypatch.delenv(key, raising=False)
 
 
-def test_build_env_deterministic_profile(monkeypatch):
+def test_build_env_local_defaults(monkeypatch):
     _clear_runner_env(monkeypatch)
-    env = _build_env(_args(mode="deterministic"))
+    env = _build_env(_args(mode="local"))
 
-    assert env["FULL_CONFIDENCE_REQUIRED"] == "0"
-    assert env["RUN_LIVE_AI_TESTS"] == "0"
-    assert env["RUN_DISCORD_LIVE_SMOKE"] == "0"
-    assert env["RUN_WEBULL_READ_SMOKE"] == "0"
-    assert env["RUN_WEBULL_WRITE_TESTS"] == "0"
+    assert env["TEST_MODE"] == "local"
+    assert env["TEST_AI_LIVE"] == "0"
+    assert env["TEST_DISCORD_LIVE"] == "0"
+    assert env["TEST_WEBULL_READ"] == "0"
+    assert env["TEST_WEBULL_WRITE"] == "0"
+    assert env["TEST_WEBULL_ENV"] == "paper"
+    assert env["TEST_AI_SCOPE"] == "sample"
 
 
-def test_build_env_full_profile_defaults(monkeypatch):
+def test_build_env_strict_defaults(monkeypatch):
     _clear_runner_env(monkeypatch)
-    env = _build_env(_args(mode="full"))
+    env = _build_env(_args(mode="strict"))
 
-    assert env["FULL_CONFIDENCE_REQUIRED"] == "1"
-    assert env["RUN_LIVE_AI_TESTS"] == "1"
-    assert env["RUN_DISCORD_LIVE_SMOKE"] == "1"
-    assert env["RUN_WEBULL_READ_SMOKE"] == "1"
-    assert env["RUN_WEBULL_WRITE_TESTS"] == "0"
-    assert env["WEBULL_SMOKE_PAPER_TRADE"] == "0"
-
-
-def test_build_env_full_profile_include_webull_write(monkeypatch):
-    _clear_runner_env(monkeypatch)
-    monkeypatch.setenv("PAPER_TRADE", "false")
-
-    env = _build_env(_args(mode="full", include_webull_write=True))
-    assert env["RUN_WEBULL_WRITE_TESTS"] == "1"
-    assert env["WEBULL_SMOKE_PAPER_TRADE"] == "false"
+    assert env["TEST_MODE"] == "strict"
+    assert env["TEST_AI_LIVE"] == "1"
+    assert env["TEST_DISCORD_LIVE"] == "1"
+    assert env["TEST_WEBULL_READ"] == "1"
+    assert env["TEST_WEBULL_WRITE"] == "0"
+    assert env["TEST_WEBULL_ENV"] == "production"
+    assert env["TEST_AI_SCOPE"] == "sample"
 
 
-def test_build_env_full_profile_force_webull_smoke_paper(monkeypatch):
+def test_build_env_explicit_overrides(monkeypatch):
     _clear_runner_env(monkeypatch)
 
     env = _build_env(
-        _args(mode="full", include_webull_write=True, webull_smoke_paper_trade=True)
+        _args(
+            mode="strict",
+            ai_live="1",
+            discord_live="0",
+            webull_read="1",
+            webull_write="1",
+            webull_env="paper",
+            ai_scope="full",
+        )
     )
-    assert env["RUN_WEBULL_WRITE_TESTS"] == "1"
-    assert env["WEBULL_SMOKE_PAPER_TRADE"] == "1"
+
+    assert env["TEST_AI_LIVE"] == "1"
+    assert env["TEST_DISCORD_LIVE"] == "0"
+    assert env["TEST_WEBULL_READ"] == "1"
+    assert env["TEST_WEBULL_WRITE"] == "1"
+    assert env["TEST_WEBULL_ENV"] == "paper"
+    assert env["TEST_AI_SCOPE"] == "full"
+
+
+def test_build_env_ai_provider_override(monkeypatch):
+    _clear_runner_env(monkeypatch)
+    env = _build_env(_args(ai_provider="openai"))
+    assert env["AI_PROVIDER"] == "openai"
+    assert env["TEST_AI_PROVIDERS"] == "openai"
