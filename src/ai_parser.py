@@ -25,7 +25,7 @@ from src.models.parser_models import (
     ParsedVehicle,
     ParserMeta,
 )
-from src.openai_structured_output import request_parser_completion
+from src.providers.openai.parser_client import request_parser_completion
 from src.utils.logger import setup_logger
 from src.utils.paths import resolve_prompt_path
 
