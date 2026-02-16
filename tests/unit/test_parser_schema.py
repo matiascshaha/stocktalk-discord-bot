@@ -17,6 +17,32 @@ class _FakeOpenAIClient:
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
+class _CapturingOpenAIClient:
+    def __init__(self, response_text: str):
+        self._response_text = response_text
+        self.calls = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls.append(kwargs)
+        message = SimpleNamespace(content=self._response_text)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+class _FallbackOpenAIClient:
+    def __init__(self, response_text: str):
+        self._response_text = response_text
+        self.calls = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls.append(kwargs)
+        if "response_format" in kwargs:
+            raise RuntimeError("response_format unsupported")
+        message = SimpleNamespace(content=self._response_text)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
 @pytest.mark.contract
 @pytest.mark.unit
 def test_parser_output_has_required_signal_fields_for_runtime():
@@ -153,3 +179,92 @@ def test_parser_disables_option_vehicle_when_options_flag_off(monkeypatch):
     option_vehicle = parsed.signals[0].vehicles[0]
     assert option_vehicle.type == "OPTION"
     assert option_vehicle.enabled is False
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_openai_request_uses_structured_output_response_format():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _CapturingOpenAIClient(
+        """
+        {
+          "signals": [
+            {
+              "ticker": "AAPL",
+              "action": "BUY",
+              "confidence": 0.95,
+              "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}]
+            }
+          ]
+        }
+        """
+    )
+
+    result = parser.parse("Adding AAPL", "tester")
+    assert result["meta"]["status"] == "ok"
+    assert len(parser.client.calls) == 1
+
+    call = parser.client.calls[0]
+    assert "response_format" in call
+    response_format = call["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    schema = response_format["json_schema"]["schema"]
+    for key in ("contract_version", "source", "signals", "meta"):
+        assert key in schema["required"]
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_openai_structured_output_falls_back_to_plain_json_when_unsupported():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _FallbackOpenAIClient(
+        """
+        {
+          "signals": [
+            {
+              "ticker": "MSFT",
+              "action": "BUY",
+              "confidence": 0.91,
+              "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}]
+            }
+          ]
+        }
+        """
+    )
+    parser.openai_structured_output = True
+
+    result = parser.parse("Adding MSFT", "tester")
+    assert result["meta"]["status"] == "ok"
+    assert len(parser.client.calls) == 2
+    assert "response_format" in parser.client.calls[0]
+    assert "response_format" not in parser.client.calls[1]
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_openai_structured_output_can_be_disabled():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _CapturingOpenAIClient(
+        """
+        {
+          "signals": [
+            {
+              "ticker": "TSLA",
+              "action": "BUY",
+              "confidence": 0.9,
+              "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}]
+            }
+          ]
+        }
+        """
+    )
+    parser.openai_structured_output = False
+
+    result = parser.parse("Adding TSLA", "tester")
+    assert result["meta"]["status"] == "ok"
+    assert len(parser.client.calls) == 1
+    assert "response_format" not in parser.client.calls[0]

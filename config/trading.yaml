@@ -31,6 +31,8 @@ ai:
     model: gpt-4o
     max_tokens: 2000
     temperature: 0.2
+    # Enforce contract schema via OpenAI response_format json_schema (recommended)
+    use_structured_output: true
 
 # =============================================================================
 # TRADING EXECUTION CONFIGURATION
