@@ -29,18 +29,14 @@ class _CapturingOpenAIClient:
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
-class _FallbackOpenAIClient:
-    def __init__(self, response_text: str):
-        self._response_text = response_text
+class _ErrorOpenAIClient:
+    def __init__(self):
         self.calls = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     def _create(self, **kwargs):
         self.calls.append(kwargs)
-        if "response_format" in kwargs:
-            raise RuntimeError("response_format unsupported")
-        message = SimpleNamespace(content=self._response_text)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+        raise RuntimeError("response_format unsupported")
 
 
 @pytest.mark.contract
@@ -217,54 +213,13 @@ def test_openai_request_uses_structured_output_response_format():
 
 @pytest.mark.contract
 @pytest.mark.unit
-def test_openai_structured_output_falls_back_to_plain_json_when_unsupported():
+def test_openai_request_failure_returns_provider_error():
     parser = AIParser()
     parser.provider = "openai"
-    parser.client = _FallbackOpenAIClient(
-        """
-        {
-          "signals": [
-            {
-              "ticker": "MSFT",
-              "action": "BUY",
-              "confidence": 0.91,
-              "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}]
-            }
-          ]
-        }
-        """
-    )
-    parser.openai_structured_output = True
+    parser.client = _ErrorOpenAIClient()
 
     result = parser.parse("Adding MSFT", "tester")
-    assert result["meta"]["status"] == "ok"
-    assert len(parser.client.calls) == 2
-    assert "response_format" in parser.client.calls[0]
-    assert "response_format" not in parser.client.calls[1]
-
-
-@pytest.mark.contract
-@pytest.mark.unit
-def test_openai_structured_output_can_be_disabled():
-    parser = AIParser()
-    parser.provider = "openai"
-    parser.client = _CapturingOpenAIClient(
-        """
-        {
-          "signals": [
-            {
-              "ticker": "TSLA",
-              "action": "BUY",
-              "confidence": 0.9,
-              "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}]
-            }
-          ]
-        }
-        """
-    )
-    parser.openai_structured_output = False
-
-    result = parser.parse("Adding TSLA", "tester")
-    assert result["meta"]["status"] == "ok"
+    assert result["meta"]["status"] == "provider_error"
+    assert result["signals"] == []
     assert len(parser.client.calls) == 1
-    assert "response_format" not in parser.client.calls[0]
+    assert "response_format" in parser.client.calls[0]
