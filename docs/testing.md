@@ -22,3 +22,7 @@
 ## Coverage
 
 Track coverage trends; do not optimize for vanity percentages.
+
+## Manual happy path
+
+For a super simple end-to-end manual check (run app, send one Discord message, verify local output + Webull paper order attempt), use `docs/manual-testing.md`.

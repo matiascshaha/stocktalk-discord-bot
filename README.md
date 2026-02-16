@@ -138,6 +138,7 @@ The repository includes agent-focused assets to standardize planning, execution,
 - `AGENTS.md`: rules and guardrails for agent-driven changes.
 - `docs/conventions.md`: repository development conventions.
 - `docs/testing.md` and `docs/test-standards.md`: testing policy and expectations.
+- `docs/manual-testing.md`: 10-minute manual happy-path verification.
 - `docs/runbook.md`: operational runbook/checklist for task execution.
 - `docs/ai-memory.md`: durable implementation notes and decisions.
 - `docs/system-context/`: deeper system context for architecture, contracts, and operations.
