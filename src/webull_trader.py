@@ -26,20 +26,6 @@ from config.settings import WEBULL_CONFIG
 logger = setup_logger("webull_trader")
 
 
-class _TradeAPI:
-    def __init__(self, api_client: ApiClient) -> None:
-        self.account = Account(api_client)
-        self.account_v2 = AccountV2(api_client)
-        self.order = OrderOperation(api_client)
-        self.order_v2 = OrderOperationV2(api_client)
-
-
-class _DataAPI:
-    def __init__(self, api_client: ApiClient) -> None:
-        self.instrument = Instrument(api_client)
-        self.market_data = MarketData(api_client)
-
-
 class WebullTrader:
     """
     Simplified Webull OpenAPI trader.
@@ -107,10 +93,17 @@ class WebullTrader:
 
         self.api_client = ApiClient(self.app_key, self.app_secret, self.region)
         self.api_client.add_endpoint(self.region, endpoint)
-        self._account_id =  WEBULL_CONFIG.get('test_account_id') if self.paper_trade else self._account_id
-        self.trade_client = _TradeAPI(self.api_client)
-        self.data_client = _DataAPI(self.api_client)
-        self.api = self.data_client
+        self._account_id = WEBULL_CONFIG.get('test_account_id') if self.paper_trade else self._account_id
+        self._init_service_clients()
+
+    def _init_service_clients(self) -> None:
+        """Initialize explicit SDK clients used by this trader."""
+        self.account_api = Account(self.api_client)
+        self.account_v2_api = AccountV2(self.api_client)
+        self.order_api = OrderOperation(self.api_client)
+        self.order_v2_api = OrderOperationV2(self.api_client)
+        self.instrument_api = Instrument(self.api_client)
+        self.market_data_api = MarketData(self.api_client)
 
     def _get_endpoint(self) -> str:
         """Get API endpoint"""
@@ -127,7 +120,7 @@ class WebullTrader:
             logger.info(f"Using provided account ID: {self._mask_id(self._account_id)}")
             return self._account_id
 
-        res = self.trade_client.account_v2.get_account_list()
+        res = self.account_v2_api.get_account_list()
         self._check_response(res, "get_account_list")
         
         data = res.json()
@@ -156,14 +149,14 @@ class WebullTrader:
         """Get account balance"""
         account_id = self.resolve_account_id()
 
-        res = self.trade_client.account.get_account_balance(account_id, currency)
+        res = self.account_api.get_account_balance(account_id, currency)
         self._check_response(res, "get_account_balance")
         return res.json()
 
     def get_account_positions(self) -> Dict[str, Any]:
         """Get current positions"""
         account_id = self.resolve_account_id()
-        res = self.trade_client.account_v2.get_account_position(account_id)
+        res = self.account_v2_api.get_account_position(account_id)
         self._check_response(res, "get_account_position")
         return res.json()
 
@@ -223,7 +216,7 @@ class WebullTrader:
         
         logger.info(f"Previewing option {order.side} {order.quantity} {order.legs[0].symbol}...")
         
-        res = self.trade_client.order_v2.preview_option(account_id, [payload])
+        res = self.order_v2_api.preview_option(account_id, [payload])
         self._check_response(res, "preview_option")
         
         preview_data = res.json()
@@ -317,7 +310,7 @@ class WebullTrader:
         symbol = order.legs[0].symbol if order.legs else "unknown"
         logger.info(f"Placing option {order.side} {order.quantity} {symbol} in {env}...")
         
-        res = self.trade_client.order_v2.place_option(account_id, [payload])
+        res = self.order_v2_api.place_option(account_id, [payload])
         self._check_response(res, "place_option")
         
         response = res.json()
@@ -386,7 +379,7 @@ class WebullTrader:
         logger.info(f"Placing batch of {len(payloads)} orders in {env}...")
         
         account_id = self.resolve_account_id()
-        res = self.trade_client.order.place_order(account_id=account_id, new_orders=payloads)
+        res = self.order_api.place_order(account_id=account_id, new_orders=payloads)
         self._check_response(res, "batch_place_order")
         
         response = res.json()
@@ -421,14 +414,14 @@ class WebullTrader:
     # ============================================================================
 
     def get_instrument(self, symbols: str, category: str = "US_STOCK") -> List[Dict[str, Any]]:
-        response = self.api.instrument.get_instrument(symbols, category)
+        response = self.instrument_api.get_instrument(symbols, category)
         self._check_response(response, "get_instrument")
         instruments = response.json()
         logger.info(f"Fetched {len(instruments)} instruments for symbols: {symbols}")
         return instruments
 
     def get_market_snapshot(self, symbols: str, category: str = "US_STOCK") -> List[Dict[str, Any]]:
-        response = self.api.market_data.get_snapshot(symbols, category)
+        response = self.market_data_api.get_snapshot(symbols, category)
         self._check_response(response, "get_market_snapshot")
         snapshots = response.json()
         logger.info(f"Fetched {len(snapshots)} market snapshots for symbols: {symbols}")
@@ -451,7 +444,7 @@ class WebullTrader:
         
         logger.info(f"Placing {description} in {env}...")
         
-        res = self.trade_client.order.place_order(account_id=account_id, **payload)
+        res = self.order_api.place_order(account_id=account_id, **payload)
         self._check_response(res, "place_order")
         
         response = res.json()

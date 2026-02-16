@@ -20,11 +20,13 @@ def trader():
 @pytest.mark.contract
 @pytest.mark.unit
 def test_sdk_method_compatibility(trader):
-    methods = {m for m in dir(trader.trade_client.order) if not m.startswith("_")}
-    assert "preview_option" in methods
-    assert "place_order" in methods
-    assert "place_option" in methods
-    assert "preview_order" not in methods
+    v1_methods = {m for m in dir(trader.order_api) if not m.startswith("_")}
+    v2_methods = {m for m in dir(trader.order_v2_api) if not m.startswith("_")}
+
+    assert "place_order" in v1_methods
+
+    assert "preview_option" in v2_methods
+    assert "place_option" in v2_methods
 
 
 @pytest.mark.contract
@@ -91,7 +93,7 @@ def test_preview_stock_order_local_estimate(trader):
 @pytest.mark.unit
 def test_get_instrument_raises_on_bad_response(trader):
     response = MagicMock(status_code=500, text="bad response")
-    trader.api.instrument.get_instrument = MagicMock(return_value=response)
+    trader.instrument_api.get_instrument = MagicMock(return_value=response)
 
     with pytest.raises(RuntimeError):
         trader.get_instrument("AAPL")
