@@ -3,8 +3,6 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import anthropic
-import openai
 from pydantic import ValidationError
 from pytz import timezone
 
@@ -25,7 +23,8 @@ from src.models.parser_models import (
     ParsedVehicle,
     ParserMeta,
 )
-from src.providers.openai.parser_client import request_parser_completion
+from src.providers.client_factory import build_provider_client
+from src.providers.parser_dispatch import UnsupportedProviderError, request_provider_completion
 from src.utils.logger import setup_logger
 from src.utils.paths import resolve_prompt_path
 
@@ -129,29 +128,18 @@ class AIParser:
 
         response_text = ""
         try:
-            if self.provider == "anthropic":
-                response = self.client.messages.create(
-                    model=self.config["anthropic"]["model"],
-                    max_tokens=self.config["anthropic"]["max_tokens"],
-                    temperature=self.config["anthropic"]["temperature"],
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                response_text = response.content[0].text.strip()
-
-            elif self.provider == "openai":
-                response_text = self._call_openai(prompt)
-
-            elif self.provider == "google":
-                response = self.client.generate_content(prompt)
-                response_text = response.text.strip()
-            else:
-                logger.error("AI provider is not set on initialized client")
-                return self._empty_result(status="unknown_provider", source=source)
-
+            response_text = request_provider_completion(
+                provider=self.provider,
+                client=self.client,
+                config=self.config,
+                prompt=prompt,
+            )
             cleaned = self._clean_json(response_text)
             payload = json.loads(cleaned)
             return self._coerce_result(payload, source=source)
-
+        except UnsupportedProviderError:
+            logger.error("AI provider is not set on initialized client")
+            return self._empty_result(status="unknown_provider", source=source)
         except json.JSONDecodeError:
             logger.warning("Failed to parse AI response as JSON")
             return self._empty_result(status="invalid_json", error=response_text, source=source)
@@ -379,16 +367,6 @@ class AIParser:
             logger.warning("Failed to load prompt template from %s: %s", prompt_path, exc)
             return ""
 
-    def _call_openai(self, prompt: str) -> str:
-        openai_config = self.config["openai"]
-        return request_parser_completion(
-            client=self.client,
-            model=openai_config["model"],
-            prompt=prompt,
-            max_tokens=openai_config["max_tokens"],
-            temperature=openai_config["temperature"],
-        )
-
     def _init_client(self):
         provider = (AI_PROVIDER or "").lower().strip()
         fallback = bool(self.config.get("fallback_to_available_provider"))
@@ -421,21 +399,24 @@ class AIParser:
 
     def _try_init_provider(self, provider: str):
         try:
-            if provider == "anthropic" and ANTHROPIC_API_KEY:
-                self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-                self.provider = "anthropic"
-                logger.info("Using Anthropic for AI parsing")
-            elif provider == "openai" and OPENAI_API_KEY:
-                self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
-                self.provider = "openai"
-                logger.info("Using OpenAI for AI parsing")
-            elif provider == "google" and GOOGLE_API_KEY:
-                import google.generativeai as genai
+            client = build_provider_client(
+                provider=provider,
+                config=self.config,
+                anthropic_api_key=ANTHROPIC_API_KEY,
+                openai_api_key=OPENAI_API_KEY,
+                google_api_key=GOOGLE_API_KEY,
+            )
+            if client is None:
+                return
 
-                genai.configure(api_key=GOOGLE_API_KEY)
-                model_name = self.config["google"]["model"]
-                self.client = genai.GenerativeModel(model_name)
-                self.provider = "google"
+            self.client = client
+            self.provider = provider
+
+            if provider == "anthropic":
+                logger.info("Using Anthropic for AI parsing")
+            elif provider == "openai":
+                logger.info("Using OpenAI for AI parsing")
+            elif provider == "google":
                 logger.info("Using Google Gemini for AI parsing")
         except Exception as exc:
             logger.warning("%s initialization failed: %s", provider.title(), exc)
