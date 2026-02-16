@@ -29,17 +29,4 @@ dist/
 build/
 *.egg-info/
 
-# Node
-node_modules/
-
-# Test and automation artifacts
-output.xml
-log.html
-report.html
-playwright-report/
-trace.zip
-test-results/
-coverage/
-
-# Misc
-*.tmp
+.venv/

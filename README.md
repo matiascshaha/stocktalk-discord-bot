@@ -97,12 +97,11 @@ Contract boundary note:
 
 ## Quick Start
 
+- Python 3.11.x is required (3.11.14 pinned via `.python-version`).
+
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
-cp .env.example .env
+python scripts/setup.py
+source .venv/bin/activate
 python -m src.main
 ```
 

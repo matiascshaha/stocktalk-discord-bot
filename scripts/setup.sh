@@ -3,6 +3,10 @@
 
 set -euo pipefail
 
+if command -v python3.11 >/dev/null 2>&1; then
+  exec python3.11 scripts/setup.py
+fi
+
 if command -v python3 >/dev/null 2>&1; then
   exec python3 scripts/setup.py
 fi
@@ -11,5 +15,5 @@ if command -v python >/dev/null 2>&1; then
   exec python scripts/setup.py
 fi
 
-echo "ERROR: Python 3.8+ is required and was not found in PATH."
+echo "ERROR: Python 3.11.x is required and was not found in PATH."
 exit 1
