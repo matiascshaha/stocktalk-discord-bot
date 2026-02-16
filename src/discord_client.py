@@ -104,9 +104,28 @@ class StockMonitorClient:
                     order = self._signal_to_stock_order(signal)
                     if not order:
                         continue
-                    self.trader.place_stock_order(order, weighting=signal.weight_percent)
+                    try:
+                        self.trader.place_stock_order(order, weighting=signal.weight_percent)
+                    except Exception as exc:
+                        logger.error(
+                            "Trade execution failed for %s %s (%s): %s",
+                            order.side,
+                            order.symbol,
+                            signal.weight_percent,
+                            exc,
+                        )
         else:
             logger.info("No actionable signals detected.")
+
+    def _resolve_time_in_force(self) -> TimeInForce:
+        raw_tif = str(TRADING_CONFIG.get("time_in_force", "DAY")).strip().upper()
+        if raw_tif in TimeInForce.__members__:
+            return TimeInForce[raw_tif]
+        try:
+            return TimeInForce(raw_tif)
+        except Exception:
+            logger.warning("Invalid trading.time_in_force '%s'; defaulting to DAY", raw_tif)
+            return TimeInForce.DAY
 
     def _signal_to_stock_order(self, signal: ParsedSignal):
         stock_vehicle = None
@@ -131,7 +150,7 @@ class StockMonitorClient:
             side=side,
             quantity=1,
             order_type=OrderType.MARKET,
-            time_in_force=TimeInForce.GTC,
+            time_in_force=self._resolve_time_in_force(),
         )
     
     def _log_signals(self, message, parsed_message):

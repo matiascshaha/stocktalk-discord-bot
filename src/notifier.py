@@ -50,6 +50,19 @@ class Notifier:
 
         title = f"📊 Stock Signal from {author}"
 
+        if sys.platform == "darwin":
+            try:
+                import subprocess
+
+                subprocess.run(
+                    ["osascript", "-e", f'display notification "{message}" with title "{title}"'],
+                    check=False,
+                )
+                logger.debug("Desktop notification sent via osascript")
+                return
+            except Exception as exc:
+                logger.warning(f"Failed to send desktop notification via osascript: {exc}")
+
         try:
             notification.notify(title=title, message=message, timeout=10)
             logger.debug("Desktop notification sent via plyer")
@@ -60,16 +73,7 @@ class Notifier:
                 self._plyer_available = False
 
         if sys.platform == "darwin":
-            try:
-                import subprocess
-
-                subprocess.run(
-                    ["osascript", "-e", f'display notification "{message}" with title "{title}"'],
-                    check=False,
-                )
-                logger.debug("Desktop notification sent via osascript")
-            except Exception as exc:
-                logger.warning(f"Failed to send desktop notification via osascript: {exc}")
+            logger.debug("Desktop notification unavailable via plyer and osascript fallback already attempted")
 
     def _print_console_notification(self, parsed_message, author):
         print("\n" + "=" * 60)

@@ -240,9 +240,9 @@ class WebullTrader:
         """Place stock order"""
         # Build and send
         payload = self._build_stock_payload(order, weighting=weighting, notional_dollar_amount=notional_dollar_amount)
-        
 
-        return self._execute_order(payload, f"{order.side} {order.quantity} {order.symbol}")
+        qty = payload.get("qty", order.quantity)
+        return self._execute_order(payload, f"{order.side} {qty} {order.symbol}")
 
 
     def _build_stock_payload(self, order: StockOrderRequest, notional_dollar_amount: float = None, weighting: float = None) -> Dict[str, Any]:
@@ -274,11 +274,13 @@ class WebullTrader:
             
             order.quantity = int(dollar_amount / stock_price)
 
+        qty = self._normalize_stock_quantity(order.quantity)
+
         payload = {
             "client_order_id": uuid.uuid4().hex,
             "instrument_id": instrument_id,
             "order_type": order.order_type,
-            "qty": order.quantity,
+            "qty": qty,
             "side": order.side,
             "tif": order.time_in_force,
             "extended_hours_trading": order.extended_hours_trading,
@@ -459,6 +461,16 @@ class WebullTrader:
     def _format_quantity(self, quantity: float) -> str:
         """Format quantity as string"""
         return str(int(quantity)) if quantity.is_integer() else str(quantity)
+
+    def _normalize_stock_quantity(self, quantity: float) -> int:
+        """
+        Webull stock orders require whole-share quantity for this flow.
+        Round down fractional inputs and reject non-positive results.
+        """
+        qty = int(float(quantity))
+        if qty < 1:
+            raise ValueError(f"Computed stock quantity must be >= 1 share, got {quantity}")
+        return qty
 
     def _mask_id(self, account_id: str) -> str:
         """Mask account ID for logging"""
