@@ -19,14 +19,19 @@ class _FakeOpenAIClient:
 
 @pytest.mark.contract
 @pytest.mark.unit
-def test_parser_output_has_required_fields_for_discord_client():
+def test_parser_output_has_required_signal_fields_for_runtime():
     parser = AIParser()
     parser.provider = "openai"
     parser.client = _FakeOpenAIClient(
         """
         {
-          "picks": [
-            {"ticker": "$aapl", "action": "buy", "confidence": "0.91"}
+          "signals": [
+            {
+              "ticker": "$aapl",
+              "action": "buy",
+              "confidence": "0.91",
+              "vehicles": [{"type": "stock", "intent": "execute"}]
+            }
           ]
         }
         """
@@ -34,29 +39,49 @@ def test_parser_output_has_required_fields_for_discord_client():
 
     result = parser.parse("Adding AAPL", "tester")
     parsed = ParsedMessage.model_validate(result)
-    assert len(parsed.picks) == 1
-    assert len(result["picks"]) == 1
-    pick = result["picks"][0]
+    assert parsed.contract_version == "1.0"
+    assert len(parsed.signals) == 1
 
-    for field in ("ticker", "action", "confidence", "weight_percent", "urgency", "sentiment", "reasoning"):
-        assert field in pick
+    signal = parsed.signals[0]
+    dumped_signal = result["signals"][0]
 
-    assert pick["ticker"] == "AAPL"
-    assert pick["action"] == "BUY"
-    assert 0.0 <= pick["confidence"] <= 1.0
+    for field in (
+        "ticker",
+        "action",
+        "confidence",
+        "weight_percent",
+        "urgency",
+        "sentiment",
+        "reasoning",
+        "is_actionable",
+        "vehicles",
+    ):
+        assert field in dumped_signal
+
+    assert signal.ticker == "AAPL"
+    assert signal.action == "BUY"
+    assert 0.0 <= signal.confidence <= 1.0
+    assert len(signal.vehicles) == 1
+    assert signal.vehicles[0].type == "STOCK"
+    assert signal.vehicles[0].intent == "EXECUTE"
 
 
 @pytest.mark.contract
 @pytest.mark.unit
-def test_parser_drops_invalid_pick_entries():
+def test_parser_drops_invalid_signal_entries():
     parser = AIParser()
     parser.provider = "openai"
     parser.client = _FakeOpenAIClient(
         """
         {
-          "picks": [
+          "signals": [
             {"action": "BUY", "confidence": 0.8},
-            {"ticker": "MSFT", "action": "BUY", "confidence": 0.9}
+            {
+              "ticker": "MSFT",
+              "action": "BUY",
+              "confidence": 0.9,
+              "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}]
+            }
           ]
         }
         """
@@ -64,21 +89,25 @@ def test_parser_drops_invalid_pick_entries():
 
     result = parser.parse("Adding MSFT", "tester")
     parsed = ParsedMessage.model_validate(result)
-    assert len(parsed.picks) == 1
-    assert len(result["picks"]) == 1
-    assert result["picks"][0]["ticker"] == "MSFT"
+    assert len(parsed.signals) == 1
+    assert result["signals"][0]["ticker"] == "MSFT"
 
 
 @pytest.mark.contract
 @pytest.mark.unit
-def test_parser_normalizes_invalid_action_to_buy():
+def test_parser_normalizes_invalid_action_to_none():
     parser = AIParser()
     parser.provider = "openai"
     parser.client = _FakeOpenAIClient(
         """
         {
-          "picks": [
-            {"ticker": "TSLA", "action": "ADD", "confidence": 0.8}
+          "signals": [
+            {
+              "ticker": "TSLA",
+              "action": "ADD",
+              "confidence": 0.8,
+              "vehicles": [{"type": "STOCK"}]
+            }
           ]
         }
         """
@@ -86,4 +115,41 @@ def test_parser_normalizes_invalid_action_to_buy():
 
     result = parser.parse("Adding TSLA", "tester")
     parsed = ParsedMessage.model_validate(result)
-    assert parsed.picks[0].action == "BUY"
+    assert parsed.signals[0].action == "NONE"
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_parser_disables_option_vehicle_when_options_flag_off(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = _FakeOpenAIClient(
+        """
+        {
+          "signals": [
+            {
+              "ticker": "NVDA",
+              "action": "BUY",
+              "confidence": 0.82,
+              "vehicles": [
+                {
+                  "type": "OPTION",
+                  "intent": "EXECUTE",
+                  "side": "BUY",
+                  "option_type": "CALL",
+                  "strike": 140
+                }
+              ]
+            }
+          ]
+        }
+        """
+    )
+
+    parser.options_enabled = False
+    result = parser.parse("considering NVDA 140c", "tester")
+    parsed = ParsedMessage.model_validate(result)
+
+    option_vehicle = parsed.signals[0].vehicles[0]
+    assert option_vehicle.type == "OPTION"
+    assert option_vehicle.enabled is False

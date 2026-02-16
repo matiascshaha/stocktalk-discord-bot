@@ -31,8 +31,8 @@ def test_live_ai_smoke(msg_id, author, text, should_pick, tickers, ai_smoke_prov
         pytest.skip(f"Credentials are not configured for provider '{resolved_provider}'")
 
     result = parser.parse(text, author)
-    picks = result.get("picks", [])
-    found = {p["ticker"] for p in picks if isinstance(p, dict) and p.get("ticker")}
+    signals = result.get("signals", [])
+    found = {s["ticker"] for s in signals if isinstance(s, dict) and s.get("ticker")}
 
     if should_pick:
         for ticker in tickers:

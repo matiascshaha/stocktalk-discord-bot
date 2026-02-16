@@ -157,6 +157,7 @@ WEBULL_CONFIG = {
 TRADING_CONFIG = {
     'auto_trade': _as_bool(_cfg('trading.auto_trade', os.getenv('AUTO_TRADE', 'false')), False),
     'paper_trade': _as_bool(_cfg('trading.paper_trade', os.getenv('PAPER_TRADE', 'False')), False),
+    'options_enabled': _as_bool(_cfg('trading.options_enabled', os.getenv('OPTIONS_ENABLED', 'false')), False),
     'min_confidence': _as_float(_cfg('trading.min_confidence', os.getenv('MIN_CONFIDENCE', 0.7)), 0.7),
     'default_amount': _as_float(_cfg('trading.default_amount', os.getenv('DEFAULT_AMOUNT', 1000)), 1000.0),
     'use_market_orders': _as_bool(_cfg('trading.use_market_orders', os.getenv('USE_MARKET_ORDERS', 'true')), True),
