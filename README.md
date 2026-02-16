@@ -131,3 +131,17 @@ python -m scripts.full_confidence
 
 - AI provider strategy is pluggable through `AI_PROVIDER` and parser/provider init logic.
 - Brokerage integration can be extended by adding trader adapters alongside `src/webull_trader.py`.
+
+## Agent Workflow Files
+
+The repository includes agent-focused assets to standardize planning, execution, and review:
+
+- `AGENTS.md`: rules and guardrails for agent-driven changes.
+- `docs/conventions.md`: repository development conventions.
+- `docs/testing.md` and `docs/test-standards.md`: testing policy and expectations.
+- `docs/runbook.md`: operational runbook/checklist for task execution.
+- `docs/ai-memory.md`: durable implementation notes and decisions.
+- `docs/system-context/`: deeper system context for architecture, contracts, and operations.
+- `prompts/`: reusable prompt templates for coding and automation work.
+- `mcp/`: MCP setup references and example server configuration.
+- `eval/`: lightweight task and metrics templates for tracking improvement.
