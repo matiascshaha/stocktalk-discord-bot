@@ -6,6 +6,19 @@
 - Integration tests: service boundaries and contracts.
 - E2E/UI tests: user-critical paths only.
 
+## Test layout policy
+
+- `tests/unit`, `tests/contract`, `tests/integration`, `tests/smoke` are application behavior tests.
+- `tests/tooling` is reserved for tests of test runners and support scripts.
+- Shared test setup belongs in `conftest.py` or `tests/support/`, not in test modules.
+
+## Test module purity
+
+- Test modules should contain tests only.
+- Do not define helper classes/functions in `test_*.py` files.
+- Move fakes/factories/payload builders into `tests/support/`.
+- Enforced in CI by `python -m scripts.check_test_file_purity`.
+
 ## Quality gates
 
 - No merge if lint/typecheck fails.

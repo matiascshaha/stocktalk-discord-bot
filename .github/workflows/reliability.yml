@@ -30,7 +30,8 @@ jobs:
       - name: Run deterministic tests
         run: |
           mkdir -p artifacts
-          python -m pytest tests/unit tests/contract tests/integration --junitxml=artifacts/junit-deterministic.xml
+          python -m scripts.check_test_file_purity
+          python -m pytest tests/unit tests/contract tests/integration tests/tooling --junitxml=artifacts/junit-deterministic.xml
 
       - name: Upload deterministic artifacts
         if: always()

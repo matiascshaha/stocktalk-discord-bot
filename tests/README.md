@@ -48,7 +48,14 @@ Behavior mapping:
 - `tests/contract`: schema/interface compatibility with parser and broker adapters.
 - `tests/integration`: mocked component interaction flows (Discord + parser + trader wiring).
 - `tests/smoke`: live/read-only environment checks, plus opt-in write-path smoke tests.
-- `tests/support`: shared matrix and artifact helpers.
+- `tests/tooling`: deterministic tests for test runners and helper scripts.
+- `tests/support`: shared fixtures, fakes, factories, payload builders, and reusable test helpers.
+
+## Test File Purity Policy
+
+- Test modules must contain tests only.
+- Shared setup, helper functions, fakes, factories, and mock classes belong in `tests/support/` or `conftest.py`.
+- CI enforces this with `python -m scripts.check_test_file_purity`.
 
 ## Test Matrix
 
@@ -56,6 +63,7 @@ Behavior mapping:
 |---|---|---|---|---|
 | Paths/Config contracts | Verify path resolution + config loading contract | `pytest tests/unit/test_paths.py` | None | Yes |
 | Parser deterministic contracts | Validate parser output shape and normalization | `pytest tests/contract/test_ai_parser_contract.py tests/unit/test_parser_schema.py` | None | Yes |
+| Tooling runner tests | Validate confidence/matrix/flag runner behavior | `pytest tests/tooling` | None | Yes |
 | Discord mocked flow | Verify filtering + notifier/trader behavior deterministically | `pytest tests/integration/test_discord_flow.py` | None | Yes |
 | Message-to-trader deterministic pipeline | Verify real message fixtures flow through parser shape into trader order calls | `pytest tests/integration/test_discord_flow.py -k "real_message_pipeline_fake_ai_to_trader"` | None | Yes |
 | Webull SDK contracts | Verify adapter compatibility + payload builders | `pytest tests/contract/test_webull_contract.py` | None | Yes |
@@ -77,6 +85,7 @@ python -m scripts.quality.run_confidence_suite
 python -m scripts.quality.run_confidence_suite --webull-env paper
 python -m scripts.quality.run_confidence_suite --webull-write 1
 python -m scripts.quality.run_confidence_suite --mode local
+python -m scripts.check_test_file_purity
 pytest
 pytest -m smoke
 python -m scripts.quality.run_health_checks

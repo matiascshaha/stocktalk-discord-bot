@@ -57,6 +57,15 @@ Use commands from `docs/runbook.md`.
 - Keep parser orchestration in parser modules and keep provider-specific protocol details in provider modules.
 - Avoid single-file dumps for growing domains; introduce subpackages early when it improves navigation and ownership.
 
+## Test structure policy
+
+- Test modules (`test_*.py`) should contain tests only.
+- Shared fixtures belong in `conftest.py`.
+- Shared fakes/factories/payloads/helpers belong in `tests/support/`.
+- Keep application tests in `tests/unit`, `tests/contract`, `tests/integration`, and `tests/smoke`.
+- Keep test-runner/tooling tests in `tests/tooling`.
+- Enforce purity with `python -m scripts.check_test_file_purity` in deterministic CI.
+
 ## Memory update rules
 
 Update `docs/ai-memory.md` when discovering durable facts:
