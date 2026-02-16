@@ -1,4 +1,5 @@
 import os
+from datetime import date, timedelta
 from pathlib import Path
 from typing import List
 
@@ -11,6 +12,13 @@ from tests.support.artifacts import append_smoke_check
 
 
 REPORT_PATH = Path("artifacts/webull_smoke_report.json")
+KNOWN_WEBULL_WRITE_XFAIL_MARKERS = (
+    "DAY_BUYING_POWER_INSUFFICIENT",
+    "OAUTH_OPENAPI_DAY_BUYING_POWER_INSUFFICIENT",
+    "CAN_NOT_TRADING_FOR_NON_TRADING_HOURS",
+    "OAUTH_OPENAPI_CAN_NOT_TRADING_FOR_FIXGW_NOT_READY_NIGHT",
+    "OAUTH_OPENAPI_TRADE_ORDER_NO_PERMISSION",
+)
 
 
 def _paper_trade_enabled() -> bool:
@@ -21,6 +29,13 @@ def _paper_trade_enabled() -> bool:
 def _require_webull_enabled(broker_matrix: List[str]) -> None:
     if "webull" not in broker_matrix:
         pytest.skip(f"Webull broker not enabled in TEST_BROKERS={','.join(broker_matrix)}")
+
+
+def _next_weekly_expiry(days_ahead: int = 21) -> str:
+    target = date.today() + timedelta(days=days_ahead)
+    days_until_friday = (4 - target.weekday()) % 7
+    expiry = target + timedelta(days=days_until_friday)
+    return expiry.isoformat()
 
 
 def _build_trader() -> WebullTrader:
@@ -137,7 +152,25 @@ def test_webull_write_smoke_stock_order_opt_in(broker_matrix):
         time_in_force=TimeInForce.DAY,
     )
 
-    result = trader.place_stock_order(order)
+    try:
+        result = trader.place_stock_order(order)
+    except Exception as exc:
+        error = str(exc)
+        details = {
+            "paper_trade": trader.paper_trade,
+            "endpoint": trader._get_endpoint(),
+            "request_class": "order.place_order",
+            "error": error,
+        }
+        matched_marker = next((marker for marker in KNOWN_WEBULL_WRITE_XFAIL_MARKERS if marker in error), None)
+        if matched_marker:
+            details["non_blocking_reason"] = matched_marker
+            append_smoke_check(REPORT_PATH, "webull_write_stock_order", "xfailed", details)
+            pytest.xfail(f"Stock write non-deterministic in this environment: {error}")
+
+        append_smoke_check(REPORT_PATH, "webull_write_stock_order", "failed", details)
+        raise
+
     details = {
         "paper_trade": trader.paper_trade,
         "endpoint": trader._get_endpoint(),
@@ -171,8 +204,8 @@ def test_webull_write_smoke_option_order_opt_in_non_blocking(broker_matrix):
                 side=OrderSide.BUY,
                 quantity="1",
                 symbol="TSLA",
-                strike_price="400.0",
-                option_expire_date="2025-11-26",
+                strike_price="400",
+                option_expire_date=_next_weekly_expiry(days_ahead=21),
                 option_type=OptionType.CALL,
                 market="US",
             )

@@ -7,21 +7,8 @@ plyer==2.1.0
 pyyaml==6.0.1
 pydantic==2.12.5
 
-# Core SDK (required)
-webull-python-sdk-core>=0.1.18
-
-# Trading SDK (required for placing orders, account management)
-webull-python-sdk-trade>=0.1.18
+# Webull OpenAPI SDK (official)
 webull-openapi-python-sdk==1.0.9
-
-# Market Data SDK (optional - for real-time quotes and historical data)
-webull-python-sdk-mdata>=0.1.18
-
-# Quotes SDK (optional - for quote data)
-webull-python-sdk-quotes-core>=0.1.18
-
-# Trade Events SDK (optional - for real-time order status updates via GRPC)
-webull-python-sdk-trade-events-core>=0.1.18
 
 # Additional dependencies
 python-dotenv>=1.0.0  # For .env file support

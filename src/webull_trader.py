@@ -4,20 +4,40 @@ Production-Ready Webull OpenAPI Trading Integration
 Simplified, clean, and maintainable implementation.
 """
 
-from unicodedata import category
 import uuid
 from typing import Any, Dict, Optional, List
 
-from webullsdktrade.api import API
-from webullsdkcore.client import ApiClient
-from webullsdkcore.common.region import Region
-from webullsdktrade.common.currency import Currency
+import webull
+from webull.core.client import ApiClient
+from webull.core import __version__ as webull_core_version
+from webull.core.common.region import Region
+from webull.data.quotes.instrument import Instrument
+from webull.data.quotes.market_data import MarketData
+from webull.trade.common.currency import Currency
+from webull.trade.trade.account_info import Account
+from webull.trade.trade.order_operation import OrderOperation
+from webull.trade.trade.v2.account_info_v2 import AccountV2
+from webull.trade.trade.v2.order_operation_v2 import OrderOperationV2
 
 from src.utils.logger import setup_logger
 from src.models import *
 
 from config.settings import WEBULL_CONFIG
 logger = setup_logger("webull_trader")
+
+
+class _TradeAPI:
+    def __init__(self, api_client: ApiClient) -> None:
+        self.account = Account(api_client)
+        self.account_v2 = AccountV2(api_client)
+        self.order = OrderOperation(api_client)
+        self.order_v2 = OrderOperationV2(api_client)
+
+
+class _DataAPI:
+    def __init__(self, api_client: ApiClient) -> None:
+        self.instrument = Instrument(api_client)
+        self.market_data = MarketData(api_client)
 
 
 class WebullTrader:
@@ -82,11 +102,15 @@ class WebullTrader:
         
         logger.info(f"Init Webull API: {env} mode, region: {self.region.upper()}, endpoint: {endpoint}")
         
+        if not hasattr(webull, "__version__"):
+            webull.__version__ = webull_core_version
+
         self.api_client = ApiClient(self.app_key, self.app_secret, self.region)
         self.api_client.add_endpoint(self.region, endpoint)
         self._account_id =  WEBULL_CONFIG.get('test_account_id') if self.paper_trade else self._account_id
-        self.api = API(self.api_client)
-        self.trade_client = self.api
+        self.trade_client = _TradeAPI(self.api_client)
+        self.data_client = _DataAPI(self.api_client)
+        self.api = self.data_client
 
     def _get_endpoint(self) -> str:
         """Get API endpoint"""
@@ -199,7 +223,7 @@ class WebullTrader:
         
         logger.info(f"Previewing option {order.side} {order.quantity} {order.legs[0].symbol}...")
         
-        res = self.trade_client.order.preview_option(account_id, [payload])
+        res = self.trade_client.order_v2.preview_option(account_id, [payload])
         self._check_response(res, "preview_option")
         
         preview_data = res.json()
@@ -293,7 +317,7 @@ class WebullTrader:
         symbol = order.legs[0].symbol if order.legs else "unknown"
         logger.info(f"Placing option {order.side} {order.quantity} {symbol} in {env}...")
         
-        res = self.trade_client.order.place_option(account_id, [payload])
+        res = self.trade_client.order_v2.place_option(account_id, [payload])
         self._check_response(res, "place_option")
         
         response = res.json()
