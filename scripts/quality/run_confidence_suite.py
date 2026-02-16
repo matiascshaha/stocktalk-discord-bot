@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple
 
 from dotenv import load_dotenv
 
-from scripts.test_flags import TestFlags, resolve_test_flags
+from scripts.quality.quality_flags import TestFlags, resolve_test_flags
 
 
 AI_PROVIDER_KEYS: Dict[str, str] = {
@@ -208,7 +208,7 @@ def main() -> int:
     for warning in preflight.warnings:
         print(f"[warn] {warning}", flush=True)
 
-    health_exit = _run([sys.executable, "-m", "scripts.healthcheck"], env=env)
+    health_exit = _run([sys.executable, "-m", "scripts.quality.run_health_checks"], env=env)
     print("\nReport: artifacts/health_report.json", flush=True)
     return health_exit
 

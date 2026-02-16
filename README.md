@@ -100,7 +100,7 @@ Contract boundary note:
 - Python 3.11.x is required (3.11.14 pinned via `.python-version`).
 
 ```bash
-python scripts/setup.py
+python scripts/bootstrap/project_setup.py
 source .venv/bin/activate
 python -m src.main
 ```
@@ -122,8 +122,8 @@ Main commands:
 ```bash
 pytest
 pytest -m smoke
-python -m scripts.healthcheck
-python -m scripts.full_confidence
+python -m scripts.quality.run_health_checks
+python -m scripts.quality.run_confidence_suite
 ```
 
 ## Extensibility
