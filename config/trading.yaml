@@ -64,6 +64,15 @@ trading:
   # Time in force: DAY, GTC, IOC, FOK
   time_in_force: DAY
 
+  # If primary submit fails because market is closed, retry once as queued LIMIT.
+  queue_when_closed: true
+
+  # Time in force used for queued fallback orders.
+  queue_time_in_force: GTC
+
+  # Limit-price buffer in basis points (50 = 0.50%) applied to queued/out-of-hours LIMIT.
+  out_of_hours_limit_buffer_bps: 50
+
 # =============================================================================
 # ACCOUNT CONSTRAINTS (Natural Language)
 # =============================================================================
