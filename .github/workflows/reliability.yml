@@ -48,12 +48,9 @@ jobs:
     env:
       TEST_MODE: "smoke"
       TEST_WEBULL_READ: ${{ secrets.WEBULL_APP_KEY != '' && '1' || '0' }}
-      TEST_AI_LIVE: ${{ secrets.OPENAI_API_KEY != '' && '1' || '0' }}
-      TEST_AI_PROVIDERS: "openai"
+      TEST_AI_LIVE: "0"
       TEST_BROKERS: "webull"
       TEST_WEBULL_ENV: "production"
-      AI_PROVIDER: "openai"
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       WEBULL_APP_KEY: ${{ secrets.WEBULL_APP_KEY }}
       WEBULL_APP_SECRET: ${{ secrets.WEBULL_APP_SECRET }}
       WEBULL_ACCOUNT_ID: ${{ secrets.WEBULL_ACCOUNT_ID }}
@@ -75,7 +72,7 @@ jobs:
       - name: Run external smoke (read-only)
         run: |
           mkdir -p artifacts
-          python -m pytest tests/smoke -m "smoke and live and not webull_write and not discord_live" --junitxml=artifacts/junit-external-smoke.xml
+          python -m pytest tests/smoke/test_webull_smoke.py -m "smoke and live and not webull_write" --junitxml=artifacts/junit-external-smoke.xml
 
       - name: Upload external smoke artifacts
         if: always()

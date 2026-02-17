@@ -38,6 +38,36 @@ def test_build_stock_payload(trader):
 
 @pytest.mark.contract
 @pytest.mark.unit
+def test_build_stock_payload_normalizes_fractional_quantity_to_whole_share(trader):
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "AAPL_ID", "last_price": 200.0}])
+    order = StockOrderRequest(
+        symbol="AAPL",
+        side=OrderSide.BUY,
+        quantity=2.9,
+        order_type=OrderType.MARKET,
+    )
+
+    payload = trader._build_stock_payload(order)
+    assert payload["qty"] == 2
+
+
+@pytest.mark.contract
+@pytest.mark.unit
+def test_build_stock_payload_rejects_sub_share_quantity(trader):
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "AAPL_ID", "last_price": 200.0}])
+    order = StockOrderRequest(
+        symbol="AAPL",
+        side=OrderSide.BUY,
+        quantity=0.2,
+        order_type=OrderType.MARKET,
+    )
+
+    with pytest.raises(ValueError):
+        trader._build_stock_payload(order)
+
+
+@pytest.mark.contract
+@pytest.mark.unit
 def test_option_order_model_dump_contains_expected_fields(trader):
     order = OptionOrderRequest(
         order_type=OrderType.LIMIT,
