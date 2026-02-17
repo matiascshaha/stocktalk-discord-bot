@@ -1,16 +1,8 @@
 import discord
 import json
 from datetime import datetime
-
 from pydantic import ValidationError
 from src.ai_parser import AIParser
-from src.execution.stock_order_policy import (
-    build_buffered_limit_order,
-    build_market_order,
-    is_non_trading_hours_error,
-    resolve_buffer_bps,
-    resolve_time_in_force,
-)
 from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSignal
 from src.notifier import Notifier
 from src.utils.logger import setup_logger
@@ -112,7 +104,7 @@ class StockMonitorClient:
                     order = self._signal_to_stock_order(signal)
                     if not order:
                         continue
-                    self._execute_stock_signal(signal, order)
+                    self.trader.place_stock_order(order, weighting=signal.weight_percent)
         else:
             logger.info("No actionable signals detected.")
 
@@ -134,132 +126,14 @@ class StockMonitorClient:
             return None
 
         side = OrderSide.SELL if stock_vehicle.side == "SELL" else OrderSide.BUY
-        time_in_force = resolve_time_in_force(TRADING_CONFIG.get("time_in_force"), TimeInForce.DAY)
         return StockOrderRequest(
             symbol=signal.ticker,
             side=side,
             quantity=1,
             order_type=OrderType.MARKET,
-            time_in_force=time_in_force,
-            extended_hours_trading=bool(TRADING_CONFIG.get("extended_hours_trading", False)),
+            time_in_force=TimeInForce.GTC,
         )
-
-    def _execute_stock_signal(self, signal: ParsedSignal, base_order: StockOrderRequest) -> None:
-        try:
-            primary_order = self._build_primary_stock_order(base_order)
-        except Exception as exc:
-            logger.error(
-                "Trade execution skipped for %s %s (%s): unable to build primary order: %s",
-                base_order.side,
-                base_order.symbol,
-                signal.weight_percent,
-                exc,
-            )
-            return
-
-        logger.info(
-            "Submitting primary order %s %s qty=%s type=%s tif=%s ext_hours=%s",
-            primary_order.side,
-            primary_order.symbol,
-            primary_order.quantity,
-            primary_order.order_type,
-            primary_order.time_in_force,
-            primary_order.extended_hours_trading,
-        )
-
-        try:
-            self.trader.place_stock_order(primary_order, weighting=signal.weight_percent)
-            return
-        except Exception as exc:
-            if not bool(TRADING_CONFIG.get("queue_when_closed", True)) or not is_non_trading_hours_error(exc):
-                logger.error(
-                    "Trade execution failed for %s %s (%s): %s",
-                    primary_order.side,
-                    primary_order.symbol,
-                    signal.weight_percent,
-                    exc,
-                )
-                return
-            logger.warning(
-                "Primary order rejected outside trading hours for %s. Retrying as queued LIMIT.",
-                primary_order.symbol,
-            )
-
-        try:
-            queue_order = self._build_queue_fallback_order(primary_order)
-        except Exception as exc:
-            logger.error(
-                "Trade execution failed for %s %s (%s): unable to build queued fallback: %s",
-                primary_order.side,
-                primary_order.symbol,
-                signal.weight_percent,
-                exc,
-            )
-            return
-
-        logger.info(
-            "Submitting queued fallback %s %s qty=%s type=%s limit=%s tif=%s ext_hours=%s",
-            queue_order.side,
-            queue_order.symbol,
-            queue_order.quantity,
-            queue_order.order_type,
-            queue_order.limit_price,
-            queue_order.time_in_force,
-            queue_order.extended_hours_trading,
-        )
-        try:
-            self.trader.place_stock_order(queue_order, weighting=signal.weight_percent)
-        except Exception as exc:
-            logger.error(
-                "Queued fallback failed for %s %s (%s): %s",
-                queue_order.side,
-                queue_order.symbol,
-                signal.weight_percent,
-                exc,
-            )
-
-    def _build_primary_stock_order(self, order: StockOrderRequest) -> StockOrderRequest:
-        time_in_force = resolve_time_in_force(TRADING_CONFIG.get("time_in_force"), TimeInForce.DAY)
-        extended_hours = bool(TRADING_CONFIG.get("extended_hours_trading", False))
-        use_market_orders = bool(TRADING_CONFIG.get("use_market_orders", True))
-        if use_market_orders:
-            return build_market_order(order, time_in_force=time_in_force, extended_hours_trading=extended_hours)
-
-        quote = self._require_quote(order.symbol)
-        buffer_bps = resolve_buffer_bps(TRADING_CONFIG.get("out_of_hours_limit_buffer_bps", 50.0))
-        return build_buffered_limit_order(
-            order,
-            quote=quote,
-            buffer_bps=buffer_bps,
-            time_in_force=time_in_force,
-            extended_hours_trading=extended_hours,
-        )
-
-    def _build_queue_fallback_order(self, order: StockOrderRequest) -> StockOrderRequest:
-        quote = self._require_quote(order.symbol)
-        buffer_bps = resolve_buffer_bps(TRADING_CONFIG.get("out_of_hours_limit_buffer_bps", 50.0))
-        queue_tif = resolve_time_in_force(TRADING_CONFIG.get("queue_time_in_force"), TimeInForce.GTC)
-        return build_buffered_limit_order(
-            order,
-            quote=quote,
-            buffer_bps=buffer_bps,
-            time_in_force=queue_tif,
-            extended_hours_trading=bool(TRADING_CONFIG.get("extended_hours_trading", False)),
-        )
-
-    def _require_quote(self, symbol: str) -> float:
-        if not self.trader:
-            raise ValueError("Trader is required to fetch quote for limit order pricing")
-
-        quote = self.trader.get_current_stock_quote(symbol)
-        if quote is None:
-            raise ValueError(f"Unable to fetch quote for symbol {symbol}")
-
-        quote_float = float(quote)
-        if quote_float <= 0:
-            raise ValueError(f"Invalid quote for symbol {symbol}: {quote}")
-        return quote_float
-
+    
     def _log_signals(self, message, parsed_message):
         """Log parsed signals to file."""
         log_entry = {

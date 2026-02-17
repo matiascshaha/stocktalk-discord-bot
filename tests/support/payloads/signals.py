@@ -1,11 +1,8 @@
-from typing import Optional
-
-
 def build_signal_payload(
     ticker: str,
     action: str = "BUY",
     confidence: float = 0.9,
-    weight_percent: Optional[float] = 5.0,
+    weight_percent: float | None = 5.0,
 ):
     side = action if action in {"BUY", "SELL"} else "NONE"
     intent = "EXECUTE" if action in {"BUY", "SELL"} else "INFO"

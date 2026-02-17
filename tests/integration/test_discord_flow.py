@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import src.discord_client as discord_client_module
 from src.ai_parser import AIParser
 from src.discord_client import StockMonitorClient
 from tests.data.stocktalk_real_messages import REAL_MESSAGES
@@ -84,70 +83,6 @@ async def test_valid_signal_triggers_notify_and_trade():
     trader.place_stock_order.assert_called_once()
     order = trader.place_stock_order.call_args[0][0]
     assert order.side == "BUY"
-
-
-@pytest.mark.unit
-@pytest.mark.contract
-@pytest.mark.asyncio
-async def test_non_trading_hours_retries_with_queued_limit(monkeypatch):
-    trader = MagicMock()
-    trader.get_current_stock_quote = MagicMock(return_value=100.0)
-    trader.place_stock_order = MagicMock(
-        side_effect=[
-            RuntimeError("HTTP Status: 417, Code: CAN_NOT_TRADING_FOR_NON_TRADING_HOURS"),
-            {"ok": True},
-        ]
-    )
-    client = StockMonitorClient(trader=trader)
-    type(client.client).user = SimpleNamespace(id=999)
-    client.notifier.notify = MagicMock()
-    client.parser.parse = MagicMock(
-        return_value={"signals": [build_signal_payload("AAPL", "BUY", weight_percent=None)], "meta": {"status": "ok"}}
-    )
-
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "queue_when_closed", True)
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "queue_time_in_force", "GTC")
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "out_of_hours_limit_buffer_bps", 50.0)
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "time_in_force", "DAY")
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "extended_hours_trading", False)
-
-    await client.on_message(build_message("Buy AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
-
-    assert trader.place_stock_order.call_count == 2
-    primary_order = trader.place_stock_order.call_args_list[0].args[0]
-    queued_order = trader.place_stock_order.call_args_list[1].args[0]
-
-    assert primary_order.order_type == "MARKET"
-    assert primary_order.time_in_force == "DAY"
-    assert queued_order.order_type == "LIMIT"
-    assert queued_order.time_in_force == "GTC"
-    assert queued_order.limit_price == pytest.approx(100.5)
-
-
-@pytest.mark.unit
-@pytest.mark.contract
-@pytest.mark.asyncio
-async def test_non_trading_hours_no_retry_when_queue_disabled(monkeypatch):
-    trader = MagicMock()
-    trader.get_current_stock_quote = MagicMock(return_value=100.0)
-    trader.place_stock_order = MagicMock(
-        side_effect=RuntimeError("HTTP Status: 417, Code: CAN_NOT_TRADING_FOR_NON_TRADING_HOURS")
-    )
-    client = StockMonitorClient(trader=trader)
-    type(client.client).user = SimpleNamespace(id=999)
-    client.notifier.notify = MagicMock()
-    client.parser.parse = MagicMock(
-        return_value={"signals": [build_signal_payload("AAPL", "BUY", weight_percent=None)], "meta": {"status": "ok"}}
-    )
-
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "queue_when_closed", False)
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
-    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "time_in_force", "DAY")
-
-    await client.on_message(build_message("Buy AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
-
-    assert trader.place_stock_order.call_count == 1
 
 
 @pytest.mark.unit

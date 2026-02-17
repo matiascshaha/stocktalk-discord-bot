@@ -164,9 +164,6 @@ TRADING_CONFIG = {
     'use_market_orders': _as_bool(_cfg('trading.use_market_orders', True), True),
     'extended_hours_trading': _as_bool(_cfg('trading.extended_hours_trading', False), False),
     'time_in_force': _cfg('trading.time_in_force', 'DAY'),
-    'queue_when_closed': _as_bool(_cfg('trading.queue_when_closed', True), True),
-    'queue_time_in_force': _cfg('trading.queue_time_in_force', 'GTC'),
-    'out_of_hours_limit_buffer_bps': _as_float(_cfg('trading.out_of_hours_limit_buffer_bps', 50.0), 50.0),
 }
 
 # Notification Settings
