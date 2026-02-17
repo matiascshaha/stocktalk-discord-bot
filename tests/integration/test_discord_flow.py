@@ -5,6 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import src.discord_client as discord_client_module
+import src.trading.orders.planner as order_planner_module
 from src.ai_parser import AIParser
 from src.discord_client import StockMonitorClient
 from tests.data.stocktalk_real_messages import REAL_MESSAGES
@@ -83,6 +85,54 @@ async def test_valid_signal_triggers_notify_and_trade():
     trader.place_stock_order.assert_called_once()
     order = trader.place_stock_order.call_args[0][0]
     assert order.side == "BUY"
+
+
+@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_off_hours_uses_queued_limit_without_retry(monkeypatch):
+    monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: False)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "queue_when_closed", True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "queue_time_in_force", "GTC")
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
+
+    trader = MagicMock()
+    trader.get_current_stock_quote = MagicMock(return_value=100.0)
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    client.parser.parse = MagicMock(
+        return_value={"signals": [build_signal_payload("AAPL", "BUY", weight_percent=None)], "meta": {"status": "ok"}}
+    )
+
+    await client.on_message(build_message("Buy AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.place_stock_order.assert_called_once()
+    order = trader.place_stock_order.call_args[0][0]
+    assert order.order_type == "LIMIT"
+    assert order.time_in_force == "GTC"
+
+
+@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_regular_hours_uses_market_order_without_retry(monkeypatch):
+    monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
+
+    trader = MagicMock()
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    client.parser.parse = MagicMock(
+        return_value={"signals": [build_signal_payload("AAPL", "BUY", weight_percent=None)], "meta": {"status": "ok"}}
+    )
+
+    await client.on_message(build_message("Buy AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.place_stock_order.assert_called_once()
+    order = trader.place_stock_order.call_args[0][0]
+    assert order.order_type == "MARKET"
 
 
 @pytest.mark.unit

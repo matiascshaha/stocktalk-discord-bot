@@ -1,15 +1,20 @@
 import discord
 import json
 from datetime import datetime
+from typing import Optional
+
 from pydantic import ValidationError
 from src.ai_parser import AIParser
+from src.brokerages.base import Brokerage
+from src.brokerages.webull import WebullBroker
 from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSignal
+from src.models.webull_models import OrderSide, StockOrderRequest
 from src.notifier import Notifier
+from src.trading.orders import StockOrderExecutionPlanner, StockOrderExecutor
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
 from src.utils.paths import PICKS_LOG_PATH
 from src.webull_trader import WebullTrader
-from src.models.webull_models import OrderSide, OrderType, StockOrderRequest, TimeInForce
 from config.settings import DISCORD_TOKEN, CHANNEL_ID, TRADING_CONFIG
 
 logger = setup_logger('discord_client')
@@ -17,10 +22,16 @@ logger = setup_logger('discord_client')
 class StockMonitorClient:
     """Discord client for monitoring stock picks"""
     
-    def __init__(self, trader : WebullTrader = None):
+    def __init__(self, trader: Optional[WebullTrader] = None, broker: Optional[Brokerage] = None):
         self.trader = trader
         self.parser = AIParser()
         self.notifier = Notifier()
+        self.order_executor = None
+
+        if trader:
+            resolved_broker = broker or WebullBroker(trader)
+            planner = StockOrderExecutionPlanner(TRADING_CONFIG)
+            self.order_executor = StockOrderExecutor(resolved_broker, planner)
 
         self._patch_pending_payments()
         
@@ -98,13 +109,22 @@ class StockMonitorClient:
             # Log parsed signals
             self._log_signals(message, parsed_payload)
 
-            # Execute trades if trader available
-            if self.trader:
+            # Execute trades if executor available
+            if self.order_executor:
                 for signal in signal_objs:
                     order = self._signal_to_stock_order(signal)
                     if not order:
                         continue
-                    self.trader.place_stock_order(order, weighting=signal.weight_percent)
+                    try:
+                        self.order_executor.execute(order, weighting=signal.weight_percent)
+                    except Exception as exc:
+                        logger.error(
+                            "Trade execution failed for %s %s (%s): %s",
+                            order.side,
+                            order.symbol,
+                            signal.weight_percent,
+                            exc,
+                        )
         else:
             logger.info("No actionable signals detected.")
 
@@ -130,8 +150,6 @@ class StockMonitorClient:
             symbol=signal.ticker,
             side=side,
             quantity=1,
-            order_type=OrderType.MARKET,
-            time_in_force=TimeInForce.GTC,
         )
     
     def _log_signals(self, message, parsed_message):

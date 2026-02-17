@@ -1,0 +1,85 @@
+from datetime import datetime
+
+import src.trading.orders.planner as planner_module
+from src.trading.orders.planner import StockOrderExecutionPlanner
+
+
+def test_plan_uses_market_order_during_regular_session(monkeypatch):
+    monkeypatch.setattr(planner_module, "is_regular_market_session", lambda _: True)
+    planner = StockOrderExecutionPlanner(
+        {
+            "use_market_orders": True,
+            "queue_when_closed": True,
+            "time_in_force": "DAY",
+            "queue_time_in_force": "GTC",
+            "extended_hours_trading": False,
+            "out_of_hours_limit_buffer_bps": 50.0,
+        },
+        now_provider=lambda: datetime(2026, 2, 17, 11, 0, 0),
+    )
+
+    plan = planner.plan()
+    assert plan.order_type == "MARKET"
+    assert plan.time_in_force == "DAY"
+    assert plan.reason == "regular_session_market_order"
+
+
+def test_plan_uses_queued_limit_outside_hours_when_enabled(monkeypatch):
+    monkeypatch.setattr(planner_module, "is_regular_market_session", lambda _: False)
+    planner = StockOrderExecutionPlanner(
+        {
+            "use_market_orders": True,
+            "queue_when_closed": True,
+            "time_in_force": "DAY",
+            "queue_time_in_force": "GTC",
+            "extended_hours_trading": False,
+            "out_of_hours_limit_buffer_bps": 75.0,
+        },
+        now_provider=lambda: datetime(2026, 2, 17, 20, 0, 0),
+    )
+
+    plan = planner.plan()
+    assert plan.order_type == "LIMIT"
+    assert plan.time_in_force == "GTC"
+    assert plan.limit_buffer_bps == 75.0
+    assert plan.reason == "off_hours_queued_limit_order"
+
+
+def test_plan_uses_market_outside_hours_when_queue_disabled(monkeypatch):
+    monkeypatch.setattr(planner_module, "is_regular_market_session", lambda _: False)
+    planner = StockOrderExecutionPlanner(
+        {
+            "use_market_orders": True,
+            "queue_when_closed": False,
+            "time_in_force": "DAY",
+            "queue_time_in_force": "GTC",
+            "extended_hours_trading": False,
+            "out_of_hours_limit_buffer_bps": 50.0,
+        },
+        now_provider=lambda: datetime(2026, 2, 17, 20, 0, 0),
+    )
+
+    plan = planner.plan()
+    assert plan.order_type == "MARKET"
+    assert plan.reason == "off_hours_queue_disabled_market_order"
+
+
+def test_plan_forced_limit_when_market_orders_disabled(monkeypatch):
+    monkeypatch.setattr(planner_module, "is_regular_market_session", lambda _: True)
+    planner = StockOrderExecutionPlanner(
+        {
+            "use_market_orders": False,
+            "queue_when_closed": True,
+            "time_in_force": "DAY",
+            "queue_time_in_force": "GTC",
+            "extended_hours_trading": False,
+            "out_of_hours_limit_buffer_bps": 50.0,
+        },
+        now_provider=lambda: datetime(2026, 2, 17, 11, 0, 0),
+    )
+
+    plan = planner.plan()
+    assert plan.order_type == "LIMIT"
+    assert plan.time_in_force == "DAY"
+    assert plan.reason == "config_forced_limit_order"
+

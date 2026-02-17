@@ -54,6 +54,10 @@ Use commands from `docs/runbook.md`.
   - request/transport client logic
   - contract/schema definitions
   - mapping/normalization helpers (when needed)
+- Place brokerage integrations under `src/brokerages/<broker>/` with one subpackage per broker (for example `webull`, `public`).
+- Keep brokerage transport/API wrappers separate from runtime execution policy and order-routing logic.
+- Place order-routing and execution decision logic under `src/trading/orders/`; do not embed broker strategy in Discord client adapters.
+- Keep adapters thin (`discord_client`, provider adapters): parse/map/delegate only, with no dumped business policy blocks.
 - Keep parser orchestration in parser modules and keep provider-specific protocol details in provider modules.
 - Avoid single-file dumps for growing domains; introduce subpackages early when it improves navigation and ownership.
 

@@ -28,7 +28,7 @@ ai:
     file: ./config/ai_parser.prompt
 
   openai:
-    model: gpt-4o-mini
+    model: gpt-4.1-nano
     max_tokens: 2000
     temperature: 0.2
 
@@ -63,6 +63,15 @@ trading:
   
   # Time in force: DAY, GTC, IOC, FOK
   time_in_force: DAY
+
+  # During off-hours, submit queued limit order instead of market order.
+  queue_when_closed: true
+
+  # TIF for queued off-hours limit orders.
+  queue_time_in_force: GTC
+
+  # Price buffer in basis points for off-hours limit orders.
+  out_of_hours_limit_buffer_bps: 50
 
 # =============================================================================
 # ACCOUNT CONSTRAINTS (Natural Language)

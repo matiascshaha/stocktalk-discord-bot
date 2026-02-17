@@ -19,3 +19,7 @@ class TraderProbe:
     def place_stock_order(self, order, weighting=None):
         self.orders.append((order, weighting))
         return {"ok": True}
+
+    def get_current_stock_quote(self, symbol):
+        _ = symbol
+        return 100.0
