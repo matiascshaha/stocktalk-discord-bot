@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, List, Optional
 
 
 def build_signal_payload(
@@ -6,9 +6,13 @@ def build_signal_payload(
     action: str = "BUY",
     confidence: float = 0.9,
     weight_percent: Optional[float] = 5.0,
+    vehicles: Optional[List[dict[str, Any]]] = None,
 ):
-    side = action if action in {"BUY", "SELL"} else "NONE"
-    intent = "EXECUTE" if action in {"BUY", "SELL"} else "INFO"
+    if vehicles is None:
+        side = action if action in {"BUY", "SELL"} else "NONE"
+        intent = "EXECUTE" if action in {"BUY", "SELL"} else "INFO"
+        vehicles = [{"type": "STOCK", "enabled": True, "intent": intent, "side": side}]
+
     return {
         "ticker": ticker,
         "action": action,
@@ -18,5 +22,5 @@ def build_signal_payload(
         "sentiment": "BULLISH" if action != "SELL" else "BEARISH",
         "reasoning": "test",
         "is_actionable": action in {"BUY", "SELL", "HOLD"},
-        "vehicles": [{"type": "STOCK", "enabled": True, "intent": intent, "side": side}],
+        "vehicles": vehicles,
     }

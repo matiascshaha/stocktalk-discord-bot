@@ -139,6 +139,129 @@ async def test_regular_hours_uses_market_order_without_retry(monkeypatch):
 @pytest.mark.unit
 @pytest.mark.contract
 @pytest.mark.asyncio
+async def test_valid_option_signal_triggers_option_trade():
+    trader = MagicMock()
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    option_vehicle = {
+        "type": "OPTION",
+        "enabled": True,
+        "intent": "EXECUTE",
+        "side": "BUY",
+        "option_type": "CALL",
+        "strike": 250.0,
+        "expiry": "2026-03-20",
+        "quantity_hint": None,
+    }
+    client.parser.parse = MagicMock(
+        return_value={"signals": [build_signal_payload("TSLA", "BUY", vehicles=[option_vehicle])], "meta": {"status": "ok"}}
+    )
+
+    await client.on_message(build_message("Buy TSLA call", author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.place_stock_order.assert_not_called()
+    trader.place_option_order.assert_called_once()
+    order = trader.place_option_order.call_args[0][0]
+    assert order.order_type == "MARKET"
+    assert order.quantity == "1"
+    assert order.legs[0].symbol == "TSLA"
+    assert order.legs[0].option_type == "CALL"
+
+
+@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_option_signal_quantity_hint_defaults_and_normalizes():
+    trader = MagicMock()
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    option_vehicle = {
+        "type": "OPTION",
+        "enabled": True,
+        "intent": "EXECUTE",
+        "side": "BUY",
+        "option_type": "PUT",
+        "strike": 90.0,
+        "expiry": "2026-05-15",
+        "quantity_hint": 2.7,
+    }
+    client.parser.parse = MagicMock(
+        return_value={"signals": [build_signal_payload("QQQ", "BUY", vehicles=[option_vehicle])], "meta": {"status": "ok"}}
+    )
+
+    await client.on_message(build_message("Buy QQQ puts", author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.place_option_order.assert_called_once()
+    order = trader.place_option_order.call_args[0][0]
+    assert order.quantity == "2"
+    assert order.legs[0].quantity == "2"
+    assert order.legs[0].option_type == "PUT"
+
+
+@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_option_signal_missing_required_fields_is_skipped():
+    trader = MagicMock()
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    option_vehicle = {
+        "type": "OPTION",
+        "enabled": True,
+        "intent": "EXECUTE",
+        "side": "BUY",
+        "option_type": "CALL",
+        "strike": 220.0,
+        "expiry": None,
+        "quantity_hint": 1,
+    }
+    client.parser.parse = MagicMock(
+        return_value={"signals": [build_signal_payload("AAPL", "BUY", vehicles=[option_vehicle])], "meta": {"status": "ok"}}
+    )
+
+    await client.on_message(build_message("Buy AAPL call", author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.place_option_order.assert_not_called()
+    trader.place_stock_order.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_mixed_stock_and_option_signal_executes_both():
+    trader = MagicMock()
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    vehicles = [
+        {"type": "STOCK", "enabled": True, "intent": "EXECUTE", "side": "BUY"},
+        {
+            "type": "OPTION",
+            "enabled": True,
+            "intent": "EXECUTE",
+            "side": "BUY",
+            "option_type": "CALL",
+            "strike": 160.0,
+            "expiry": "2026-04-17",
+            "quantity_hint": 1,
+        },
+    ]
+    client.parser.parse = MagicMock(
+        return_value={"signals": [build_signal_payload("MSFT", "BUY", vehicles=vehicles)], "meta": {"status": "ok"}}
+    )
+
+    await client.on_message(build_message("Buy MSFT stock and calls", author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.place_stock_order.assert_called_once()
+    trader.place_option_order.assert_called_once()
+
+
+@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.asyncio
 async def test_sell_signal_triggers_sell_order():
     trader = MagicMock()
     client = StockMonitorClient(trader=trader)
@@ -188,6 +311,39 @@ async def test_trade_failure_does_not_crash_message_handler():
     await client.on_message(build_message("Buy AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
     client.notifier.notify.assert_called_once()
     trader.place_stock_order.assert_called_once()
+
+
+@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_option_trade_failure_does_not_block_stock_trade():
+    trader = MagicMock()
+    trader.place_option_order = MagicMock(side_effect=RuntimeError("OPTION_REJECTED"))
+
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    vehicles = [
+        {"type": "STOCK", "enabled": True, "intent": "EXECUTE", "side": "BUY"},
+        {
+            "type": "OPTION",
+            "enabled": True,
+            "intent": "EXECUTE",
+            "side": "BUY",
+            "option_type": "CALL",
+            "strike": 150.0,
+            "expiry": "2026-04-17",
+            "quantity_hint": 1,
+        },
+    ]
+    client.parser.parse = MagicMock(
+        return_value={"signals": [build_signal_payload("AAPL", "BUY", vehicles=vehicles)], "meta": {"status": "ok"}}
+    )
+
+    await client.on_message(build_message("Buy AAPL and calls", author_id=321, channel_id=TEST_CHANNEL_ID))
+    client.notifier.notify.assert_called_once()
+    trader.place_stock_order.assert_called_once()
+    trader.place_option_order.assert_called_once()
 
 
 @pytest.mark.unit
@@ -249,7 +405,7 @@ async def test_live_ai_pipeline_message_to_trader(msg_id, author, text, should_p
     await client.on_message(build_message(text, author_id=321, channel_id=TEST_CHANNEL_ID))
 
     if should_pick:
-        assert len(trader.orders) > 0
+        assert len(trader.orders) + len(trader.option_orders) > 0
         assert trader.account_requests >= 1
         notify_payload = client.notifier.notify.call_args[0][0]
         assert isinstance(notify_payload, dict)

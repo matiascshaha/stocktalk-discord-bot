@@ -1,14 +1,21 @@
 import discord
 import json
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import ValidationError
 from src.ai_parser import AIParser
 from src.brokerages.base import Brokerage
 from src.brokerages.webull import WebullBroker
 from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSignal
-from src.models.webull_models import OrderSide, StockOrderRequest
+from src.models.webull_models import (
+    OptionLeg,
+    OptionOrderRequest,
+    OptionType,
+    OrderSide,
+    OrderType,
+    StockOrderRequest,
+)
 from src.notifier import Notifier
 from src.trading.orders import StockOrderExecutionPlanner, StockOrderExecutor
 from src.utils.logger import setup_logger
@@ -109,22 +116,36 @@ class StockMonitorClient:
             # Log parsed signals
             self._log_signals(message, parsed_payload)
 
-            # Execute trades if executor available
-            if self.order_executor:
+            # Execute trades if runtime wiring is available
+            if self.order_executor or self.trader:
                 for signal in signal_objs:
-                    order = self._signal_to_stock_order(signal)
-                    if not order:
-                        continue
-                    try:
-                        self.order_executor.execute(order, weighting=signal.weight_percent)
-                    except Exception as exc:
-                        logger.error(
-                            "Trade execution failed for %s %s (%s): %s",
-                            order.side,
-                            order.symbol,
-                            signal.weight_percent,
-                            exc,
-                        )
+                    if self.order_executor:
+                        order = self._signal_to_stock_order(signal)
+                        if order:
+                            try:
+                                self.order_executor.execute(order, weighting=signal.weight_percent)
+                            except Exception as exc:
+                                logger.error(
+                                    "Trade execution failed for %s %s (%s): %s",
+                                    order.side,
+                                    order.symbol,
+                                    signal.weight_percent,
+                                    exc,
+                                )
+
+                    if self.trader:
+                        for option_order in self._signal_to_option_orders(signal):
+                            try:
+                                self.trader.place_option_order(option_order)
+                            except Exception as exc:
+                                symbol = option_order.legs[0].symbol if option_order.legs else signal.ticker
+                                logger.error(
+                                    "Option execution failed for %s %s (%s): %s",
+                                    option_order.side,
+                                    symbol,
+                                    option_order.quantity,
+                                    exc,
+                                )
         else:
             logger.info("No actionable signals detected.")
 
@@ -151,6 +172,77 @@ class StockMonitorClient:
             side=side,
             quantity=1,
         )
+
+    def _signal_to_option_orders(self, signal: ParsedSignal) -> List[OptionOrderRequest]:
+        option_orders: List[OptionOrderRequest] = []
+
+        for vehicle in signal.vehicles:
+            if vehicle.type != "OPTION":
+                continue
+
+            if not vehicle.enabled or vehicle.intent != "EXECUTE":
+                continue
+
+            if vehicle.side == "NONE":
+                logger.info("Skipping non-executable option signal for %s", signal.ticker)
+                continue
+
+            if vehicle.option_type not in {"CALL", "PUT"} or vehicle.strike is None or not vehicle.expiry:
+                logger.warning(
+                    "Skipping option signal for %s: missing required option fields (type=%s strike=%s expiry=%s)",
+                    signal.ticker,
+                    vehicle.option_type,
+                    vehicle.strike,
+                    vehicle.expiry,
+                )
+                continue
+
+            contracts = self._resolve_option_contracts(vehicle.quantity_hint, signal.ticker)
+            if contracts is None:
+                continue
+
+            side = OrderSide.SELL if vehicle.side == "SELL" else OrderSide.BUY
+            option_type = OptionType.PUT if vehicle.option_type == "PUT" else OptionType.CALL
+            quantity = str(contracts)
+            order = OptionOrderRequest(
+                order_type=OrderType.MARKET,
+                quantity=quantity,
+                side=side,
+                legs=[
+                    OptionLeg(
+                        side=side,
+                        quantity=quantity,
+                        symbol=signal.ticker,
+                        strike_price=str(vehicle.strike),
+                        option_expire_date=str(vehicle.expiry),
+                        option_type=option_type,
+                        market="US",
+                    )
+                ],
+            )
+            option_orders.append(order)
+
+        return option_orders
+
+    def _resolve_option_contracts(self, quantity_hint: Optional[float], ticker: str) -> Optional[int]:
+        if quantity_hint is None:
+            return 1
+
+        try:
+            contracts = int(float(quantity_hint))
+        except (TypeError, ValueError):
+            logger.warning("Skipping option signal for %s: invalid quantity_hint=%s", ticker, quantity_hint)
+            return None
+
+        if contracts < 1:
+            logger.warning(
+                "Skipping option signal for %s: quantity_hint resolved to <1 contract (%s)",
+                ticker,
+                quantity_hint,
+            )
+            return None
+
+        return contracts
     
     def _log_signals(self, message, parsed_message):
         """Log parsed signals to file."""
