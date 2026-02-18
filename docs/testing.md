@@ -8,7 +8,7 @@
 
 ## Test layout policy
 
-- `tests/unit/src` mirrors `src` for class/module-level deterministic tests.
+- `tests/unit` holds class/module-level deterministic tests in a flat layout.
 - `tests/features/<feature>/happy_path` and `tests/features/<feature>/edge_cases` are behavior-focused deterministic tests.
 - `tests/features/<feature>/contracts` contains strict interface/schema/payload contracts.
 - `tests/features/<feature>/smoke` contains live/external smoke checks for that feature.

@@ -12,7 +12,7 @@ Deliver deterministic confidence through class-mirrored unit tests and feature-o
 
 ## Directory Layout
 
-- `tests/unit/src`: deterministic unit tests mirroring `src/` paths.
+- `tests/unit`: deterministic unit tests in a flat class/module layout.
 - `tests/features/<feature>/happy_path`: expected successful behavior scenarios.
 - `tests/features/<feature>/edge_cases`: guardrail/failure behavior scenarios.
 - `tests/features/<feature>/contracts`: strict schema/interface/payload contracts.

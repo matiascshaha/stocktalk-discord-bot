@@ -100,7 +100,7 @@ def main() -> int:
 
     checks.append(
         _run(
-            [py, "-m", "pytest", "tests/unit/src/utils/test_paths.py"],
+            [py, "-m", "pytest", "tests/unit/test_paths.py"],
             name="pathing_contracts",
             external=False,
         )
@@ -113,7 +113,7 @@ def main() -> int:
                 "-m",
                 "pytest",
                 "tests/features/signal_generation/contracts/test_parser_contract.py",
-                "tests/unit/src/ai_parser/test_parser_schema.py",
+                "tests/unit/test_parser_schema.py",
             ],
             name="parser_deterministic",
             external=False,

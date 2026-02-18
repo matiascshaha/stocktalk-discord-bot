@@ -4,18 +4,20 @@ Use this map in two passes:
 1. pick the feature or module
 2. pick the test intent (`happy_path`, `edge_cases`, `contracts`, `smoke`)
 
-## Unit (Mirror of src)
+## Unit (Flat)
 
-- `tests/unit/src/ai_parser/`
-- `tests/unit/src/providers/`
-- `tests/unit/src/trading/`
-- `tests/unit/src/brokerages/webull/`
-- `tests/unit/src/utils/`
+- `tests/unit/test_parser_schema.py`
+- `tests/unit/test_provider_dispatch.py`
+- `tests/unit/test_stock_order_executor.py`
+- `tests/unit/test_stock_order_planner.py`
+- `tests/unit/test_market_hours.py`
+- `tests/unit/test_webull_quote_service.py`
+- `tests/unit/test_paths.py`
 
 Quick command:
 
 ```bash
-pytest tests/unit/src
+pytest tests/unit
 ```
 
 ## Features

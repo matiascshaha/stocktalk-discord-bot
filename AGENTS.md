@@ -68,7 +68,7 @@ Use commands from `docs/runbook.md`.
 - Shared fakes/factories/payloads/helpers/datasets belong in `tests/testkit/`.
 - Keep deterministic behavior tests in `tests/features/<feature>/(happy_path|edge_cases|contracts)`.
 - Keep live/external checks in `tests/features/<feature>/smoke`.
-- Keep class/module unit tests in `tests/unit/src/` mirroring `src/`.
+- Keep class/module unit tests in a flat `tests/unit/` layout.
 - Keep test-runner/tooling tests in `tests/tooling`.
 - Enforce purity with `python -m scripts.check_test_file_purity` in deterministic CI.
 
