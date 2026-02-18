@@ -6,6 +6,7 @@ Main entry point for Discord Stock Monitor
 import sys
 import os
 
+from src.brokerages.factory import build_brokerage
 from src.discord_client import StockMonitorClient
 from src.webull_trader import WebullTrader
 from config.settings import (
@@ -47,6 +48,7 @@ def main():
     
     # Initialize Webull trader if auto-trading enabled
     trader = None
+    broker = None
     if TRADING_CONFIG['auto_trade']:
         paper_trade = TRADING_CONFIG['paper_trade']
         app_key = WEBULL_CONFIG.get('test_app_key') if paper_trade else os.getenv('WEBULL_APP_KEY')
@@ -63,6 +65,7 @@ def main():
 
         if trader.login():
             logger.info("Webull trader ready.")
+            broker = build_brokerage(TRADING_CONFIG.get("broker", "webull"), trader)
         else:
             logger.warning("Webull login failed; continuing in monitor-only mode.")
             trader = None
@@ -71,7 +74,7 @@ def main():
     
     # Initialize and run Discord client
     logger.info("Starting Discord monitor.")
-    client = StockMonitorClient(trader=trader)
+    client = StockMonitorClient(trader=trader, broker=broker)
     
     try:
         client.run()

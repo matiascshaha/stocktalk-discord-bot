@@ -157,6 +157,7 @@ WEBULL_CONFIG = {
 # Trading Settings
 TRADING_CONFIG = {
     'auto_trade': _as_bool(_cfg('trading.auto_trade', False), False),
+    'broker': str(_cfg('trading.broker', 'webull')).strip().lower() or 'webull',
     'paper_trade': _as_bool(_cfg('trading.paper_trade', False), False),
     'options_enabled': _as_bool(_cfg('trading.options_enabled', False), False),
     'min_confidence': _as_float(_cfg('trading.min_confidence', 0.7), 0.7),

@@ -90,6 +90,46 @@ async def test_valid_signal_triggers_notify_and_trade():
 @pytest.mark.unit
 @pytest.mark.contract
 @pytest.mark.asyncio
+async def test_option_vehicle_triggers_option_trade():
+    trader = MagicMock()
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    client.parser.parse = MagicMock(
+        return_value={
+            "signals": [
+                build_signal_payload(
+                    "AAPL",
+                    "BUY",
+                    vehicles=[
+                        {
+                            "type": "OPTION",
+                            "enabled": True,
+                            "intent": "EXECUTE",
+                            "side": "BUY",
+                            "option_type": "CALL",
+                            "strike": 210,
+                            "expiry": "2026-03-20",
+                        }
+                    ],
+                )
+            ],
+            "meta": {"status": "ok"},
+        }
+    )
+
+    await client.on_message(build_message("AAPL 210c", author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.place_option_order.assert_called_once()
+    option_order = trader.place_option_order.call_args[0][0]
+    assert option_order.order_type == "MARKET"
+    assert option_order.time_in_force == "DAY"
+    assert option_order.legs[0].strike_price == "210.0"
+
+
+@pytest.mark.unit
+@pytest.mark.contract
+@pytest.mark.asyncio
 async def test_off_hours_uses_queued_limit_without_retry(monkeypatch):
     monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: False)
     monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "queue_when_closed", True)

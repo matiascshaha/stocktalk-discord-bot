@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from src.models.webull_models import OrderSide, OrderType, StockOrderRequest, TimeInForce
+from src.trading.orders.contracts import OrderSide, OrderType, StockOrderRequest, TimeInForce
 from src.trading.orders.executor import StockOrderExecutor
 from src.trading.orders.planner import StockOrderExecutionPlan
 from tests.support.fakes.broker_probe import BrokerProbe
@@ -23,8 +23,8 @@ def test_executor_submits_market_order_once():
 
     assert len(broker.orders) == 1
     submitted = broker.orders[0][0]
-    assert submitted.order_type == "MARKET"
-    assert submitted.time_in_force == "DAY"
+    assert submitted.order_type == OrderType.MARKET
+    assert submitted.time_in_force == TimeInForce.DAY
 
 
 def test_executor_submits_buffered_limit_order_once():
@@ -44,6 +44,6 @@ def test_executor_submits_buffered_limit_order_once():
 
     assert len(broker.orders) == 1
     submitted = broker.orders[0][0]
-    assert submitted.order_type == "LIMIT"
-    assert submitted.time_in_force == "GTC"
+    assert submitted.order_type == OrderType.LIMIT
+    assert submitted.time_in_force == TimeInForce.GTC
     assert submitted.limit_price == 100.5

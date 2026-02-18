@@ -6,6 +6,7 @@ def build_signal_payload(
     action: str = "BUY",
     confidence: float = 0.9,
     weight_percent: Optional[float] = 5.0,
+    vehicles: Optional[list[dict]] = None,
 ):
     side = action if action in {"BUY", "SELL"} else "NONE"
     intent = "EXECUTE" if action in {"BUY", "SELL"} else "INFO"
@@ -18,5 +19,5 @@ def build_signal_payload(
         "sentiment": "BULLISH" if action != "SELL" else "BEARISH",
         "reasoning": "test",
         "is_actionable": action in {"BUY", "SELL", "HOLD"},
-        "vehicles": [{"type": "STOCK", "enabled": True, "intent": intent, "side": side}],
+        "vehicles": vehicles if vehicles is not None else [{"type": "STOCK", "enabled": True, "intent": intent, "side": side}],
     }

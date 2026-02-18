@@ -1,9 +1,9 @@
 """Stock order executor that delegates broker calls after planning."""
 
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from src.brokerages.base import Brokerage
-from src.models.webull_models import OrderType, StockOrderRequest
+from src.trading.orders.contracts import OrderSubmissionResult, OrderType, StockOrderRequest
 from src.trading.orders.planner import StockOrderExecutionPlan, StockOrderExecutionPlanner
 from src.trading.orders.pricing import compute_buffered_limit_price
 from src.utils.logger import setup_logger
@@ -19,7 +19,7 @@ class StockOrderExecutor:
         self._broker = broker
         self._planner = planner
 
-    def execute(self, order: StockOrderRequest, weighting: Optional[float] = None) -> Dict[str, Any]:
+    def execute(self, order: StockOrderRequest, weighting: Optional[float] = None) -> OrderSubmissionResult:
         plan = self._planner.plan()
         final_order = self._build_order(order, plan)
         logger.info(
@@ -43,14 +43,13 @@ class StockOrderExecutor:
                 order_type=OrderType.MARKET,
                 time_in_force=plan.time_in_force,
                 extended_hours_trading=plan.extended_hours_trading,
-                trading_session=order.trading_session,
             )
 
-        quote = self._broker.get_limit_reference_price(order.symbol, str(order.side))
+        quote = self._broker.get_limit_reference_price(order.symbol, order.side.value)
         if quote is None:
             raise ValueError(f"Unable to fetch executable reference price for symbol {order.symbol}")
 
-        limit_price = compute_buffered_limit_price(str(order.side), float(quote), plan.limit_buffer_bps)
+        limit_price = compute_buffered_limit_price(order.side.value, float(quote), plan.limit_buffer_bps)
         return StockOrderRequest(
             symbol=order.symbol,
             side=order.side,
@@ -59,5 +58,4 @@ class StockOrderExecutor:
             limit_price=limit_price,
             time_in_force=plan.time_in_force,
             extended_hours_trading=plan.extended_hours_trading,
-            trading_session=order.trading_session,
         )

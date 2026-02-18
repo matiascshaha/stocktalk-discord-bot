@@ -129,7 +129,7 @@ python -m scripts.quality.run_confidence_suite
 ## Extensibility
 
 - AI provider strategy is pluggable through `AI_PROVIDER` and parser/provider init logic.
-- Brokerage integration can be extended by adding trader adapters alongside `src/webull_trader.py`.
+- Brokerage integration is selected through `trading.broker` in `config/trading.yaml` and implemented via adapters under `src/brokerages/<broker>/`.
 
 ## Agent Workflow Files
 

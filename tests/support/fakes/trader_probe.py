@@ -1,6 +1,7 @@
 class TraderProbe:
     def __init__(self):
         self.orders = []
+        self.option_orders = []
         self.account_requests = 0
 
     def get_account_balance(self):
@@ -18,6 +19,10 @@ class TraderProbe:
 
     def place_stock_order(self, order, weighting=None):
         self.orders.append((order, weighting))
+        return {"ok": True}
+
+    def place_option_order(self, order):
+        self.option_orders.append(order)
         return {"ok": True}
 
     def get_stock_quotes(self, symbol, category="US_STOCK"):

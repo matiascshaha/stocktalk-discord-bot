@@ -7,10 +7,14 @@ from pydantic import ValidationError
 from src.ai_parser import AIParser
 from src.brokerages.base import Brokerage
 from src.brokerages.webull import WebullBroker
-from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSignal
-from src.models.webull_models import OrderSide, StockOrderRequest
+from src.models.parser_models import CONTRACT_VERSION, ParsedMessage
 from src.notifier import Notifier
-from src.trading.orders import StockOrderExecutionPlanner, StockOrderExecutor
+from src.trading.orders import (
+    OptionOrderExecutor,
+    SignalOrderRouter,
+    StockOrderExecutionPlanner,
+    StockOrderExecutor,
+)
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
 from src.utils.paths import PICKS_LOG_PATH
@@ -27,11 +31,21 @@ class StockMonitorClient:
         self.parser = AIParser()
         self.notifier = Notifier()
         self.order_executor = None
+        self.order_router = None
 
-        if trader:
-            resolved_broker = broker or WebullBroker(trader)
+        resolved_broker = broker
+        if resolved_broker is None and trader is not None:
+            resolved_broker = WebullBroker(trader)
+
+        if resolved_broker is not None:
             planner = StockOrderExecutionPlanner(TRADING_CONFIG)
             self.order_executor = StockOrderExecutor(resolved_broker, planner)
+            option_executor = OptionOrderExecutor(resolved_broker)
+            self.order_router = SignalOrderRouter(
+                broker=resolved_broker,
+                stock_executor=self.order_executor,
+                option_executor=option_executor,
+            )
 
         self._patch_pending_payments()
         
@@ -110,47 +124,19 @@ class StockMonitorClient:
             self._log_signals(message, parsed_payload)
 
             # Execute trades if executor available
-            if self.order_executor:
+            if self.order_router:
                 for signal in signal_objs:
-                    order = self._signal_to_stock_order(signal)
-                    if not order:
-                        continue
                     try:
-                        self.order_executor.execute(order, weighting=signal.weight_percent)
+                        self.order_router.execute_signal(signal)
                     except Exception as exc:
                         logger.error(
-                            "Trade execution failed for %s %s (%s): %s",
-                            order.side,
-                            order.symbol,
+                            "Trade execution failed for %s (weight=%s): %s",
+                            signal.ticker,
                             signal.weight_percent,
                             exc,
                         )
         else:
             logger.info("No actionable signals detected.")
-
-    def _signal_to_stock_order(self, signal: ParsedSignal):
-        stock_vehicle = None
-        for vehicle in signal.vehicles:
-            if vehicle.type == "STOCK":
-                stock_vehicle = vehicle
-                break
-
-        if not stock_vehicle:
-            return None
-
-        if not stock_vehicle.enabled or stock_vehicle.intent != "EXECUTE":
-            return None
-
-        if stock_vehicle.side == "NONE":
-            logger.info("Skipping non-executable stock signal for %s", signal.ticker)
-            return None
-
-        side = OrderSide.SELL if stock_vehicle.side == "SELL" else OrderSide.BUY
-        return StockOrderRequest(
-            symbol=signal.ticker,
-            side=side,
-            quantity=1,
-        )
     
     def _log_signals(self, message, parsed_message):
         """Log parsed signals to file."""

@@ -39,6 +39,9 @@ trading:
   # Enable automatic trade execution via Webull API
   auto_trade: true
 
+  # Brokerage adapter key used by runtime order routing.
+  broker: webull
+
   # Enable option trade vehicles from parser output for execution workflows.
   # false = keep option signals visible/observable but non-executable.
   options_enabled: false
