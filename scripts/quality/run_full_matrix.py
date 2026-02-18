@@ -42,7 +42,15 @@ def build_scenarios(ai_scope: str, skip_discord_live: bool, skip_webull_prod_wri
         _scenario("deterministic", [py, "-m", "pytest"]),
         _scenario(
             "ai_live_smoke",
-            [py, "-m", "pytest", "tests/smoke/ai/test_ai_live_smoke.py", "-m", "smoke and live", "-q"],
+            [
+                py,
+                "-m",
+                "pytest",
+                "tests/features/signal_generation/smoke/test_ai_live_smoke.py",
+                "-m",
+                "smoke and live",
+                "-q",
+            ],
             TEST_AI_LIVE="1",
         ),
         _scenario(
@@ -51,7 +59,7 @@ def build_scenarios(ai_scope: str, skip_discord_live: bool, skip_webull_prod_wri
                 py,
                 "-m",
                 "pytest",
-                "tests/smoke/ai/test_ai_pipeline_live_smoke.py",
+                "tests/features/trade_execution/smoke/test_ai_pipeline_live_smoke.py",
                 "-m",
                 "smoke and live",
                 "-q",
@@ -65,7 +73,7 @@ def build_scenarios(ai_scope: str, skip_discord_live: bool, skip_webull_prod_wri
                 py,
                 "-m",
                 "pytest",
-                "tests/smoke/webull/test_webull_smoke.py",
+                "tests/features/broker_webull_adapter/smoke/test_webull_read_smoke.py",
                 "-m",
                 "smoke and live and not webull_write",
                 "-q",
@@ -79,7 +87,7 @@ def build_scenarios(ai_scope: str, skip_discord_live: bool, skip_webull_prod_wri
                 py,
                 "-m",
                 "pytest",
-                "tests/smoke/webull/test_webull_smoke.py",
+                "tests/features/broker_webull_adapter/smoke/test_webull_write_smoke.py",
                 "-m",
                 "smoke and live and webull_write",
                 "-q",
@@ -93,7 +101,7 @@ def build_scenarios(ai_scope: str, skip_discord_live: bool, skip_webull_prod_wri
                 py,
                 "-m",
                 "pytest",
-                "tests/smoke/webull/test_webull_smoke.py",
+                "tests/features/broker_webull_adapter/smoke/test_webull_read_smoke.py",
                 "-m",
                 "smoke and live and not webull_write",
                 "-q",
@@ -111,7 +119,7 @@ def build_scenarios(ai_scope: str, skip_discord_live: bool, skip_webull_prod_wri
                     py,
                     "-m",
                     "pytest",
-                    "tests/smoke/webull/test_webull_smoke.py",
+                    "tests/features/broker_webull_adapter/smoke/test_webull_write_smoke.py",
                     "-m",
                     "smoke and live and webull_write",
                     "-q",
@@ -125,7 +133,15 @@ def build_scenarios(ai_scope: str, skip_discord_live: bool, skip_webull_prod_wri
         scenarios.append(
             _scenario(
                 "discord_live_smoke",
-                [py, "-m", "pytest", "tests/smoke/discord/test_discord_live_smoke.py", "-m", "discord_live", "-q"],
+                [
+                    py,
+                    "-m",
+                    "pytest",
+                    "tests/features/message_intake/smoke/test_discord_live_smoke.py",
+                    "-m",
+                    "discord_live",
+                    "-q",
+                ],
                 TEST_DISCORD_LIVE="1",
             )
         )

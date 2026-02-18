@@ -1,67 +1,88 @@
 # Test Index
 
-Use this map to find tests by behavior domain first, then by layer.
+Use this map in two passes:
+1. pick the feature or module
+2. pick the test intent (`happy_path`, `edge_cases`, `contracts`, `smoke`)
 
-## Parser
+## Unit (Mirror of src)
 
-- Unit: `tests/unit/parser/test_parser_schema.py`
-- Contract: `tests/contract/parser/test_ai_parser_contract.py`
-- Smoke (live provider): `tests/smoke/ai/test_ai_live_smoke.py`
-- Smoke (live parser->trader flow): `tests/smoke/ai/test_ai_pipeline_live_smoke.py`
-- Case catalog: `tests/support/cases/parser_messages.py`
+- `tests/unit/src/ai_parser/`
+- `tests/unit/src/providers/`
+- `tests/unit/src/trading/`
+- `tests/unit/src/brokerages/webull/`
+- `tests/unit/src/utils/`
+
+Quick command:
+
+```bash
+pytest tests/unit/src
+```
+
+## Features
+
+### message_intake
+
+- Happy path: `tests/features/message_intake/happy_path/`
+- Edge cases: `tests/features/message_intake/edge_cases/`
+- Contracts: `tests/features/message_intake/contracts/`
+- Smoke: `tests/features/message_intake/smoke/`
+
+### signal_generation
+
+- Happy path: `tests/features/signal_generation/happy_path/`
+- Edge cases: `tests/features/signal_generation/edge_cases/`
+- Contracts: `tests/features/signal_generation/contracts/`
+- Smoke: `tests/features/signal_generation/smoke/`
+
+### risk_policy
+
+- Happy path: `tests/features/risk_policy/happy_path/`
+- Edge cases: `tests/features/risk_policy/edge_cases/`
+- Contracts: `tests/features/risk_policy/contracts/`
+- Smoke: `tests/features/risk_policy/smoke/`
+
+### trade_execution
+
+- Happy path: `tests/features/trade_execution/happy_path/`
+- Edge cases: `tests/features/trade_execution/edge_cases/`
+- Contracts: `tests/features/trade_execution/contracts/`
+- Smoke: `tests/features/trade_execution/smoke/`
+
+### broker_webull_adapter
+
+- Happy path: `tests/features/broker_webull_adapter/happy_path/`
+- Edge cases: `tests/features/broker_webull_adapter/edge_cases/`
+- Contracts: `tests/features/broker_webull_adapter/contracts/`
+- Smoke: `tests/features/broker_webull_adapter/smoke/`
+
+### observability
+
+- Happy path: `tests/features/observability/happy_path/`
+- Edge cases: `tests/features/observability/edge_cases/`
+- Contracts: `tests/features/observability/contracts/`
+- Smoke: `tests/features/observability/smoke/`
 
 Quick commands:
 
 ```bash
-pytest tests/unit/parser tests/contract/parser
-TEST_AI_LIVE=1 pytest tests/smoke/ai -m "smoke and live"
+pytest tests/features -m feature
+pytest tests/features -m contract
+pytest -m feature_regression
 ```
 
-## Trading Execution
+## Shared Test Infrastructure
 
-- Unit (planner/executor/policy/market-hours/quotes): `tests/unit/trading/`
-- Contract (Webull adapter payloads): `tests/contract/brokerage/test_webull_contract.py`
-- Integration (Discord->order execution wiring): `tests/integration/discord_flow/test_discord_flow.py`
-- Smoke (Webull read/write): `tests/smoke/webull/test_webull_smoke.py`
-- Case catalogs: `tests/support/cases/execution_modes.py`, `tests/support/cases/trading_policy.py`
+- Builders: `tests/testkit/builders/`
+- Doubles: `tests/testkit/doubles/`
+- Payloads: `tests/testkit/payloads/`
+- Scenario catalogs: `tests/testkit/scenario_catalogs/`
+- Helpers: `tests/testkit/helpers/`
+- Datasets: `tests/testkit/datasets/`
 
-Quick commands:
+## Tooling
 
-```bash
-pytest tests/unit/trading tests/contract/brokerage/test_webull_contract.py
-pytest tests/integration/discord_flow -m integration
-TEST_WEBULL_READ=1 pytest tests/smoke/webull/test_webull_smoke.py -m "smoke and live and not webull_write"
-```
-
-## Discord Flow
-
-- Integration (deterministic message handling): `tests/integration/discord_flow/test_discord_flow.py`
-- Smoke (live Discord connectivity): `tests/smoke/discord/test_discord_live_smoke.py`
-- Shared factories: `tests/support/factories/discord_messages.py`
-
-Quick commands:
-
-```bash
-pytest tests/integration/discord_flow -m integration
-TEST_DISCORD_LIVE=1 pytest tests/smoke/discord/test_discord_live_smoke.py -m discord_live
-```
-
-## Providers & Config
-
-- Unit providers: `tests/unit/providers/test_provider_dispatch.py`
-- Unit config/path matrix: `tests/unit/config/test_paths.py`, `tests/unit/config/test_matrix.py`
-
-Quick commands:
-
-```bash
-pytest tests/unit/providers tests/unit/config
-```
-
-## Tooling & Health
-
-- Tooling runner tests: `tests/tooling/scripts/`
-- Purity guard: `scripts/check_test_file_purity.py`
-- Health runner: `scripts/quality/run_health_checks.py`
+- `tests/tooling/`
+- `tests/tooling/scripts/`
 
 Quick commands:
 
@@ -69,5 +90,4 @@ Quick commands:
 python -m scripts.check_test_file_purity
 pytest tests/tooling
 python -m scripts.quality.run_health_checks
-pytest -m feature_regression
 ```

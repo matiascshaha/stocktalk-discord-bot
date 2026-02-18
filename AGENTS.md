@@ -65,8 +65,10 @@ Use commands from `docs/runbook.md`.
 
 - Test modules (`test_*.py`) should contain tests only.
 - Shared fixtures belong in `conftest.py`.
-- Shared fakes/factories/payloads/helpers belong in `tests/support/`.
-- Keep application tests in `tests/unit`, `tests/contract`, `tests/integration`, and `tests/smoke`.
+- Shared fakes/factories/payloads/helpers/datasets belong in `tests/testkit/`.
+- Keep deterministic behavior tests in `tests/features/<feature>/(happy_path|edge_cases|contracts)`.
+- Keep live/external checks in `tests/features/<feature>/smoke`.
+- Keep class/module unit tests in `tests/unit/src/` mirroring `src/`.
 - Keep test-runner/tooling tests in `tests/tooling`.
 - Enforce purity with `python -m scripts.check_test_file_purity` in deterministic CI.
 

@@ -2,7 +2,7 @@
 
 Policy:
 - Test modules should contain test functions only.
-- Shared setup/helpers/mocks should live in conftest.py or tests/support/.
+- Shared setup/helpers/mocks should live in conftest.py or tests/testkit/.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ def should_skip(path: Path) -> bool:
     if name == "conftest.py" or name == "__init__.py":
         return True
     parts = set(path.parts)
-    return "support" in parts or "data" in parts
+    return "testkit" in parts
 
 
 def find_violations(path: Path) -> list[str]:

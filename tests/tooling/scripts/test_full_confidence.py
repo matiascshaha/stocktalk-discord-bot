@@ -1,5 +1,5 @@
 from scripts.quality.run_confidence_suite import _build_env
-from tests.support.tooling.full_confidence import clear_runner_env, make_full_confidence_args
+from tests.testkit.helpers.tooling_full_confidence import clear_runner_env, make_full_confidence_args
 
 
 def test_build_env_local_defaults(monkeypatch):

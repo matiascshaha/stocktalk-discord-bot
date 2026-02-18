@@ -8,15 +8,18 @@
 
 ## Test layout policy
 
-- `tests/unit`, `tests/contract`, `tests/integration`, `tests/smoke` are application behavior tests.
+- `tests/unit/src` mirrors `src` for class/module-level deterministic tests.
+- `tests/features/<feature>/happy_path` and `tests/features/<feature>/edge_cases` are behavior-focused deterministic tests.
+- `tests/features/<feature>/contracts` contains strict interface/schema/payload contracts.
+- `tests/features/<feature>/smoke` contains live/external smoke checks for that feature.
 - `tests/tooling` is reserved for tests of test runners and support scripts.
-- Shared test setup belongs in `conftest.py` or `tests/support/`, not in test modules.
+- Shared test setup belongs in `conftest.py` or `tests/testkit/`, not in test modules.
 
 ## Test module purity
 
 - Test modules should contain tests only.
 - Do not define helper classes/functions in `test_*.py` files.
-- Move fakes/factories/payload builders into `tests/support/`.
+- Move fakes/factories/payload builders/helpers into `tests/testkit/`.
 - Enforced in CI by `python -m scripts.check_test_file_purity`.
 
 ## Quality gates

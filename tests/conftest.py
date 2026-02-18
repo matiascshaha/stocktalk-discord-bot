@@ -3,7 +3,7 @@ from typing import List
 
 import pytest
 
-from tests.support.matrix import enabled_ai_providers, enabled_brokers
+from tests.testkit.helpers.matrix import enabled_ai_providers, enabled_brokers
 
 
 @pytest.fixture(scope="session")
