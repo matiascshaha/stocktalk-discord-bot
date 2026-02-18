@@ -36,8 +36,11 @@ ai:
 # TRADING EXECUTION CONFIGURATION
 # =============================================================================
 trading:
-  # Enable automatic trade execution via Webull API
+  # Enable automatic trade execution via the selected broker adapter
   auto_trade: true
+
+  # Active broker adapter: webull | public
+  broker: webull
 
   # Enable option trade vehicles from parser output for execution workflows.
   # false = keep option signals visible/observable but non-executable.
@@ -172,7 +175,13 @@ webull:
 
   test_app_key: "a88f2efed4dca02b9bc1a3cecbc35dba"
   test_app_secret: "c2895b3526cc7c7588758351ddf425d6"
-  webull_test_account_id: "J6HA4EBQRQFJD2J6NQH0F7M649"
+  test_account_id: "J6HA4EBQRQFJD2J6NQH0F7M649"
   
   currency: USD
   account_tax_type: GENERAL
+
+# Future broker credentials/config can also live under:
+# brokers:
+#   public:
+#     api_key: ""
+#     account_id: ""

@@ -17,6 +17,7 @@ from src.utils.paths import resolve_config_path
 
 logger = logging.getLogger(__name__)
 CONFIG_DATA = {}
+_MISSING = object()
 
 
 def _load_config() -> dict:
@@ -70,6 +71,19 @@ def _cfg(path: str, default: Optional[Any] = None) -> Any:
 
 
 CONFIG_DATA = _load_config()
+
+
+def _cfg_first(paths, default: Optional[Any] = None) -> Any:
+    for path in paths:
+        value = _cfg(path, _MISSING)
+        if value is _MISSING:
+            continue
+        if value is None:
+            continue
+        if isinstance(value, str) and value.strip() == "":
+            continue
+        return value
+    return default
 
 
 def _as_bool(value: Any, default: bool = False) -> bool:
@@ -141,22 +155,33 @@ AI_CONFIG = {
 
 # Webull Configuration (OpenAPI)
 WEBULL_CONFIG = {
-    'app_key': os.getenv('WEBULL_APP_KEY'),
-    'app_secret': os.getenv('WEBULL_APP_SECRET'),
-    'test_app_key': _cfg('webull.test_app_key'),
-    'test_app_secret': _cfg('webull.test_app_secret'),
-    'region': _cfg('webull.region', 'US'),
-    'api_endpoint': _cfg('webull.api_endpoint'),
+    'app_key': _cfg_first(['brokers.webull.app_key', 'webull.app_key'], os.getenv('WEBULL_APP_KEY')),
+    'app_secret': _cfg_first(['brokers.webull.app_secret', 'webull.app_secret'], os.getenv('WEBULL_APP_SECRET')),
+    'test_app_key': _cfg_first(['brokers.webull.test_app_key', 'webull.test_app_key']),
+    'test_app_secret': _cfg_first(['brokers.webull.test_app_secret', 'webull.test_app_secret']),
+    'region': _cfg_first(['brokers.webull.region', 'webull.region'], 'US'),
+    'api_endpoint': _cfg_first(['brokers.webull.api_endpoint', 'webull.api_endpoint']),
     # account IDs are credential-like and may live in env when users prefer
-    'account_id': _cfg('webull.account_id', os.getenv('WEBULL_ACCOUNT_ID')),
-    'test_account_id': _cfg('webull.test_account_id', os.getenv('WEBULL_TEST_ACCOUNT_ID')),
-    'currency': _cfg('webull.currency', 'USD'),
-    'account_tax_type': _cfg('webull.account_tax_type', 'GENERAL'),
+    'account_id': _cfg_first(['brokers.webull.account_id', 'webull.account_id'], os.getenv('WEBULL_ACCOUNT_ID')),
+    'test_account_id': _cfg_first(
+        ['brokers.webull.test_account_id', 'webull.test_account_id', 'webull.webull_test_account_id'],
+        os.getenv('WEBULL_TEST_ACCOUNT_ID'),
+    ),
+    'currency': _cfg_first(['brokers.webull.currency', 'webull.currency'], 'USD'),
+    'account_tax_type': _cfg_first(['brokers.webull.account_tax_type', 'webull.account_tax_type'], 'GENERAL'),
+}
+
+# Public broker configuration (scaffold)
+PUBLIC_CONFIG = {
+    'api_key': _cfg_first(['brokers.public.api_key', 'public.api_key'], os.getenv('PUBLIC_API_KEY')),
+    'account_id': _cfg_first(['brokers.public.account_id', 'public.account_id'], os.getenv('PUBLIC_ACCOUNT_ID')),
+    'paper_trade': _as_bool(_cfg_first(['brokers.public.paper_trade', 'public.paper_trade'], True), True),
 }
 
 # Trading Settings
 TRADING_CONFIG = {
     'auto_trade': _as_bool(_cfg('trading.auto_trade', False), False),
+    'broker': str(_cfg('trading.broker', 'webull')).strip().lower() or 'webull',
     'paper_trade': _as_bool(_cfg('trading.paper_trade', False), False),
     'options_enabled': _as_bool(_cfg('trading.options_enabled', False), False),
     'min_confidence': _as_float(_cfg('trading.min_confidence', 0.7), 0.7),
@@ -211,10 +236,16 @@ def validate_config():
         errors.append(f"AI_PROVIDER '{AI_PROVIDER}' is invalid (use openai, anthropic, google, none, auto)")
     
     if TRADING_CONFIG['auto_trade']:
-        if not WEBULL_CONFIG['app_key']:
-            errors.append("WEBULL_APP_KEY is required when AUTO_TRADE is enabled")
-        if not WEBULL_CONFIG['app_secret']:
-            errors.append("WEBULL_APP_SECRET is required when AUTO_TRADE is enabled")
+        broker_name = str(TRADING_CONFIG.get('broker', 'webull')).strip().lower()
+        if broker_name == 'webull':
+            if not WEBULL_CONFIG['app_key']:
+                errors.append("WEBULL_APP_KEY is required when auto_trade is enabled with trading.broker=webull")
+            if not WEBULL_CONFIG['app_secret']:
+                errors.append("WEBULL_APP_SECRET is required when auto_trade is enabled with trading.broker=webull")
+        elif broker_name == 'public':
+            pass
+        else:
+            errors.append("trading.broker must be one of: webull, public")
     
     return errors
 
