@@ -3,8 +3,8 @@ class BrokerProbe:
         self.quote = quote
         self.orders = []
 
-    def place_stock_order(self, order, weighting=None, notional_dollar_amount=None):
-        self.orders.append((order, weighting, notional_dollar_amount))
+    def place_stock_order(self, order, weighting=None):
+        self.orders.append((order, weighting))
         return {"ok": True}
 
     def get_limit_reference_price(self, symbol, side):

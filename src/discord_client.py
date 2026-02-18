@@ -11,12 +11,11 @@ from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSign
 from src.models.webull_models import OrderSide, StockOrderRequest
 from src.notifier import Notifier
 from src.trading.orders import StockOrderExecutionPlanner, StockOrderExecutor
-from src.trading.policy import TradingExecutionPolicy
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
 from src.utils.paths import PICKS_LOG_PATH
 from src.webull_trader import WebullTrader
-from config.settings import DISCORD_TOKEN, CHANNEL_ID, TRADING_CONFIG, get_account_constraints
+from config.settings import DISCORD_TOKEN, CHANNEL_ID, TRADING_CONFIG
 
 logger = setup_logger('discord_client')
 
@@ -28,7 +27,6 @@ class StockMonitorClient:
         self.parser = AIParser()
         self.notifier = Notifier()
         self.order_executor = None
-        self.execution_policy = TradingExecutionPolicy(TRADING_CONFIG, get_account_constraints())
 
         if trader:
             resolved_broker = broker or WebullBroker(trader)
@@ -114,22 +112,11 @@ class StockMonitorClient:
             # Execute trades if executor available
             if self.order_executor:
                 for signal in signal_objs:
-                    decision = self.execution_policy.evaluate(signal, trading_account=self.trader)
-                    if not decision.allowed:
-                        logger.info("Skipping signal %s for %s: %s", signal.action, signal.ticker, decision.reason)
-                        continue
-
                     order = self._signal_to_stock_order(signal)
                     if not order:
                         continue
-
-                    notional_dollar_amount = self.execution_policy.resolve_notional_dollar_amount(signal)
                     try:
-                        self.order_executor.execute(
-                            order,
-                            weighting=signal.weight_percent,
-                            notional_dollar_amount=notional_dollar_amount,
-                        )
+                        self.order_executor.execute(order, weighting=signal.weight_percent)
                     except Exception as exc:
                         logger.error(
                             "Trade execution failed for %s %s (%s): %s",
