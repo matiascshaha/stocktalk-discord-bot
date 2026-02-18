@@ -3,6 +3,7 @@
 from typing import Any, Dict, Optional
 
 from src.models.webull_models import StockOrderRequest
+from src.brokerages.webull.quote_service import resolve_stock_quote
 from src.webull_trader import WebullTrader
 
 
@@ -16,5 +17,4 @@ class WebullBroker:
         return self._trader.place_stock_order(order, weighting=weighting)
 
     def get_current_stock_quote(self, symbol: str) -> Optional[float]:
-        return self._trader.get_current_stock_quote(symbol)
-
+        return resolve_stock_quote(self._trader, symbol)
