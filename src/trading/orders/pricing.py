@@ -1,6 +1,6 @@
 """Stock limit-price helpers."""
 
-from src.models.webull_models import OrderSide
+from src.trading.contracts import OrderSide
 
 
 def compute_buffered_limit_price(side: str, quote: float, buffer_bps: float) -> float:
@@ -16,4 +16,3 @@ def compute_buffered_limit_price(side: str, quote: float, buffer_bps: float) -> 
     if price <= 0:
         raise ValueError(f"Computed limit price must be positive, got {price}")
     return price
-

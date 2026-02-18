@@ -1,9 +1,10 @@
 """Webull brokerage adapter for runtime order execution."""
 
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from src.models.webull_models import StockOrderRequest
 from src.brokerages.webull.quote_service import resolve_limit_reference_price
+from src.brokerages.webull.mapper import to_order_result, to_webull_stock_order
+from src.trading.contracts import OrderResult, StockOrder
 from src.webull_trader import WebullTrader
 
 
@@ -13,8 +14,10 @@ class WebullBroker:
     def __init__(self, trader: WebullTrader):
         self._trader = trader
 
-    def place_stock_order(self, order: StockOrderRequest, weighting: Optional[float] = None) -> Dict[str, Any]:
-        return self._trader.place_stock_order(order, weighting=weighting)
+    def place_stock_order(self, order: StockOrder, sizing_percent: Optional[float] = None) -> OrderResult:
+        webull_order = to_webull_stock_order(order)
+        response = self._trader.place_stock_order(webull_order, weighting=sizing_percent)
+        return to_order_result(response)
 
     def get_limit_reference_price(self, symbol: str, side: str) -> Optional[float]:
         return resolve_limit_reference_price(self._trader, symbol, side)

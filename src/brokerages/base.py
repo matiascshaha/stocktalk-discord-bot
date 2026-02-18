@@ -1,15 +1,9 @@
-"""Broker interface used by runtime order execution."""
+"""Backward-compatible brokerage interface export.
 
-from typing import Any, Dict, Optional, Protocol
+Use `src.brokerages.ports` for new code.
+"""
 
-from src.models.webull_models import StockOrderRequest
+from src.brokerages.ports import TradingBrokerPort
 
 
-class Brokerage(Protocol):
-    """Minimal brokerage contract required for stock execution routing."""
-
-    def place_stock_order(self, order: StockOrderRequest, weighting: Optional[float] = None) -> Dict[str, Any]:
-        ...
-
-    def get_limit_reference_price(self, symbol: str, side: str) -> Optional[float]:
-        ...
+Brokerage = TradingBrokerPort

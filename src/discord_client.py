@@ -1,20 +1,19 @@
 import discord
 import json
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import ValidationError
 from src.ai_parser import AIParser
-from src.brokerages.base import Brokerage
+from src.brokerages.ports import TradingBrokerPort
 from src.brokerages.webull import WebullBroker
 from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSignal
-from src.models.webull_models import OrderSide, StockOrderRequest
 from src.notifier import Notifier
+from src.trading.contracts import OrderSide, StockOrder
 from src.trading.orders import StockOrderExecutionPlanner, StockOrderExecutor
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
 from src.utils.paths import PICKS_LOG_PATH
-from src.webull_trader import WebullTrader
 from config.settings import DISCORD_TOKEN, CHANNEL_ID, TRADING_CONFIG
 
 logger = setup_logger('discord_client')
@@ -22,14 +21,23 @@ logger = setup_logger('discord_client')
 class StockMonitorClient:
     """Discord client for monitoring stock picks"""
     
-    def __init__(self, trader: Optional[WebullTrader] = None, broker: Optional[Brokerage] = None):
+    def __init__(
+        self,
+        trader: Optional[Any] = None,
+        broker: Optional[TradingBrokerPort] = None,
+        trading_account: Optional[Any] = None,
+    ):
         self.trader = trader
+        self.trading_account = trading_account or trader
         self.parser = AIParser()
         self.notifier = Notifier()
         self.order_executor = None
 
-        if trader:
-            resolved_broker = broker or WebullBroker(trader)
+        resolved_broker = broker
+        if resolved_broker is None and trader is not None:
+            resolved_broker = WebullBroker(trader)
+
+        if resolved_broker is not None:
             planner = StockOrderExecutionPlanner(TRADING_CONFIG)
             self.order_executor = StockOrderExecutor(resolved_broker, planner)
 
@@ -57,7 +65,7 @@ class StockMonitorClient:
             self.client.user,
             CHANNEL_ID,
             self.parser.provider,
-            bool(self.trader),
+            bool(self.order_executor),
             bool(TRADING_CONFIG.get("options_enabled")),
             CONTRACT_VERSION,
         ):
@@ -84,7 +92,7 @@ class StockMonitorClient:
         logger.debug(f"Message content: {message.content[:100]}...")
         
         logger.info("AI analyzing message.")
-        parsed = self.parser.parse(message.content, message.author.name, message.channel.id, self.trader)
+        parsed = self.parser.parse(message.content, message.author.name, message.channel.id, self.trading_account)
         if not isinstance(parsed, dict):
             logger.warning("Parser returned unexpected type: %s", type(parsed).__name__)
             return
@@ -116,7 +124,7 @@ class StockMonitorClient:
                     if not order:
                         continue
                     try:
-                        self.order_executor.execute(order, weighting=signal.weight_percent)
+                        self.order_executor.execute(order, sizing_percent=signal.weight_percent)
                     except Exception as exc:
                         logger.error(
                             "Trade execution failed for %s %s (%s): %s",
@@ -146,7 +154,7 @@ class StockMonitorClient:
             return None
 
         side = OrderSide.SELL if stock_vehicle.side == "SELL" else OrderSide.BUY
-        return StockOrderRequest(
+        return StockOrder(
             symbol=signal.ticker,
             side=side,
             quantity=1,

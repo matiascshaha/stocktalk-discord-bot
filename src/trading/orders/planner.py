@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
-from src.models.webull_models import OrderType, TimeInForce
+from src.trading.contracts import OrderType, TimeInForce
 from src.trading.orders.market_hours import is_regular_market_session
 
 

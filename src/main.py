@@ -4,14 +4,14 @@ Main entry point for Discord Stock Monitor
 """
 
 import sys
-import os
 
+from src.brokerages import create_broker_runtime
 from src.discord_client import StockMonitorClient
-from src.webull_trader import WebullTrader
 from config.settings import (
+    PUBLIC_CONFIG,
     validate_config,
     TRADING_CONFIG,
-    WEBULL_CONFIG
+    WEBULL_CONFIG,
 )
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_mode_summary
@@ -22,7 +22,7 @@ def print_banner():
     """Print application banner"""
     print("""
     ╔═══════════════════════════════════════════════════════════╗
-    ║   AI-Powered Discord Stock Monitor + Webull Trading      ║
+    ║   AI-Powered Discord Stock Monitor + Broker Trading      ║
     ║   Powered by Claude AI for intelligent message parsing   ║
     ╚═══════════════════════════════════════════════════════════╝
     """)
@@ -45,33 +45,26 @@ def main():
     logger.info("Configuration valid.")
     logger.info(format_mode_summary(TRADING_CONFIG))
     
-    # Initialize Webull trader if auto-trading enabled
-    trader = None
+    broker_runtime = None
     if TRADING_CONFIG['auto_trade']:
-        paper_trade = TRADING_CONFIG['paper_trade']
-        app_key = WEBULL_CONFIG.get('test_app_key') if paper_trade else os.getenv('WEBULL_APP_KEY')
-        app_secret = WEBULL_CONFIG.get('test_app_secret') if paper_trade else os.getenv('WEBULL_APP_SECRET')
-        account_id = WEBULL_CONFIG.get('test_account_id') if paper_trade else os.getenv('WEBULL_ACCOUNT_ID')
-        logger.info("Initializing Webull trader.")
-        trader = WebullTrader(
-            app_key=app_key,
-            app_secret=app_secret,
-            paper_trade=paper_trade,
-            region="US",
-            account_id=account_id
-        )
-
-        if trader.login():
-            logger.info("Webull trader ready.")
-        else:
-            logger.warning("Webull login failed; continuing in monitor-only mode.")
-            trader = None
-    else:
-        logger.info("Auto-trading disabled; running in monitor-only mode.")
+        try:
+            broker_runtime = create_broker_runtime(
+                trading_config=TRADING_CONFIG,
+                webull_config=WEBULL_CONFIG,
+                public_config=PUBLIC_CONFIG,
+            )
+        except Exception as exc:
+            logger.error("Failed to initialize broker runtime: %s", exc)
+            sys.exit(1)
+    if broker_runtime is None:
+        logger.info("No active broker runtime; running in monitor-only mode.")
     
     # Initialize and run Discord client
     logger.info("Starting Discord monitor.")
-    client = StockMonitorClient(trader=trader)
+    client = StockMonitorClient(
+        broker=broker_runtime.broker if broker_runtime else None,
+        trading_account=broker_runtime.trading_account if broker_runtime else None,
+    )
     
     try:
         client.run()
