@@ -7,6 +7,7 @@ Use this file as durable memory for high-value repo knowledge.
 | Date | Area | Type | Fact/Decision | Evidence | Owner | Review date |
 |---|---|---|---|---|---|---|
 | YYYY-MM-DD | ui-tests | fact | Replace me | path:line | handle | YYYY-MM-DD |
+| 2026-02-18 | testing | decision | Application tests stay in layer folders (`tests/unit`, `tests/contract`, `tests/integration`, `tests/smoke`) but are now organized by domain subfolders and gated by a blocking deterministic `feature_regression` marker suite. | AGENTS.md:61; pytest.ini:7; scripts/quality/run_health_checks.py:123; tests/TEST_INDEX.md:1 | codex | 2026-05-18 |
 | 2026-02-16 | testing | decision | Test modules must contain tests only; shared setup/fakes/helpers go in `conftest.py` or `tests/support/`; runner/tooling tests live in `tests/tooling`, enforced by `scripts.check_test_file_purity`. | AGENTS.md:61; docs/testing.md:9; .github/workflows/reliability.yml:27 | codex | 2026-05-16 |
 | 2026-02-16 | architecture | decision | Provider integrations should live under `src/providers/<provider>/` with separate contract and client modules; parser orchestrators should call provider entry points instead of embedding provider protocol details. | AGENTS.md:50; docs/conventions.md:28 | codex | 2026-05-16 |
 | 2026-02-11 | docs | decision | Deep application/platform knowledge lives in `docs/system-context/` and is linked from `docs/architecture.md`; consult it early for behavior-heavy tasks. | AGENTS.md:22; docs/architecture.md:35; docs/system-context/index.md:1 | codex | 2026-05-11 |

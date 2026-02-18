@@ -13,8 +13,17 @@ class WebullBroker:
     def __init__(self, trader: WebullTrader):
         self._trader = trader
 
-    def place_stock_order(self, order: StockOrderRequest, weighting: Optional[float] = None) -> Dict[str, Any]:
-        return self._trader.place_stock_order(order, weighting=weighting)
+    def place_stock_order(
+        self,
+        order: StockOrderRequest,
+        weighting: Optional[float] = None,
+        notional_dollar_amount: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        return self._trader.place_stock_order(
+            order,
+            weighting=weighting,
+            notional_dollar_amount=notional_dollar_amount,
+        )
 
     def get_limit_reference_price(self, symbol: str, side: str) -> Optional[float]:
         return resolve_limit_reference_price(self._trader, symbol, side)

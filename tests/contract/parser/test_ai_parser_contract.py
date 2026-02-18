@@ -3,7 +3,7 @@ import json
 import pytest
 
 from src.ai_parser import AIParser
-from tests.data.stocktalk_real_messages import REAL_MESSAGES
+from tests.support.cases.parser_messages import PARSER_MESSAGE_PARAMS
 from tests.support.factories.parser import parser_with_fake_openai_response
 
 
@@ -58,7 +58,8 @@ def test_parse_normalizes_single_signal_dict_response():
 
 @pytest.mark.unit
 @pytest.mark.contract
-@pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", REAL_MESSAGES)
+@pytest.mark.feature_regression
+@pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", PARSER_MESSAGE_PARAMS)
 def test_regression_real_messages_with_fixed_ai_contract(msg_id, author, text, should_pick, tickers):
     _ = msg_id
 

@@ -32,6 +32,7 @@ jobs:
           mkdir -p artifacts
           python -m scripts.check_test_file_purity
           python -m pytest tests/unit tests/contract tests/integration tests/tooling --junitxml=artifacts/junit-deterministic.xml
+          python -m pytest -m feature_regression --junitxml=artifacts/junit-feature-regression.xml
 
       - name: Upload deterministic artifacts
         if: always()
@@ -40,6 +41,7 @@ jobs:
           name: deterministic-artifacts
           path: |
             artifacts/junit-deterministic.xml
+            artifacts/junit-feature-regression.xml
 
   external-smoke:
     runs-on: ubuntu-latest
@@ -72,7 +74,7 @@ jobs:
       - name: Run external smoke (read-only)
         run: |
           mkdir -p artifacts
-          python -m pytest tests/smoke/test_webull_smoke.py -m "smoke and live and not webull_write" --junitxml=artifacts/junit-external-smoke.xml
+          python -m pytest tests/smoke/webull/test_webull_smoke.py -m "smoke and live and not webull_write" --junitxml=artifacts/junit-external-smoke.xml
 
       - name: Upload external smoke artifacts
         if: always()

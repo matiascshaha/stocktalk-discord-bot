@@ -12,66 +12,44 @@ Deliver deterministic confidence for parser behavior, Discord flow, and Webull i
 
 ## How We Measure Validity
 
-Application validity is measured by expected behavior proving out in tests, not by code shape:
-
-1. Deterministic checks (`unit` + `contract`) must pass.
-2. Smoke checks verify external integrations and report drift/non-determinism.
-3. Health report summarizes what is verified vs skipped.
+1. Deterministic checks (`unit` + `contract` + `integration` + tooling) must pass.
+2. Feature regression subset (`-m feature_regression`) must pass.
+3. Smoke checks verify external integrations and report drift/non-determinism.
 
 If deterministic checks fail, confidence is low regardless of smoke status.
 
-## Parser-to-Trader Contract
-
-Canonical parser output contract lives in:
-
-- `src/models/parser_models.py`
-
-Trading adapter consumes this contract in:
-
-- `src/discord_client.py`
-
-Required structure:
-
-- top-level: `{"contract_version": "...", "source": {...}, "signals": [...], "meta": {...}}`
-- signal fields: `ticker`, `action`, `confidence`, `weight_percent`, `urgency`, `sentiment`, `reasoning`, `is_actionable`, `vehicles`
-- vehicle fields: `type`, `enabled`, `intent`, `side` (+ option fields when `type=OPTION`)
-
-Behavior mapping:
-
-- `action=BUY` -> place BUY stock order
-- `action=SELL` -> place SELL stock order
-- `action=HOLD` -> no order placement
-
 ## Directory Layout
 
-- `tests/unit`: pure deterministic logic and path/config behavior.
-- `tests/contract`: schema/interface compatibility with parser and broker adapters.
-- `tests/integration`: mocked component interaction flows (Discord + parser + trader wiring).
-- `tests/smoke`: live/read-only environment checks, plus opt-in write-path smoke tests.
-- `tests/tooling`: deterministic tests for test runners and helper scripts.
-- `tests/support`: shared fixtures, fakes, factories, payload builders, and reusable test helpers.
+- `tests/unit`: deterministic logic checks (organized by domain subfolders).
+- `tests/contract`: parser/broker contract checks (organized by domain subfolders).
+- `tests/integration`: deterministic cross-component behavior (organized by domain subfolders).
+- `tests/smoke`: live/read-only environment checks plus opt-in write-path smoke tests.
+- `tests/tooling`: deterministic tests for quality runners and helper scripts.
+- `tests/support`: shared fixtures, fakes, factories, payloads, and case catalogs.
+
+Use `tests/TEST_INDEX.md` to find tests by behavior domain quickly.
 
 ## Test File Purity Policy
 
 - Test modules must contain tests only.
-- Shared setup, helper functions, fakes, factories, and mock classes belong in `tests/support/` or `conftest.py`.
-- CI enforces this with `python -m scripts.check_test_file_purity`.
+- Shared setup/helpers/fakes belong in `tests/support/` or `conftest.py`.
+- CI enforces this via `python -m scripts.check_test_file_purity`.
 
 ## Test Matrix
 
 | Layer | Purpose | Command | External deps | Blocking? |
 |---|---|---|---|---|
-| Paths/Config contracts | Verify path resolution + config loading contract | `pytest tests/unit/test_paths.py` | None | Yes |
-| Parser deterministic contracts | Validate parser output shape and normalization | `pytest tests/contract/test_ai_parser_contract.py tests/unit/test_parser_schema.py` | None | Yes |
+| Paths/Config contracts | Verify path resolution + config loading contract | `pytest tests/unit/config/test_paths.py` | None | Yes |
+| Parser deterministic contracts | Validate parser output normalization and shape | `pytest tests/contract/parser/test_ai_parser_contract.py tests/unit/parser/test_parser_schema.py` | None | Yes |
 | Tooling runner tests | Validate confidence/matrix/flag runner behavior | `pytest tests/tooling` | None | Yes |
-| Discord mocked flow | Verify filtering + notifier/trader behavior deterministically | `pytest tests/integration/test_discord_flow.py` | None | Yes |
-| Message-to-trader deterministic pipeline | Verify real message fixtures flow through parser shape into trader order calls | `pytest tests/integration/test_discord_flow.py -k "real_message_pipeline_fake_ai_to_trader"` | None | Yes |
-| Webull SDK contracts | Verify adapter compatibility + payload builders | `pytest tests/contract/test_webull_contract.py` | None | Yes |
-| AI live smoke | Validate real provider behavior for enabled provider matrix | `TEST_AI_LIVE=1 pytest tests/smoke/test_ai_live_smoke.py -m "smoke and live"` | AI key + network | No |
-| AI->Trader live pipeline | Validate live AI parses incoming message and drives trader path | `TEST_AI_LIVE=1 TEST_AI_SCOPE=sample pytest tests/integration/test_discord_flow.py -k "live_ai_pipeline_message_to_trader" -m "smoke and live"` | AI key + network | No |
-| Webull read smoke | Validate login/account/balance/instrument with real endpoint | `TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/smoke/test_webull_smoke.py -m "smoke and live and not webull_write"` | Webull credentials + network | No (initially) |
-| Discord live smoke | Validate real Discord connectivity and channel access | `TEST_DISCORD_LIVE=1 pytest tests/smoke/test_discord_live_smoke.py -m "discord_live"` | Discord token + network | No |
-| Webull write smoke | Opt-in stock/options write-path checks | `TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=paper pytest tests/smoke/test_webull_smoke.py -m "webull_write"` | Webull trading endpoint + network + market hours | No (opt-in only) |
+| Discord mocked integration | Verify filtering + notifier/trader behavior deterministically | `pytest tests/integration/discord_flow -m integration` | None | Yes |
+| Feature regression subset | Verify high-confidence end-to-end deterministic scenarios | `pytest -m feature_regression` | None | Yes |
+| Webull SDK contracts | Verify adapter compatibility + payload builders | `pytest tests/contract/brokerage/test_webull_contract.py` | None | Yes |
+| AI live smoke | Validate real provider behavior for enabled provider matrix | `TEST_AI_LIVE=1 pytest tests/smoke/ai/test_ai_live_smoke.py -m "smoke and live"` | AI key + network | No |
+| AI->Trader live pipeline | Validate live AI parse + trader wiring | `TEST_AI_LIVE=1 TEST_AI_SCOPE=sample pytest tests/smoke/ai/test_ai_pipeline_live_smoke.py -m "smoke and live"` | AI key + network | No |
+| Webull read smoke | Validate login/account/balance/instrument with real endpoint | `TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/smoke/webull/test_webull_smoke.py -m "smoke and live and not webull_write"` | Webull credentials + network | No (initially) |
+| Discord live smoke | Validate real Discord connectivity and channel access | `TEST_DISCORD_LIVE=1 pytest tests/smoke/discord/test_discord_live_smoke.py -m "discord_live"` | Discord token + network | No |
+| Webull write smoke | Opt-in stock/options write-path checks | `TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=paper pytest tests/smoke/webull/test_webull_smoke.py -m "webull_write"` | Webull trading endpoint + network + market hours | No (opt-in only) |
 
 ## Health Checks
 
@@ -87,6 +65,7 @@ python -m scripts.quality.run_confidence_suite --webull-write 1
 python -m scripts.quality.run_confidence_suite --mode local
 python -m scripts.check_test_file_purity
 pytest
+pytest -m feature_regression
 pytest -m smoke
 python -m scripts.quality.run_health_checks
 TEST_MODE=strict python -m scripts.quality.run_health_checks
@@ -113,37 +92,10 @@ Exit codes:
 
 Configured in `pytest.ini`:
 
-- markers: `unit`, `contract`, `smoke`, `live`, `webull_write`, `discord_live`
-- default test run excludes: `live`, `webull_write`, `discord_live`
-
-## Webull Reality Notes
-
-- Stock order preview is implemented as a local estimate because the installed SDK does not provide a stock preview endpoint equivalent to options preview.
-- Options endpoint behavior can vary by account, region, and Webull backend availability.
-- Options structure is contract-tested locally; live options endpoint failures are treated as non-blocking smoke results for now.
+- markers: `unit`, `contract`, `integration`, `feature_regression`, `smoke`, `live`, `webull_write`, `discord_live`
+- default run excludes: `live`, `webull_write`, `discord_live`
 
 ## Safety Defaults
 
 - Default `pytest` run excludes live and write-path markers.
-- No write-path trading tests run unless explicitly enabled (`TEST_WEBULL_WRITE=1`).
-
-## Environment Flags
-
-- `TEST_MODE` (`local`, `smoke`, `strict`)
-- `TEST_AI_LIVE`
-- `TEST_AI_SCOPE` (`sample`, `full`)
-- `TEST_DISCORD_LIVE`
-- `TEST_WEBULL_READ`
-- `TEST_WEBULL_WRITE`
-- `TEST_WEBULL_ENV` (`paper`, `production`)
-- `TEST_AI_PROVIDERS` (default: `openai,anthropic,google`)
-- `TEST_BROKERS` (default: `webull`)
-
-Runner defaults:
-
-- `python -m scripts.quality.run_full_matrix` runs deterministic + AI live (full scope) + Webull paper/prod read/write + Discord live by default.
-- Use `--skip-discord-live`, `--skip-webull-prod-write`, or `--ai-scope sample` for a faster subset.
-- `python -m scripts.quality.run_confidence_suite` delegates execution to `python -m scripts.quality.run_health_checks` after setting env flags for the selected mode.
-- `python -m scripts.quality.run_confidence_suite` defaults to `TEST_MODE=strict`.
-- Default strict run uses production Webull target (`TEST_WEBULL_ENV=production`) with write smoke off.
-- Enable write smoke explicitly with `--webull-write 1`.
+- No write-path trading smoke tests run unless explicitly enabled (`TEST_WEBULL_WRITE=1`).

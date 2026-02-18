@@ -6,6 +6,27 @@ from src.trading.orders.planner import StockOrderExecutionPlan
 from tests.support.fakes.broker_probe import BrokerProbe
 
 
+def test_executor_passes_weighting_and_notional_to_broker():
+    broker = BrokerProbe(quote=100.0)
+    planner = MagicMock()
+    planner.plan.return_value = StockOrderExecutionPlan(
+        order_type=OrderType.MARKET,
+        time_in_force=TimeInForce.DAY,
+        extended_hours_trading=False,
+        limit_buffer_bps=50.0,
+        reason="regular_session_market_order",
+    )
+    executor = StockOrderExecutor(broker, planner)
+    base_order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
+
+    executor.execute(base_order, weighting=5.0, notional_dollar_amount=1000.0)
+
+    assert len(broker.orders) == 1
+    _submitted_order, weighting, notional_dollar_amount = broker.orders[0]
+    assert weighting == 5.0
+    assert notional_dollar_amount == 1000.0
+
+
 def test_executor_submits_market_order_once():
     broker = BrokerProbe(quote=100.0)
     planner = MagicMock()

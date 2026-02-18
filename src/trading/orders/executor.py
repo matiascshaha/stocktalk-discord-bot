@@ -19,7 +19,12 @@ class StockOrderExecutor:
         self._broker = broker
         self._planner = planner
 
-    def execute(self, order: StockOrderRequest, weighting: Optional[float] = None) -> Dict[str, Any]:
+    def execute(
+        self,
+        order: StockOrderRequest,
+        weighting: Optional[float] = None,
+        notional_dollar_amount: Optional[float] = None,
+    ) -> Dict[str, Any]:
         plan = self._planner.plan()
         final_order = self._build_order(order, plan)
         logger.info(
@@ -32,7 +37,18 @@ class StockOrderExecutor:
             final_order.time_in_force,
             final_order.extended_hours_trading,
         )
-        return self._broker.place_stock_order(final_order, weighting=weighting)
+        if notional_dollar_amount is None:
+            return self._broker.place_stock_order(final_order, weighting=weighting)
+
+        try:
+            return self._broker.place_stock_order(
+                final_order,
+                weighting=weighting,
+                notional_dollar_amount=notional_dollar_amount,
+            )
+        except TypeError:
+            logger.warning("Broker does not accept notional_dollar_amount; falling back to weighting-only call")
+            return self._broker.place_stock_order(final_order, weighting=weighting)
 
     def _build_order(self, order: StockOrderRequest, plan: StockOrderExecutionPlan) -> StockOrderRequest:
         if plan.order_type == OrderType.MARKET:
