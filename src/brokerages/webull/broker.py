@@ -14,9 +14,9 @@ class WebullBroker:
     def __init__(self, trader: WebullTrader):
         self._trader = trader
 
-    def place_stock_order(self, order: StockOrder, sizing_percent: Optional[float] = None) -> OrderResult:
+    def place_stock_order(self, order: StockOrder, weighting: Optional[float] = None) -> OrderResult:
         webull_order = to_webull_stock_order(order)
-        response = self._trader.place_stock_order(webull_order, weighting=sizing_percent)
+        response = self._trader.place_stock_order(webull_order, weighting=weighting)
         return to_order_result(response)
 
     def get_limit_reference_price(self, symbol: str, side: str) -> Optional[float]:

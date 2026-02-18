@@ -1,8 +1,9 @@
 """Canonical trading order contracts used across broker adapters."""
 
-from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class OrderSide(str, Enum):
@@ -28,48 +29,33 @@ class TradingSession(str, Enum):
     NIGHT = "NIGHT"
 
 
-@dataclass
-class StockOrder:
+class StockOrder(BaseModel):
     """Broker-agnostic stock order."""
 
-    symbol: str
+    model_config = ConfigDict(use_enum_values=True)
+
+    symbol: str = Field(..., min_length=1)
     side: OrderSide
-    quantity: float
-    order_type: OrderType = OrderType.MARKET
-    limit_price: Optional[float] = None
-    time_in_force: TimeInForce = TimeInForce.DAY
-    trading_session: TradingSession = TradingSession.CORE
-    extended_hours_trading: bool = False
+    quantity: float = Field(..., gt=0)
+    order_type: OrderType = Field(OrderType.MARKET)
+    limit_price: Optional[float] = Field(None, gt=0)
+    time_in_force: TimeInForce = Field(TimeInForce.DAY)
+    trading_session: TradingSession = Field(TradingSession.CORE)
+    extended_hours_trading: bool = Field(False)
 
-    def __post_init__(self):
-        self.symbol = str(self.symbol or "").upper().replace("$", "").strip()
-        if not self.symbol:
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def normalize_symbol(cls, value: str) -> str:
+        symbol = str(value or "").upper().replace("$", "").strip()
+        if not symbol:
             raise ValueError("symbol is required")
+        return symbol
 
-        self.side = self._coerce_enum(self.side, OrderSide, "side")
-        self.order_type = self._coerce_enum(self.order_type, OrderType, "order_type")
-        self.time_in_force = self._coerce_enum(self.time_in_force, TimeInForce, "time_in_force")
-        self.trading_session = self._coerce_enum(self.trading_session, TradingSession, "trading_session")
-
-        self.quantity = float(self.quantity)
-        if self.quantity <= 0:
-            raise ValueError("quantity must be > 0")
-
-        if self.order_type == OrderType.LIMIT:
-            if self.limit_price is None:
-                raise ValueError("limit_price is required for LIMIT orders")
-            self.limit_price = float(self.limit_price)
-            if self.limit_price <= 0:
-                raise ValueError("limit_price must be > 0")
-        elif self.limit_price is not None:
-            self.limit_price = float(self.limit_price)
-
-    def _coerce_enum(self, value, enum_cls, field_name: str):
-        if isinstance(value, enum_cls):
-            return value
-        raw = str(value or "").upper().strip()
-        try:
-            return enum_cls(raw)
-        except ValueError as exc:
-            raise ValueError(f"{field_name} must be one of {[e.value for e in enum_cls]}") from exc
-
+    @field_validator("limit_price")
+    @classmethod
+    def validate_limit_price(cls, value: Optional[float], info):
+        order_type = info.data.get("order_type")
+        normalized_type = getattr(order_type, "value", order_type)
+        if str(normalized_type).upper() == OrderType.LIMIT.value and value is None:
+            raise ValueError("limit_price is required for LIMIT orders")
+        return value

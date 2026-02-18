@@ -11,13 +11,12 @@ class PublicBroker:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self._config = config or {}
 
-    def place_stock_order(self, order: StockOrder, sizing_percent: Optional[float] = None) -> OrderResult:
+    def place_stock_order(self, order: StockOrder, weighting: Optional[float] = None) -> OrderResult:
         _ = order
-        _ = sizing_percent
+        _ = weighting
         raise NotImplementedError("Public broker stock execution is not implemented yet.")
 
     def get_limit_reference_price(self, symbol: str, side: str) -> Optional[float]:
         _ = symbol
         _ = side
         raise NotImplementedError("Public broker quote resolution is not implemented yet.")
-

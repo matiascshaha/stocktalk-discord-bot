@@ -8,7 +8,7 @@ from src.trading.contracts import OrderResult, StockOrder
 class StockOrderBrokerPort(Protocol):
     """Stock execution operations required by order routing."""
 
-    def place_stock_order(self, order: StockOrder, sizing_percent: Optional[float] = None) -> OrderResult:
+    def place_stock_order(self, order: StockOrder, weighting: Optional[float] = None) -> OrderResult:
         ...
 
 
@@ -21,4 +21,3 @@ class MarketDataPort(Protocol):
 
 class TradingBrokerPort(StockOrderBrokerPort, MarketDataPort, Protocol):
     """Composed broker contract for stock execution flow."""
-

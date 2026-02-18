@@ -1,21 +1,19 @@
 """Canonical execution result contracts returned by broker adapters."""
 
-from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
+from pydantic import BaseModel, Field
 
-@dataclass(frozen=True)
-class OrderError:
+
+class OrderError(BaseModel):
     code: str
     message: str
     retryable: bool = False
 
 
-@dataclass
-class OrderResult:
+class OrderResult(BaseModel):
     broker: str
     success: bool
-    raw: Dict[str, Any] = field(default_factory=dict)
+    raw: Dict[str, Any] = Field(default_factory=dict)
     order_id: Optional[str] = None
     error: Optional[OrderError] = None
-

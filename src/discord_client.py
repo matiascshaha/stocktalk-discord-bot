@@ -124,7 +124,7 @@ class StockMonitorClient:
                     if not order:
                         continue
                     try:
-                        self.order_executor.execute(order, sizing_percent=signal.weight_percent)
+                        self.order_executor.execute(order, weighting=signal.weight_percent)
                     except Exception as exc:
                         logger.error(
                             "Trade execution failed for %s %s (%s): %s",
