@@ -428,6 +428,13 @@ class WebullTrader:
         snapshots = response.json()
         logger.info(f"Fetched {len(snapshots)} market snapshots for symbols: {symbols}")
         return snapshots
+
+    def get_stock_quotes(self, symbol: str, category: str = "US_STOCK") -> Any:
+        response = self.market_data_api.get_quotes(symbol, category)
+        self._check_response(response, "get_stock_quotes")
+        quotes = response.json()
+        logger.info("Fetched stock quotes for symbol: %s", symbol)
+        return quotes
     
     def get_current_stock_quote(self, symbol: str) -> Optional[float]:
         snapshots = self.get_market_snapshot(symbol, category="US_STOCK")

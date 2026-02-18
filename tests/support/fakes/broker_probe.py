@@ -7,7 +7,7 @@ class BrokerProbe:
         self.orders.append((order, weighting))
         return {"ok": True}
 
-    def get_current_stock_quote(self, symbol):
+    def get_limit_reference_price(self, symbol, side):
         _ = symbol
+        _ = side
         return self.quote
-

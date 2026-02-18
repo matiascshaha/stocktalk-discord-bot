@@ -97,6 +97,7 @@ async def test_off_hours_uses_queued_limit_without_retry(monkeypatch):
     monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
 
     trader = MagicMock()
+    trader.get_stock_quotes = MagicMock(return_value=[{"asks": [{"price": "100.0"}], "bids": [{"price": "99.9"}]}])
     trader.get_current_stock_quote = MagicMock(return_value=100.0)
     client = StockMonitorClient(trader=trader)
     type(client.client).user = SimpleNamespace(id=999)

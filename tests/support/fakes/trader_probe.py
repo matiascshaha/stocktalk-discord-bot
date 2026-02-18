@@ -20,6 +20,11 @@ class TraderProbe:
         self.orders.append((order, weighting))
         return {"ok": True}
 
+    def get_stock_quotes(self, symbol, category="US_STOCK"):
+        _ = symbol
+        _ = category
+        return [{"asks": [{"price": 100.0}], "bids": [{"price": 99.9}], "price": 100.0}]
+
     def get_current_stock_quote(self, symbol):
         _ = symbol
         return 100.0

@@ -46,9 +46,9 @@ class StockOrderExecutor:
                 trading_session=order.trading_session,
             )
 
-        quote = self._broker.get_current_stock_quote(order.symbol)
+        quote = self._broker.get_limit_reference_price(order.symbol, str(order.side))
         if quote is None:
-            raise ValueError(f"Unable to fetch quote for symbol {order.symbol}")
+            raise ValueError(f"Unable to fetch executable reference price for symbol {order.symbol}")
 
         limit_price = compute_buffered_limit_price(str(order.side), float(quote), plan.limit_buffer_bps)
         return StockOrderRequest(

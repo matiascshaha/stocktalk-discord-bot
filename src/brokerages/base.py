@@ -11,6 +11,5 @@ class Brokerage(Protocol):
     def place_stock_order(self, order: StockOrderRequest, weighting: Optional[float] = None) -> Dict[str, Any]:
         ...
 
-    def get_current_stock_quote(self, symbol: str) -> Optional[float]:
+    def get_limit_reference_price(self, symbol: str, side: str) -> Optional[float]:
         ...
-
