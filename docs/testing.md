@@ -8,8 +8,9 @@
 
 ## Test layout policy
 
-- `tests/unit`, `tests/contract`, `tests/integration`, `tests/smoke` are application behavior tests.
-- `tests/tooling` is reserved for tests of test runners and support scripts.
+- Top-level test folders are domain-first: `tests/unit`, `tests/parser`, `tests/channels`, `tests/brokers`, `tests/system`.
+- Strategy split happens inside domains as needed: `contract`, `integration`, `smoke`.
+- Marker taxonomy is orthogonal and standardized (`unit|contract|integration|e2e`, `smoke`, `live`, `write`, plus domain markers).
 - Shared test setup belongs in `conftest.py` or `tests/support/`, not in test modules.
 
 ## Test module purity

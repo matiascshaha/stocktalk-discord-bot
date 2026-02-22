@@ -1,7 +1,12 @@
 from datetime import datetime
 
+import pytest
+
 import src.trading.orders.planner as planner_module
 from src.trading.orders.planner import StockOrderExecutionPlanner
+
+
+pytestmark = pytest.mark.unit
 
 
 def test_plan_uses_market_order_during_regular_session(monkeypatch):
@@ -82,4 +87,3 @@ def test_plan_forced_limit_when_market_orders_disabled(monkeypatch):
     assert plan.order_type == "LIMIT"
     assert plan.time_in_force == "DAY"
     assert plan.reason == "config_forced_limit_order"
-

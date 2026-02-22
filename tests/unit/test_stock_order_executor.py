@@ -1,9 +1,14 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.models.webull_models import OrderSide, OrderType, StockOrderRequest, TimeInForce
 from src.trading.orders.executor import StockOrderExecutor
 from src.trading.orders.planner import StockOrderExecutionPlan
 from tests.support.fakes.broker_probe import BrokerProbe
+
+
+pytestmark = pytest.mark.unit
 
 
 def test_executor_submits_market_order_once():

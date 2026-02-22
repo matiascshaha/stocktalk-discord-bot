@@ -7,8 +7,9 @@ from tests.data.stocktalk_real_messages import REAL_MESSAGES
 from tests.support.factories.parser import parser_with_fake_openai_response
 
 
-@pytest.mark.unit
-@pytest.mark.contract
+pytestmark = [pytest.mark.contract, pytest.mark.parser]
+
+
 def test_parse_no_client_returns_empty_result():
     parser = AIParser()
     parser.client = None
@@ -20,8 +21,6 @@ def test_parse_no_client_returns_empty_result():
     assert result["meta"]["status"] == "no_client"
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 def test_parse_malformed_json_returns_invalid_json_status():
     parser = parser_with_fake_openai_response("not-json")
 
@@ -30,8 +29,6 @@ def test_parse_malformed_json_returns_invalid_json_status():
     assert result["meta"]["status"] == "invalid_json"
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 def test_parse_normalizes_signal_list_response():
     parser = parser_with_fake_openai_response(
         '[{"ticker":"AAPL","action":"BUY","confidence":0.8,"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}]'
@@ -43,8 +40,6 @@ def test_parse_normalizes_signal_list_response():
     assert result["signals"][0]["ticker"] == "AAPL"
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 def test_parse_normalizes_single_signal_dict_response():
     parser = parser_with_fake_openai_response(
         '{"ticker":"MSFT","action":"BUY","confidence":0.7,"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}'
@@ -56,8 +51,6 @@ def test_parse_normalizes_single_signal_dict_response():
     assert result["signals"][0]["ticker"] == "MSFT"
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", REAL_MESSAGES)
 def test_regression_real_messages_with_fixed_ai_contract(msg_id, author, text, should_pick, tickers):
     _ = msg_id

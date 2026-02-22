@@ -6,8 +6,9 @@ from tests.data.stocktalk_real_messages import REAL_MESSAGES
 from tests.support.fakes.ai_clients import CapturingOpenAIClient, ErrorOpenAIClient, FakeOpenAIClient
 
 
-@pytest.mark.contract
-@pytest.mark.unit
+pytestmark = pytest.mark.unit
+
+
 def test_parser_output_has_required_signal_fields_for_runtime():
     parser = AIParser()
     parser.provider = "openai"
@@ -55,8 +56,6 @@ def test_parser_output_has_required_signal_fields_for_runtime():
     assert signal.vehicles[0].intent == "EXECUTE"
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_parser_drops_invalid_signal_entries():
     parser = AIParser()
     parser.provider = "openai"
@@ -82,8 +81,6 @@ def test_parser_drops_invalid_signal_entries():
     assert result["signals"][0]["ticker"] == "MSFT"
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_parser_normalizes_invalid_action_to_none():
     parser = AIParser()
     parser.provider = "openai"
@@ -107,8 +104,6 @@ def test_parser_normalizes_invalid_action_to_none():
     assert parsed.signals[0].action == "NONE"
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_parser_disables_option_vehicle_when_options_flag_off():
     parser = AIParser()
     parser.provider = "openai"
@@ -144,8 +139,6 @@ def test_parser_disables_option_vehicle_when_options_flag_off():
     assert option_vehicle.enabled is False
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_openai_request_uses_structured_output_response_format():
     parser = AIParser()
     parser.provider = "openai"
@@ -178,8 +171,6 @@ def test_openai_request_uses_structured_output_response_format():
         assert key in schema["required"]
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_openai_request_failure_returns_provider_error():
     parser = AIParser()
     parser.provider = "openai"
@@ -192,8 +183,6 @@ def test_openai_request_failure_returns_provider_error():
     assert "response_format" in parser.client.calls[0]
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_portfolio_summary_is_prompt_handled_not_preblocked():
     parser = AIParser()
     parser.provider = "openai"

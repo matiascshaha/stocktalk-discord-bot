@@ -11,7 +11,7 @@ from src.utils.paths import (
     resolve_user_path,
 )
 
-pytestmark = [pytest.mark.unit, pytest.mark.contract]
+pytestmark = pytest.mark.unit
 
 
 def test_project_root_shape():

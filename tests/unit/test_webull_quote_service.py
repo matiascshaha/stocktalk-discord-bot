@@ -5,6 +5,9 @@ import pytest
 from src.brokerages.webull.quote_service import resolve_limit_reference_price
 
 
+pytestmark = pytest.mark.unit
+
+
 def test_resolve_limit_reference_price_prefers_l1_ask_for_buy():
     trader = MagicMock()
     trader.get_stock_quotes.return_value = [{"asks": [{"price": "101.25"}], "bids": [{"price": "101.20"}]}]
