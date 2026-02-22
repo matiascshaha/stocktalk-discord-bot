@@ -2,6 +2,8 @@ import pytest
 
 from tests.support.matrix import has_real_credential
 
+pytestmark = [pytest.mark.unit]
+
 
 pytestmark = pytest.mark.unit
 
