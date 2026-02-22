@@ -1,7 +1,16 @@
 from datetime import datetime
 
+import pytest
+
 import src.trading.orders.planner as planner_module
-from src.trading.orders.planner import StockOrderExecutionPlanner
+from src.trading.orders.planner import (
+    StockOrderExecutionPlanner,
+    _resolve_buffer_bps,
+    _resolve_time_in_force,
+)
+from src.trading.contracts import TimeInForce
+
+pytestmark = [pytest.mark.unit]
 
 
 def test_plan_uses_market_order_during_regular_session(monkeypatch):
@@ -83,3 +92,21 @@ def test_plan_forced_limit_when_market_orders_disabled(monkeypatch):
     assert plan.time_in_force == "DAY"
     assert plan.reason == "config_forced_limit_order"
 
+
+def test_resolve_time_in_force_accepts_valid_upper_and_lower():
+    assert _resolve_time_in_force("day", TimeInForce.GTC) == TimeInForce.DAY
+    assert _resolve_time_in_force(" IOC ", TimeInForce.GTC) == TimeInForce.IOC
+
+
+def test_resolve_time_in_force_falls_back_to_default_for_invalid():
+    assert _resolve_time_in_force("bad", TimeInForce.FOK) == TimeInForce.FOK
+    assert _resolve_time_in_force(None, TimeInForce.GTC) == TimeInForce.GTC
+
+
+def test_resolve_buffer_bps_parses_numeric_and_clamps_negative():
+    assert _resolve_buffer_bps("75.5") == 75.5
+    assert _resolve_buffer_bps(-1) == 0.0
+
+
+def test_resolve_buffer_bps_uses_default_for_invalid():
+    assert _resolve_buffer_bps("bad", default=33.0) == 33.0

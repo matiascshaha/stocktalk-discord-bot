@@ -1,4 +1,8 @@
+import pytest
+
 from tests.support.matrix import has_real_credential
+
+pytestmark = [pytest.mark.unit]
 
 
 def test_has_real_credential_rejects_empty():
