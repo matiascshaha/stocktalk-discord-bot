@@ -1,4 +1,9 @@
+import pytest
+
 from scripts.quality.run_full_matrix import _select_scenarios, build_scenarios
+
+
+pytestmark = [pytest.mark.integration, pytest.mark.system]
 
 
 def test_build_scenarios_defaults():

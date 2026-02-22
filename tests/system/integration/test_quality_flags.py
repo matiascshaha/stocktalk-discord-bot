@@ -3,6 +3,9 @@ import pytest
 from scripts.quality.quality_flags import resolve_test_flags
 
 
+pytestmark = [pytest.mark.integration, pytest.mark.system]
+
+
 def test_resolve_test_flags_local_defaults():
     flags = resolve_test_flags({}, default_mode="local")
     assert flags.mode == "local"

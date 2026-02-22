@@ -7,8 +7,9 @@ from tests.data.stocktalk_real_messages import REAL_MESSAGES
 from tests.support.matrix import ai_provider_has_credentials
 
 
-@pytest.mark.smoke
-@pytest.mark.live
+pytestmark = [pytest.mark.e2e, pytest.mark.smoke, pytest.mark.live, pytest.mark.parser]
+
+
 @pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", REAL_MESSAGES)
 def test_live_ai_smoke(msg_id, author, text, should_pick, tickers, ai_smoke_providers, configured_ai_provider):
     if os.getenv("TEST_AI_LIVE", "0") != "1":

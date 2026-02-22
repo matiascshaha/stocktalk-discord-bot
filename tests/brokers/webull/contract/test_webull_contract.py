@@ -5,8 +5,9 @@ import pytest
 from src.models.webull_models import OptionLeg, OptionOrderRequest, OptionType, OrderSide, OrderType, StockOrderRequest
 
 
-@pytest.mark.contract
-@pytest.mark.unit
+pytestmark = [pytest.mark.contract, pytest.mark.broker, pytest.mark.broker_webull]
+
+
 def test_sdk_method_compatibility(trader):
     v1_methods = {method for method in dir(trader.order_api) if not method.startswith("_")}
     v2_methods = {method for method in dir(trader.order_v2_api) if not method.startswith("_")}
@@ -16,8 +17,6 @@ def test_sdk_method_compatibility(trader):
     assert "place_option" in v2_methods
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_build_stock_payload(trader):
     trader.get_instrument = MagicMock(return_value=[{"instrument_id": "AAPL_ID", "last_price": 200.0}])
     order = StockOrderRequest(
@@ -36,8 +35,6 @@ def test_build_stock_payload(trader):
     assert payload["limit_price"] == "190.0"
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_build_stock_payload_normalizes_fractional_quantity_to_whole_share(trader):
     trader.get_instrument = MagicMock(return_value=[{"instrument_id": "AAPL_ID", "last_price": 200.0}])
     order = StockOrderRequest(
@@ -51,8 +48,6 @@ def test_build_stock_payload_normalizes_fractional_quantity_to_whole_share(trade
     assert payload["qty"] == 2
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_build_stock_payload_rejects_sub_share_quantity(trader):
     trader.get_instrument = MagicMock(return_value=[{"instrument_id": "AAPL_ID", "last_price": 200.0}])
     order = StockOrderRequest(
@@ -66,8 +61,6 @@ def test_build_stock_payload_rejects_sub_share_quantity(trader):
         trader._build_stock_payload(order)
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_option_order_model_dump_contains_expected_fields(trader):
     order = OptionOrderRequest(
         order_type=OrderType.LIMIT,
@@ -95,8 +88,6 @@ def test_option_order_model_dump_contains_expected_fields(trader):
     assert payload["legs"][0]["market"] == "US"
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_preview_stock_order_local_estimate(trader):
     trader.get_instrument = MagicMock(return_value=[{"instrument_id": "AAPL_ID", "last_price": 150.0}])
     order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=2, order_type=OrderType.MARKET)
@@ -106,8 +97,6 @@ def test_preview_stock_order_local_estimate(trader):
     assert preview.currency is not None
 
 
-@pytest.mark.contract
-@pytest.mark.unit
 def test_get_instrument_raises_on_bad_response(trader):
     response = MagicMock(status_code=500, text="bad response")
     trader.instrument_api.get_instrument = MagicMock(return_value=response)

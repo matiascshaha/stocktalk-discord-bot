@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p artifacts
           python -m scripts.check_test_file_purity
-          python -m pytest tests/unit tests/contract tests/integration tests/tooling --junitxml=artifacts/junit-deterministic.xml
+          python -m pytest tests -m "not smoke and not live and not write" --junitxml=artifacts/junit-deterministic.xml
 
       - name: Upload deterministic artifacts
         if: always()
@@ -72,7 +72,7 @@ jobs:
       - name: Run external smoke (read-only)
         run: |
           mkdir -p artifacts
-          python -m pytest tests/smoke/test_webull_smoke.py -m "smoke and live and not webull_write" --junitxml=artifacts/junit-external-smoke.xml
+          python -m pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write and broker and broker_webull" --junitxml=artifacts/junit-external-smoke.xml
 
       - name: Upload external smoke artifacts
         if: always()

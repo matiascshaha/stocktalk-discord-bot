@@ -13,8 +13,9 @@ from tests.support.webull_smoke_helpers import (
 )
 
 
-@pytest.mark.smoke
-@pytest.mark.live
+pytestmark = [pytest.mark.e2e, pytest.mark.smoke, pytest.mark.live, pytest.mark.broker, pytest.mark.broker_webull]
+
+
 def test_webull_read_smoke_login(broker_matrix):
     require_webull_enabled(broker_matrix)
     if os.getenv("TEST_WEBULL_READ", "0") != "1":
@@ -41,8 +42,6 @@ def test_webull_read_smoke_login(broker_matrix):
     assert ok is True
 
 
-@pytest.mark.smoke
-@pytest.mark.live
 def test_webull_read_smoke_balance_and_instrument(broker_matrix):
     require_webull_enabled(broker_matrix)
     if os.getenv("TEST_WEBULL_READ", "0") != "1":
@@ -77,9 +76,7 @@ def test_webull_read_smoke_balance_and_instrument(broker_matrix):
     assert len(instruments) > 0
 
 
-@pytest.mark.smoke
-@pytest.mark.live
-@pytest.mark.webull_write
+@pytest.mark.write
 def test_webull_write_smoke_stock_order_opt_in(broker_matrix):
     require_webull_enabled(broker_matrix)
     if os.getenv("TEST_WEBULL_WRITE", "0") != "1":
@@ -124,9 +121,7 @@ def test_webull_write_smoke_stock_order_opt_in(broker_matrix):
     assert isinstance(result, dict)
 
 
-@pytest.mark.smoke
-@pytest.mark.live
-@pytest.mark.webull_write
+@pytest.mark.write
 def test_webull_write_smoke_option_order_opt_in_non_blocking(broker_matrix):
     require_webull_enabled(broker_matrix)
     if os.getenv("TEST_WEBULL_WRITE", "0") != "1":
