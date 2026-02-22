@@ -19,46 +19,46 @@ Discord message -> structured signal -> optional trade execution.
 
 ```mermaid
 flowchart TB
-    subgraph Boot["Boot Sequence (`src/main.py`)"]
-        M["`python -m src.main`"] --> V["`validate_config()`"]
-        V --> AT{"`trading.auto_trade`?"}
-        AT -- "false" --> MON["Monitor-only mode<br/>(no broker runtime)"]
-        AT -- "true" --> BR["`create_broker_runtime(...)`"]
-        BR --> BK{"`trading.broker`"}
-        BK -- "webull" --> WB["`WebullTrader.login()`<br/>`WebullBroker` adapter"]
-        BK -- "public" --> PB["`PublicBroker` adapter<br/>(scaffold)"]
+    subgraph Boot["Boot Sequence (src/main.py)"]
+        M["python -m src.main"] --> V["validate_config()"]
+        V --> AT{"trading.auto_trade?"}
+        AT -- "false" --> MON["Monitor-only mode (no broker runtime)"]
+        AT -- "true" --> BR["create_broker_runtime(...)"]
+        BR --> BK{"trading.broker"}
+        BK -- "webull" --> WB["WebullTrader.login() + WebullBroker adapter"]
+        BK -- "public" --> PB["PublicBroker adapter (scaffold)"]
     end
 
-    subgraph Ingest["Message Ingestion (`src/discord_client.py`)"]
-        D["Discord message"] --> G["Guards:<br/>target channel, not self, min length"]
-        G --> P["`AIParser.parse(...)`"]
-        CFG["`config/ai_parser.prompt`"] --> P
-        P --> PD["`providers.parser_dispatch`"]
+    subgraph Ingest["Message Ingestion (src/discord_client.py)"]
+        D["Discord message"] --> G["Guards: target channel, not self, min length"]
+        G --> P["AIParser.parse(...)"]
+        CFG["config/ai_parser.prompt"] --> P
+        P --> PD["providers.parser_dispatch"]
         PD --> OA["OpenAI client"]
         PD --> AN["Anthropic client"]
         PD --> GG["Google client"]
-        P --> PM["`ParsedMessage` contract<br/>(signals, vehicles, meta)"]
-        PM --> N["`Notifier.notify(...)`"]
-        PM --> PL["Append `data/picks_log.jsonl`"]
+        P --> PM["ParsedMessage contract (signals, vehicles, meta)"]
+        PM --> N["Notifier.notify(...)"]
+        PM --> PL["Append data/picks_log.jsonl"]
     end
 
     subgraph Execute["Stock Execution Path (auto-trade only)"]
-        PM --> EV{"Any STOCK vehicle with<br/>`enabled=true`, `intent=EXECUTE`, `side!=NONE`?"}
+        PM --> EV{"Any STOCK vehicle with enabled=true, intent=EXECUTE, side!=NONE?"}
         EV -- "no" --> SK["Skip execution"]
-        EV -- "yes" --> SO["Build `StockOrder`"]
-        SO --> EX["`StockOrderExecutor.execute(...)`"]
-        EX --> SP["`StockOrderExecutionPlanner.plan()`<br/>(market hours + trading config)"]
+        EV -- "yes" --> SO["Build StockOrder"]
+        SO --> EX["StockOrderExecutor.execute(...)"]
+        EX --> SP["StockOrderExecutionPlanner.plan() using market hours + trading config"]
         SP --> OT{"Order type?"}
-        OT -- "MARKET" --> PO["`broker.place_stock_order(...)`"]
-        OT -- "LIMIT" --> Q["`broker.get_limit_reference_price(...)`"]
-        Q --> LP["`compute_buffered_limit_price(...)`"]
+        OT -- "MARKET" --> PO["broker.place_stock_order(...)"]
+        OT -- "LIMIT" --> Q["broker.get_limit_reference_price(...)"]
+        Q --> LP["compute_buffered_limit_price(...)"]
         LP --> PO
-        PO --> AD["`TradingBrokerPort` adapter<br/>(Webull/Public)"]
-        AD --> WT["`WebullTrader.place_stock_order(...)`"]
+        PO --> AD["TradingBrokerPort adapter (Webull/Public)"]
+        AD --> WT["WebullTrader.place_stock_order(...)"]
         WT --> API["Webull OpenAPI"]
     end
 
-    MON -. client starts with `broker=None` .-> Ingest
+    MON -. client starts with broker=None .-> Ingest
     WB -. broker + trading account injected .-> Ingest
     PB -. broker injected .-> Ingest
 ```
