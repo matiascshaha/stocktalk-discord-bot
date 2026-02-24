@@ -174,20 +174,90 @@ class OptionOrderRequest(BaseModel):
 # Response Models (Optional - helpers for parsing Webull responses)
 # ============================================================================
 
-class AccountBalance(BaseModel):
+def _to_optional_float(value: Optional[object]) -> Optional[float]:
+    if value in (None, "", "null"):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+class AccountCurrencyAsset(BaseModel):
     """
-    Account balance information (optional helper).
-    
-    You can use this to parse Webull's balance response,
-    or just use the raw dict from get_account_balance().
+    Webull account-currency asset payload.
+    Matches the nested entries returned under `account_currency_assets`.
     """
-    model_config = ConfigDict(extra='allow')
-    
-    account_id: Optional[str] = None
+    model_config = ConfigDict(extra='ignore')
+
+    currency: Optional[str] = None
+    net_liquidation_value: Optional[float] = None
+    positions_market_value: Optional[float] = None
+    cash_balance: Optional[float] = None
+    margin_power: Optional[float] = None
+    cash_power: Optional[float] = None
     buying_power: Optional[float] = None
-    cash: Optional[float] = None
-    total_value: Optional[float] = None
-    net_liquidation: Optional[float] = None
+    day_buying_power: Optional[float] = None
+    overnight_buying_power: Optional[float] = None
+    stock_power: Optional[float] = None
+    overnight_power: Optional[float] = None
+    option_buying_power: Optional[float] = None
+    pending_incoming: Optional[float] = None
+    cash_frozen: Optional[float] = None
+    available_withdrawal: Optional[float] = None
+    interests_unpaid: Optional[float] = None
+    available_to_transfer: Optional[float] = None
+
+    @field_validator(
+        "net_liquidation_value",
+        "positions_market_value",
+        "cash_balance",
+        "margin_power",
+        "cash_power",
+        "buying_power",
+        "day_buying_power",
+        "overnight_buying_power",
+        "stock_power",
+        "overnight_power",
+        "option_buying_power",
+        "pending_incoming",
+        "cash_frozen",
+        "available_withdrawal",
+        "interests_unpaid",
+        "available_to_transfer",
+        mode="before",
+    )
+    @classmethod
+    def normalize_numeric_fields(cls, value):
+        return _to_optional_float(value)
+
+
+class AccountBalanceResponse(BaseModel):
+    """
+    Webull account balance response contract.
+    """
+    model_config = ConfigDict(extra='ignore')
+
+    account_id: Optional[str] = None
+    total_asset_currency: Optional[str] = None
+    total_market_value: Optional[float] = None
+    total_cash_balance: Optional[float] = None
+    margin_utilization_rate: Optional[float] = None
+    account_currency_assets: List[AccountCurrencyAsset] = Field(default_factory=list)
+
+    @field_validator(
+        "total_market_value",
+        "total_cash_balance",
+        "margin_utilization_rate",
+        mode="before",
+    )
+    @classmethod
+    def normalize_numeric_fields(cls, value):
+        return _to_optional_float(value)
+
+
+# Backward compatibility for existing imports
+AccountBalance = AccountBalanceResponse
 
 
 class Position(BaseModel):
