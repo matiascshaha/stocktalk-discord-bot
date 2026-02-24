@@ -1,0 +1,6 @@
+[Unit]
+Description=Stop Stocktalk service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl stop stocktalk.service

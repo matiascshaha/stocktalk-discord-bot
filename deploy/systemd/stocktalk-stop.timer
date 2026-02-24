@@ -1,0 +1,11 @@
+[Unit]
+Description=Stop Stocktalk after market close weekdays
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 16:10:00
+Timezone=America/New_York
+Persistent=true
+Unit=stocktalk-stop.service
+
+[Install]
+WantedBy=timers.target

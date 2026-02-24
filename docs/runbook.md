@@ -185,3 +185,4 @@ python -m scripts.quality.run_full_matrix --only webull_read_paper,webull_write_
 - Test standards playbook: `docs/test-standards.md`
 - Manual happy-path check: `docs/manual-testing.md`
 - Script details: `docs/SCRIPTS.md`
+- DigitalOcean VM deployment: `docs/deploy-digitalocean.md`
