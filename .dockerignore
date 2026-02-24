@@ -1,0 +1,22 @@
+.git
+.github
+.pytest_cache
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Never send local secrets into build context
+.env
+.env.*
+!.env.example
+
+# Local/runtime artifacts
+artifacts
+data/*.jsonl
+data/*.csv
+*.log
+.DS_Store

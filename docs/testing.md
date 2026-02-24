@@ -1,111 +1,56 @@
-﻿# Testing Commands
+﻿# Testing Structure
 
-Simple command surface for daily testing.
+## Current Layout
 
-## Preferred Runner
-
-```bash
-./scripts/testing/run.sh
-./scripts/testing/run.sh list
+```text
+tests/
+  brokers/
+    webull/
+      contract/
+      smoke/
+  channels/
+    discord/
+      integration/
+      smoke/
+  data/
+  parser/
+    contract/
+    smoke/
+  support/
+    cases/
+    factories/
+    fakes/
+    payloads/
+    tooling/
+  system/
+    integration/
+  unit/
 ```
 
-### Fast local confidence
+## Placement Rules
 
-```bash
-./scripts/testing/run.sh quick
-```
+- `tests/unit/`: deterministic unit-level checks.
+- `tests/parser/`: parser contract + parser smoke/live checks.
+- `tests/channels/discord/`: Discord integration flow + Discord live smoke.
+- `tests/brokers/webull/`: Webull contract checks + Webull live/read/write smoke.
+- `tests/system/integration/`: cross-domain quality/confidence integration checks.
+- `tests/support/`: reusable fakes/factories/helpers/tooling support.
+- `tests/data/`: reusable static test data fixtures.
 
-### Live read-only checks (no production writes)
+## Markers and Default Selection
 
-```bash
-./scripts/testing/run.sh live
-```
+- Marker taxonomy is defined in `pytest.ini`.
+- `pytest` defaults to deterministic scope with `-m "not live and not write"`.
+- `--strict-markers` is enabled; undeclared markers fail collection.
 
-## Domain Commands
+## Purity and Reuse Rules
 
-### Webull
+- `test_*.py` modules should contain tests only.
+- Shared setup goes in `conftest.py`.
+- Shared helpers belong in `tests/support/`.
+- Enforced by `python -m scripts.check_test_file_purity`.
 
-Contract checks:
+## References
 
-```bash
-./scripts/testing/run.sh webull contract
-```
-
-Live read smoke (paper):
-
-```bash
-./scripts/testing/run.sh webull read-paper
-```
-
-Live read smoke (production):
-
-```bash
-./scripts/testing/run.sh webull read-production
-```
-
-Live write smoke (paper only):
-
-```bash
-./scripts/testing/run.sh webull write-paper
-```
-
-Production night write probe (manual + cleanup):
-
-```bash
-./scripts/testing/run.sh webull night-probe YES_IM_LIVE
-```
-
-Shortcut:
-
-```bash
-./scripts/testing/run.sh night YES_IM_LIVE
-```
-
-### Discord
-
-Deterministic flow:
-
-```bash
-./scripts/testing/run.sh discord deterministic
-```
-
-Live smoke:
-
-```bash
-./scripts/testing/run.sh discord live
-```
-
-### AI Parser
-
-Deterministic contract checks:
-
-```bash
-./scripts/testing/run.sh ai deterministic
-```
-
-Live smoke:
-
-```bash
-./scripts/testing/run.sh ai live
-```
-
-## Safety Rules
-
-- `pytest` defaults to `-m "not live and not write"` (`pytest.ini`).
-- Production write checks are manual only.
-- Night probe requires explicit ack: `YES_IM_LIVE`.
-- Night probe sends a tiny non-fillable limit order and immediately cancels it.
-
-## Raw Pytest Equivalents
-
-If you do not want the runner, use these directly:
-
-```bash
-python -m scripts.check_test_file_purity
-python -m pytest tests -m "not smoke and not live and not write"
-TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write"
-TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=paper pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and write"
-TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=production TEST_WEBULL_NIGHT_PROBE=1 TEST_WEBULL_PROD_ACK=YES_IM_LIVE pytest tests/brokers/webull/smoke/test_webull_live.py -k "night_probe_production_manual_cleanup" -m "smoke and live and write"
-TEST_DISCORD_LIVE=1 pytest tests/channels/discord/smoke/test_discord_live.py -m "smoke and live and channel and source_discord"
-TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
-```
+- Detailed strategy and command matrix: `tests/README.md`
+- Manual end-to-end check: `docs/manual-testing.md`

@@ -21,8 +21,9 @@ from webull.trade.trade.v2.order_operation_v2 import OrderOperationV2
 
 from src.utils.logger import setup_logger
 from src.models import *
+from src.trading.buying_power import assert_margin_equity_buffer, resolve_effective_buying_power
 
-from config.settings import WEBULL_CONFIG
+from config.settings import TRADING_CONFIG, WEBULL_CONFIG
 logger = setup_logger("webull_trader")
 
 
@@ -224,13 +225,42 @@ class WebullTrader:
         
         return OrderPreviewResponse.model_validate(preview_data)
 
-    def _get_buying_power(self) -> Optional[float]:
-        """Get buying power (returns None if fails)"""
+    def _get_account_balance_contract(self) -> Optional[AccountBalanceResponse]:
+        """Fetch and validate Webull account-balance payload."""
         try:
-            balance = self.get_account_balance()
-            return float(balance.get('account_currency_assets', {})[0].get('margin_power'))
-        except:
+            return AccountBalanceResponse.model_validate(self.get_account_balance())
+        except Exception as exc:
+            logger.warning("Unable to parse account balance payload: %s", exc)
             return None
+
+    def _get_buying_power(self, balance: Optional[AccountBalanceResponse] = None) -> Optional[float]:
+        """Resolve effective buying power from Webull account payload."""
+        resolved_balance = balance or self._get_account_balance_contract()
+        if resolved_balance is None:
+            return None
+        return self._resolve_effective_buying_power(resolved_balance)
+
+    def _resolve_effective_buying_power(self, balance: AccountBalanceResponse) -> Optional[float]:
+        return resolve_effective_buying_power(balance)
+
+    def _enforce_margin_buffer(self, balance: Optional[AccountBalanceResponse], estimated_trade_notional: float) -> None:
+        """Reject sizing decisions that violate configured margin-equity floor."""
+        threshold = TRADING_CONFIG.get("min_margin_equity_pct")
+        try:
+            threshold_value = float(threshold)
+        except (TypeError, ValueError):
+            logger.warning("Ignoring invalid trading.min_margin_equity_pct=%r", threshold)
+            return
+
+        if threshold_value <= 0:
+            return
+        if balance is None:
+            raise ValueError("Unable to enforce margin buffer: account balance unavailable")
+        assert_margin_equity_buffer(
+            balance=balance,
+            min_margin_equity_pct=threshold_value,
+            estimated_trade_notional=estimated_trade_notional,
+        )
 
     # ============================================================================
     # Order Placement - Stocks
@@ -258,9 +288,12 @@ class WebullTrader:
             price = instrument[0].get("last_price")
             if price is None or price <= 0:
                 raise ValueError(f"Invalid price for symbol {order.symbol}: {price}")
+            balance = self._get_account_balance_contract()
+            self._enforce_margin_buffer(balance, estimated_trade_notional=float(notional_dollar_amount))
             order.quantity = notional_dollar_amount / price
         elif weighting is not None:
-            buying_power = self._get_buying_power()
+            balance = self._get_account_balance_contract()
+            buying_power = self._get_buying_power(balance=balance)
             if buying_power is None:
                 raise ValueError("Unable to fetch buying power for weighting calculation")
             
@@ -268,11 +301,11 @@ class WebullTrader:
             weighting_decimal = weighting / 100.0
             
             stock_price = self.get_current_stock_quote(order.symbol)
-            if stock_price is None:
+            if stock_price is None or stock_price <= 0:
                 raise ValueError(f"Unable to fetch current price for symbol {order.symbol}")
             dollar_amount = buying_power * weighting_decimal
-            
-            order.quantity = int(dollar_amount / stock_price)
+            self._enforce_margin_buffer(balance, estimated_trade_notional=dollar_amount)
+            order.quantity = dollar_amount / stock_price
 
         qty = self._normalize_stock_quantity(order.quantity)
 

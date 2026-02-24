@@ -324,7 +324,7 @@ For reliable go-to-definition and references:
 
 1. **Test Credentials**: Run `python -m scripts.diagnostics.verify_credentials` to verify everything works
 2. **Review AI Providers**: See [AI_PROVIDER_COMPARISON.md](AI_PROVIDER_COMPARISON.md) to choose the best provider
-3. **Review Architecture**: Read `docs/ARCHITECTURE.md`
+3. **Review Architecture**: Read `docs/architecture.md`
 4. **Understand API**: Read `docs/API.md`
 5. **Customize Settings**: Adjust thresholds in `.env`
 6. **Test Thoroughly**: Run in monitor-only mode first
