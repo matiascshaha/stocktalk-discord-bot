@@ -268,12 +268,58 @@ class WebullTrader:
 
     def place_stock_order(self, order: StockOrderRequest, notional_dollar_amount: float = None, weighting: float = None) -> Dict[str, Any]:
         """Place stock order"""
-        # Build and send
-        payload = self._build_stock_payload(order, weighting=weighting, notional_dollar_amount=notional_dollar_amount)
+        resolved_notional = self._resolve_notional_amount(order, notional_dollar_amount)
+
+        if resolved_notional is not None:
+            payload = self._build_stock_payload(order, notional_dollar_amount=resolved_notional)
+        else:
+            try:
+                payload = self._build_stock_payload(order, weighting=weighting)
+            except Exception as exc:
+                if not self._should_fallback_to_default_amount(order, weighting):
+                    raise
+                fallback_notional = self._default_amount()
+                if fallback_notional is None:
+                    raise
+                logger.warning(
+                    "Weighting-based sizing failed for %s (%s); retrying with default_amount=%.2f",
+                    order.symbol,
+                    exc,
+                    fallback_notional,
+                )
+                payload = self._build_stock_payload(order, notional_dollar_amount=fallback_notional)
 
         qty = payload.get("qty", order.quantity)
         return self._execute_order(payload, f"{order.side} {qty} {order.symbol}")
 
+    def _resolve_notional_amount(self, order: StockOrderRequest, explicit_notional: Optional[float]) -> Optional[float]:
+        if explicit_notional is not None:
+            return float(explicit_notional)
+        if not self._should_force_default_amount_for_buy(order):
+            return None
+        default_amount = self._default_amount()
+        if default_amount is None:
+            raise ValueError("Invalid trading.default_amount for forced default-amount sizing")
+        return default_amount
+
+    def _should_force_default_amount_for_buy(self, order: StockOrderRequest) -> bool:
+        if str(order.side).upper() != OrderSide.BUY.value:
+            return False
+        return bool(TRADING_CONFIG.get("force_default_amount_for_buys", True))
+
+    def _should_fallback_to_default_amount(self, order: StockOrderRequest, weighting: Optional[float]) -> bool:
+        if weighting is None:
+            return False
+        if str(order.side).upper() != OrderSide.BUY.value:
+            return False
+        return bool(TRADING_CONFIG.get("fallback_to_default_amount_on_weighting_failure", True))
+
+    def _default_amount(self) -> Optional[float]:
+        try:
+            value = float(TRADING_CONFIG.get("default_amount"))
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
 
     def _build_stock_payload(self, order: StockOrderRequest, notional_dollar_amount: float = None, weighting: float = None) -> Dict[str, Any]:
         """Build stock order payload"""

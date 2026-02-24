@@ -193,6 +193,11 @@ TRADING_CONFIG = {
     'queue_time_in_force': _cfg('trading.queue_time_in_force', 'GTC'),
     'out_of_hours_limit_buffer_bps': _as_float(_cfg('trading.out_of_hours_limit_buffer_bps', 50.0), 50.0),
     'min_margin_equity_pct': _as_float(_cfg('trading.min_margin_equity_pct', 35.0), 35.0),
+    'force_default_amount_for_buys': _as_bool(_cfg('trading.force_default_amount_for_buys', True), True),
+    'fallback_to_default_amount_on_weighting_failure': _as_bool(
+        _cfg('trading.fallback_to_default_amount_on_weighting_failure', True),
+        True,
+    ),
 }
 
 # Notification Settings
