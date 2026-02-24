@@ -18,6 +18,8 @@ from src.models.webull_models import (
     OptionOrderRequest,
 
     # Account Models
+    AccountCurrencyAsset,
+    AccountBalanceResponse,
     AccountBalance,
     Position,
 
@@ -52,6 +54,8 @@ __all__ = [
     "OptionOrderRequest",
 
     # Account Models
+    "AccountCurrencyAsset",
+    "AccountBalanceResponse",
     "AccountBalance",
     "Position",
 

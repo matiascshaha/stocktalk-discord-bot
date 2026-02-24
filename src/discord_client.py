@@ -1,5 +1,6 @@
 import discord
 import json
+import os
 from datetime import datetime
 from typing import Any, Optional
 
@@ -17,6 +18,14 @@ from src.utils.paths import PICKS_LOG_PATH
 from config.settings import DISCORD_TOKEN, CHANNEL_ID, TRADING_CONFIG
 
 logger = setup_logger('discord_client')
+
+
+def _env_enabled(name: str) -> bool:
+    return str(os.getenv(name, "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+ALLOW_ALL_CHANNELS_FOR_TESTING = _env_enabled("DISCORD_ALLOW_ALL_CHANNELS")
+ALLOW_SELF_MESSAGES_FOR_TESTING = _env_enabled("DISCORD_ALLOW_SELF_MESSAGES")
 
 class StockMonitorClient:
     """Discord client for monitoring stock picks"""
@@ -75,11 +84,15 @@ class StockMonitorClient:
     
     async def on_message(self, message):
         """Called when a message is received"""
-        if message.channel.id != CHANNEL_ID:
+        if not ALLOW_ALL_CHANNELS_FOR_TESTING and message.channel.id != CHANNEL_ID:
             logger.debug("Ignoring message from channel %s", message.channel.id)
             return
 
-        if self.client.user and message.author.id == self.client.user.id:
+        if (
+            not ALLOW_SELF_MESSAGES_FOR_TESTING
+            and self.client.user
+            and message.author.id == self.client.user.id
+        ):
             logger.debug("Ignoring own message")
             return
 

@@ -49,7 +49,7 @@ trading:
   # CRITICAL: Toggle between paper trading (UAT/test) and live trading (production)
   # true = Paper trading (us-openapi-alb.uat.webullbroker.com) - SAFE FOR TESTING
   # false = Live trading (api.webull.com) - REAL MONEY - USE WITH CAUTION
-  paper_trade: false
+  paper_trade: true
   
   # Minimum confidence threshold for AI-parsed picks (0.0-1.0)
   # Picks below this confidence will be logged but not executed
@@ -75,6 +75,10 @@ trading:
 
   # Price buffer in basis points for off-hours limit orders.
   out_of_hours_limit_buffer_bps: 50
+
+  # Hard execution guard: reject trades that would drop below this projected margin equity %.
+  # Set to 0 to disable this runtime guard.
+  min_margin_equity_pct: 35
 
 # =============================================================================
 # ACCOUNT CONSTRAINTS (Natural Language)
