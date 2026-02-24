@@ -148,6 +148,32 @@ source .venv/bin/activate
 python -m src.main
 ```
 
+## Docker
+
+Prepare env file:
+
+```bash
+cp .env.example .env
+```
+
+Build image:
+
+```bash
+docker build -t stocktalk-bot .
+```
+
+Run with secrets injected at runtime (do not copy `.env` into image):
+
+```bash
+docker run --rm --env-file .env stocktalk-bot
+```
+
+Or with Compose:
+
+```bash
+docker compose up --build
+```
+
 ## Configuration Files
 
 - Secrets: `.env`
