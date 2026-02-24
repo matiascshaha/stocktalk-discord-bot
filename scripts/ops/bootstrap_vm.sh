@@ -42,7 +42,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 echo "Installing Docker runtime packages..."
 apt-get update
-apt-get install -y --no-install-recommends docker.io docker-compose-plugin ca-certificates curl rsync
+apt-get install -y --no-install-recommends docker.io ca-certificates curl rsync
 
 systemctl enable --now docker
 

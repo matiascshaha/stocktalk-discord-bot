@@ -15,12 +15,13 @@ REGION="${1:-}"
 JSON="$(doctl compute size list --output json)"
 
 SLUG="$(
-  python3 - "${REGION}" <<'PY' <<<"${JSON}"
+  python3 - "${REGION}" "${JSON}" <<'PY'
 import json
 import sys
 
 region = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
-sizes = json.load(sys.stdin)
+raw = sys.argv[2] if len(sys.argv) > 2 else "[]"
+sizes = json.loads(raw)
 
 candidates = []
 for size in sizes:

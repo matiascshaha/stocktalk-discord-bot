@@ -51,6 +51,12 @@ SSH to the Droplet, clone the repo, then:
 sudo ./scripts/ops/bootstrap_vm.sh --start-now
 ```
 
+From local machine, you can connect without hardcoding IP:
+
+```bash
+./scripts/ops/do_ssh_vm.sh stocktalk-vm root
+```
+
 Optional market-hours app schedule (start 09:20 ET, stop 16:10 ET weekdays):
 
 ```bash
