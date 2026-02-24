@@ -307,7 +307,7 @@ class WebullTrader:
         
         # if notional_dollar_amount is specified, calculate quantity
         if notional_dollar_amount is not None:
-            price = instrument[0].get("last_price")
+            price = self._resolve_notional_sizing_price(order, instrument[0])
             if price is None or price <= 0:
                 raise ValueError(f"Invalid price for symbol {order.symbol}: {price}")
             balance = self._get_account_balance_contract()
@@ -533,6 +533,27 @@ class WebullTrader:
         if qty < 1:
             raise ValueError(f"Computed stock quantity must be >= 1 share, got {quantity}")
         return qty
+
+    def _resolve_instrument_price(self, instrument: Dict[str, Any]) -> Optional[float]:
+        for key in ("last_price", "price", "close", "pre_close", "ask_price", "bid_price", "ask", "bid"):
+            value = instrument.get(key)
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                continue
+            if parsed > 0:
+                return parsed
+        return None
+
+    def _resolve_notional_sizing_price(self, order: StockOrderRequest, instrument: Dict[str, Any]) -> Optional[float]:
+        if order.limit_price is not None:
+            try:
+                limit_price = float(order.limit_price)
+            except (TypeError, ValueError):
+                limit_price = None
+            if limit_price is not None and limit_price > 0:
+                return limit_price
+        return self._resolve_instrument_price(instrument)
 
     def _mask_id(self, account_id: str) -> str:
         """Mask account ID for logging"""

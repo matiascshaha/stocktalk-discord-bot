@@ -141,6 +141,49 @@ def test_build_stock_payload_weighting_path_uses_buying_power_and_quote():
     trader._enforce_margin_buffer.assert_called_once_with(balance, estimated_trade_notional=1000.0)
 
 
+def test_build_stock_payload_notional_uses_instrument_price_fallback_chain():
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.get_instrument = MagicMock(
+        return_value=[
+            {
+                "instrument_id": "IID",
+                "last_price": None,
+                "price": "125.0",
+            }
+        ]
+    )
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
+    )
+    trader._enforce_margin_buffer = MagicMock()
+    order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
+
+    payload = trader._build_stock_payload(order, notional_dollar_amount=1000.0)
+
+    assert payload["qty"] == 8
+    trader._enforce_margin_buffer.assert_called_once()
+
+
+def test_build_stock_payload_notional_prefers_limit_price_when_present():
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "IID"}])
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
+    )
+    trader._enforce_margin_buffer = MagicMock()
+    order = StockOrderRequest(
+        symbol="AAPL",
+        side=OrderSide.BUY,
+        quantity=1,
+        order_type=OrderType.LIMIT,
+        limit_price=1.0,
+    )
+
+    payload = trader._build_stock_payload(order, notional_dollar_amount=1000.0)
+
+    assert payload["qty"] == 1000
+
+
 def test_place_stock_order_forces_default_amount_for_buy(monkeypatch):
     trader = WebullTrader.__new__(WebullTrader)
     monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_buys", True)
