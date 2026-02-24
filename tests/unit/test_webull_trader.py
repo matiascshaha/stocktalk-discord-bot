@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 
@@ -139,6 +139,99 @@ def test_build_stock_payload_weighting_path_uses_buying_power_and_quote():
 
     assert payload["qty"] == 20
     trader._enforce_margin_buffer.assert_called_once_with(balance, estimated_trade_notional=1000.0)
+
+
+def test_build_stock_payload_notional_uses_instrument_price_fallback_chain():
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.get_instrument = MagicMock(
+        return_value=[
+            {
+                "instrument_id": "IID",
+                "last_price": None,
+                "price": "125.0",
+            }
+        ]
+    )
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
+    )
+    trader._enforce_margin_buffer = MagicMock()
+    order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
+
+    payload = trader._build_stock_payload(order, notional_dollar_amount=1000.0)
+
+    assert payload["qty"] == 8
+    trader._enforce_margin_buffer.assert_called_once()
+
+
+def test_build_stock_payload_notional_prefers_limit_price_when_present():
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "IID"}])
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
+    )
+    trader._enforce_margin_buffer = MagicMock()
+    order = StockOrderRequest(
+        symbol="AAPL",
+        side=OrderSide.BUY,
+        quantity=1,
+        order_type=OrderType.LIMIT,
+        limit_price=1.0,
+    )
+
+    payload = trader._build_stock_payload(order, notional_dollar_amount=1000.0)
+
+    assert payload["qty"] == 1000
+
+
+def test_place_stock_order_forces_default_amount_for_buy(monkeypatch):
+    trader = WebullTrader.__new__(WebullTrader)
+    monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_buys", True)
+    monkeypatch.setitem(TRADING_CONFIG, "default_amount", 1000.0)
+
+    trader._build_stock_payload = MagicMock(return_value={"qty": 5})
+    trader._execute_order = MagicMock(return_value={"ok": True})
+    order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
+
+    result = trader.place_stock_order(order, weighting=15.0)
+
+    assert result == {"ok": True}
+    trader._build_stock_payload.assert_called_once_with(order, notional_dollar_amount=1000.0)
+
+
+def test_place_stock_order_weighting_failure_falls_back_to_default_amount(monkeypatch):
+    trader = WebullTrader.__new__(WebullTrader)
+    monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_buys", False)
+    monkeypatch.setitem(TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", True)
+    monkeypatch.setitem(TRADING_CONFIG, "default_amount", 1000.0)
+
+    trader._build_stock_payload = MagicMock(side_effect=[RuntimeError("quote unavailable"), {"qty": 10}])
+    trader._execute_order = MagicMock(return_value={"ok": True})
+    order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
+
+    result = trader.place_stock_order(order, weighting=10.0)
+
+    assert result == {"ok": True}
+    assert trader._build_stock_payload.call_args_list == [
+        call(order, weighting=10.0),
+        call(order, notional_dollar_amount=1000.0),
+    ]
+
+
+def test_place_stock_order_sell_does_not_force_or_fallback_default_amount(monkeypatch):
+    trader = WebullTrader.__new__(WebullTrader)
+    monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_buys", True)
+    monkeypatch.setitem(TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", True)
+    monkeypatch.setitem(TRADING_CONFIG, "default_amount", 1000.0)
+
+    trader._build_stock_payload = MagicMock(side_effect=RuntimeError("quote unavailable"))
+    trader._execute_order = MagicMock()
+    order = StockOrderRequest(symbol="AAPL", side=OrderSide.SELL, quantity=1)
+
+    with pytest.raises(RuntimeError, match="quote unavailable"):
+        trader.place_stock_order(order, weighting=10.0)
+
+    trader._build_stock_payload.assert_called_once_with(order, weighting=10.0)
 
 
 def test_resolve_effective_buying_power_adds_cash_and_margin_components():

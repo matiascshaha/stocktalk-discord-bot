@@ -20,8 +20,19 @@ from webull.trade.trade.v2.account_info_v2 import AccountV2
 from webull.trade.trade.v2.order_operation_v2 import OrderOperationV2
 
 from src.utils.logger import setup_logger
-from src.models import *
+from src.brokerages.webull.stock_payload_builder import (
+    WebullStockPayloadBuilder,
+    normalize_stock_quantity,
+)
+from src.models.webull_models import (
+    AccountBalanceResponse,
+    OptionOrderRequest,
+    OrderPreviewResponse,
+    OrderType,
+    StockOrderRequest,
+)
 from src.trading.buying_power import assert_margin_equity_buffer, resolve_effective_buying_power
+from src.trading.orders.sizing import resolve_stock_sizing_decision
 
 from config.settings import TRADING_CONFIG, WEBULL_CONFIG
 logger = setup_logger("webull_trader")
@@ -268,61 +279,57 @@ class WebullTrader:
 
     def place_stock_order(self, order: StockOrderRequest, notional_dollar_amount: float = None, weighting: float = None) -> Dict[str, Any]:
         """Place stock order"""
-        # Build and send
-        payload = self._build_stock_payload(order, weighting=weighting, notional_dollar_amount=notional_dollar_amount)
+        sizing = resolve_stock_sizing_decision(
+            side=order.side,
+            explicit_notional=notional_dollar_amount,
+            weighting=weighting,
+            trading_config=TRADING_CONFIG,
+        )
+        if sizing.notional_dollar_amount is not None:
+            payload = self._build_stock_payload(order, notional_dollar_amount=sizing.notional_dollar_amount)
+        else:
+            try:
+                payload = self._build_stock_payload(order, weighting=sizing.weighting)
+            except Exception as exc:
+                if sizing.fallback_notional_on_weighting_error is None:
+                    raise
+                logger.warning(
+                    "Weighting-based sizing failed for %s (%s); retrying with default_amount=%.2f",
+                    order.symbol,
+                    exc,
+                    sizing.fallback_notional_on_weighting_error,
+                )
+                payload = self._build_stock_payload(
+                    order,
+                    notional_dollar_amount=sizing.fallback_notional_on_weighting_error,
+                )
 
         qty = payload.get("qty", order.quantity)
         return self._execute_order(payload, f"{order.side} {qty} {order.symbol}")
 
+    def _build_stock_payload(
+        self,
+        order: StockOrderRequest,
+        notional_dollar_amount: float = None,
+        weighting: float = None,
+    ) -> Dict[str, Any]:
+        """Build stock payload via dedicated stock sizing/payload module."""
+        builder = self._create_stock_payload_builder()
+        return builder.build(
+            order,
+            notional_dollar_amount=notional_dollar_amount,
+            weighting=weighting,
+        )
 
-    def _build_stock_payload(self, order: StockOrderRequest, notional_dollar_amount: float = None, weighting: float = None) -> Dict[str, Any]:
-        """Build stock order payload"""
-        instrument = self.get_instrument(order.symbol)  # to get
-        if not instrument:
-            raise ValueError(f"Instrument not found for symbol: {order.symbol}")
-        
-        instrument_id = instrument[0].get("instrument_id")
-        
-        # if notional_dollar_amount is specified, calculate quantity
-        if notional_dollar_amount is not None:
-            price = instrument[0].get("last_price")
-            if price is None or price <= 0:
-                raise ValueError(f"Invalid price for symbol {order.symbol}: {price}")
-            balance = self._get_account_balance_contract()
-            self._enforce_margin_buffer(balance, estimated_trade_notional=float(notional_dollar_amount))
-            order.quantity = notional_dollar_amount / price
-        elif weighting is not None:
-            balance = self._get_account_balance_contract()
-            buying_power = self._get_buying_power(balance=balance)
-            if buying_power is None:
-                raise ValueError("Unable to fetch buying power for weighting calculation")
-            
-            # Convert percentage (5.0) to decimal (0.05)
-            weighting_decimal = weighting / 100.0
-            
-            stock_price = self.get_current_stock_quote(order.symbol)
-            if stock_price is None or stock_price <= 0:
-                raise ValueError(f"Unable to fetch current price for symbol {order.symbol}")
-            dollar_amount = buying_power * weighting_decimal
-            self._enforce_margin_buffer(balance, estimated_trade_notional=dollar_amount)
-            order.quantity = dollar_amount / stock_price
-
-        qty = self._normalize_stock_quantity(order.quantity)
-
-        payload = {
-            "client_order_id": uuid.uuid4().hex,
-            "instrument_id": instrument_id,
-            "order_type": order.order_type,
-            "qty": qty,
-            "side": order.side,
-            "tif": order.time_in_force,
-            "extended_hours_trading": order.extended_hours_trading,
-        }
-        
-        if order.order_type == OrderType.LIMIT:
-            payload["limit_price"] = str(order.limit_price)
-        
-        return payload
+    def _create_stock_payload_builder(self) -> WebullStockPayloadBuilder:
+        return WebullStockPayloadBuilder(
+            client_order_id_factory=lambda: uuid.uuid4().hex,
+            get_instrument=self.get_instrument,
+            get_account_balance_contract=self._get_account_balance_contract,
+            get_buying_power=self._get_buying_power,
+            get_current_stock_quote=self.get_current_stock_quote,
+            enforce_margin_buffer=self._enforce_margin_buffer,
+        )
 
     # ============================================================================
     # Order Placement - Options
@@ -503,14 +510,7 @@ class WebullTrader:
         return str(int(quantity)) if quantity.is_integer() else str(quantity)
 
     def _normalize_stock_quantity(self, quantity: float) -> int:
-        """
-        Webull stock orders require whole-share quantity for this flow.
-        Round down fractional inputs and reject non-positive results.
-        """
-        qty = int(float(quantity))
-        if qty < 1:
-            raise ValueError(f"Computed stock quantity must be >= 1 share, got {quantity}")
-        return qty
+        return normalize_stock_quantity(quantity)
 
     def _mask_id(self, account_id: str) -> str:
         """Mask account ID for logging"""
