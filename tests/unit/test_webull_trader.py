@@ -3,7 +3,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.models.webull_models import OptionLeg, OptionOrderRequest, OrderSide, OrderType, StockOrderRequest
+from config.settings import TRADING_CONFIG
+from src.models.webull_models import (
+    AccountBalanceResponse,
+    AccountCurrencyAsset,
+    OptionLeg,
+    OptionOrderRequest,
+    OrderSide,
+    OrderType,
+    StockOrderRequest,
+)
 from src.webull_trader import WebullTrader
 
 
@@ -119,13 +128,75 @@ def test_build_stock_payload_uses_instrument_id_and_limit_price():
 def test_build_stock_payload_weighting_path_uses_buying_power_and_quote():
     trader = WebullTrader.__new__(WebullTrader)
     trader.get_instrument = MagicMock(return_value=[{"instrument_id": "IID", "last_price": 100.0}])
+    balance = AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
+    trader._get_account_balance_contract = MagicMock(return_value=balance)
     trader._get_buying_power = MagicMock(return_value=10000.0)
+    trader._enforce_margin_buffer = MagicMock()
     trader.get_current_stock_quote = MagicMock(return_value=50.0)
     order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
 
     payload = trader._build_stock_payload(order, weighting=10.0)
 
     assert payload["qty"] == 20
+    trader._enforce_margin_buffer.assert_called_once_with(balance, estimated_trade_notional=1000.0)
+
+
+def test_resolve_effective_buying_power_adds_cash_and_margin_components():
+    trader = WebullTrader.__new__(WebullTrader)
+    balance = AccountBalanceResponse(
+        account_currency_assets=[
+            AccountCurrencyAsset(
+                margin_power=3000.0,
+                cash_power=5000.0,
+            )
+        ]
+    )
+
+    buying_power = trader._resolve_effective_buying_power(balance)
+
+    assert buying_power == 8000.0
+
+
+def test_resolve_effective_buying_power_returns_none_when_no_positive_candidate():
+    trader = WebullTrader.__new__(WebullTrader)
+    balance = AccountBalanceResponse(
+        account_currency_assets=[
+            AccountCurrencyAsset(
+                margin_power=0.0,
+                cash_power=0.0,
+                day_buying_power=None,
+            )
+        ]
+    )
+
+    buying_power = trader._resolve_effective_buying_power(balance)
+
+    assert buying_power is None
+
+
+def test_get_buying_power_uses_validated_balance_contract():
+    trader = WebullTrader.__new__(WebullTrader)
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(
+            account_currency_assets=[AccountCurrencyAsset(margin_power=0.0, cash_power=2500.5)]
+        )
+    )
+
+    buying_power = trader._get_buying_power()
+
+    assert buying_power == 2500.5
+
+
+def test_enforce_margin_buffer_rejects_when_projected_ratio_is_below_threshold(monkeypatch):
+    trader = WebullTrader.__new__(WebullTrader)
+    balance = AccountBalanceResponse(
+        total_market_value=10000.0,
+        account_currency_assets=[AccountCurrencyAsset(net_liquidation_value=5000.0)],
+    )
+    monkeypatch.setitem(TRADING_CONFIG, "min_margin_equity_pct", 35.0)
+
+    with pytest.raises(ValueError, match="Margin buffer violated"):
+        trader._enforce_margin_buffer(balance, estimated_trade_notional=5000.0)
 
 
 def test_build_option_payload_formats_symbol_for_limit_order():

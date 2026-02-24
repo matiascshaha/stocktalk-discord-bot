@@ -192,6 +192,7 @@ TRADING_CONFIG = {
     'queue_when_closed': _as_bool(_cfg('trading.queue_when_closed', True), True),
     'queue_time_in_force': _cfg('trading.queue_time_in_force', 'GTC'),
     'out_of_hours_limit_buffer_bps': _as_float(_cfg('trading.out_of_hours_limit_buffer_bps', 50.0), 50.0),
+    'min_margin_equity_pct': _as_float(_cfg('trading.min_margin_equity_pct', 35.0), 35.0),
 }
 
 # Notification Settings
