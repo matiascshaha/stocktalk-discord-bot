@@ -29,6 +29,16 @@ def _resolve_buffer_bps(raw_value: Any, default: float = 50.0) -> float:
     return max(0.0, value)
 
 
+def _resolve_positive_float(raw_value: Any, default: Optional[float] = None) -> Optional[float]:
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return default
+    if value <= 0:
+        return default
+    return value
+
+
 @dataclass(frozen=True)
 class StockOrderExecutionPlan:
     order_type: OrderType
@@ -36,6 +46,7 @@ class StockOrderExecutionPlan:
     extended_hours_trading: bool
     limit_buffer_bps: float
     reason: str
+    buy_limit_price_without_quote: Optional[float] = None
 
 
 class StockOrderExecutionPlanner:
@@ -54,6 +65,10 @@ class StockOrderExecutionPlanner:
         queue_when_closed = bool(self._config.get("queue_when_closed", True))
         extended_hours = bool(self._config.get("extended_hours_trading", False))
         limit_buffer_bps = _resolve_buffer_bps(self._config.get("out_of_hours_limit_buffer_bps"), default=50.0)
+        buy_limit_price_without_quote = _resolve_positive_float(
+            self._config.get("buy_limit_price_without_quote"),
+            default=1.0,
+        )
 
         regular_tif = _resolve_time_in_force(self._config.get("time_in_force"), TimeInForce.DAY)
         queue_tif = _resolve_time_in_force(self._config.get("queue_time_in_force"), TimeInForce.GTC)
@@ -66,6 +81,7 @@ class StockOrderExecutionPlanner:
                 time_in_force=regular_tif,
                 extended_hours_trading=extended_hours,
                 limit_buffer_bps=limit_buffer_bps,
+                buy_limit_price_without_quote=buy_limit_price_without_quote,
                 reason="regular_session_market_order",
             )
 
@@ -75,6 +91,7 @@ class StockOrderExecutionPlanner:
                 time_in_force=queue_tif,
                 extended_hours_trading=extended_hours,
                 limit_buffer_bps=limit_buffer_bps,
+                buy_limit_price_without_quote=buy_limit_price_without_quote,
                 reason="off_hours_queued_limit_order",
             )
 
@@ -84,6 +101,7 @@ class StockOrderExecutionPlanner:
                 time_in_force=regular_tif,
                 extended_hours_trading=extended_hours,
                 limit_buffer_bps=limit_buffer_bps,
+                buy_limit_price_without_quote=buy_limit_price_without_quote,
                 reason="config_forced_limit_order",
             )
 
@@ -92,5 +110,6 @@ class StockOrderExecutionPlanner:
             time_in_force=regular_tif,
             extended_hours_trading=extended_hours,
             limit_buffer_bps=limit_buffer_bps,
+            buy_limit_price_without_quote=buy_limit_price_without_quote,
             reason="off_hours_queue_disabled_market_order",
         )

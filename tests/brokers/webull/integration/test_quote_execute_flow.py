@@ -125,7 +125,7 @@ def test_quote_execute_falls_back_to_instrument_when_snapshot_is_unavailable(mon
     assert placed.limit_price == pytest.approx(99.9)
 
 
-def test_quote_execute_raises_when_all_quote_sources_are_unavailable(monkeypatch):
+def test_quote_execute_uses_fallback_buy_limit_price_when_quotes_are_unavailable(monkeypatch):
     monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: False)
     trader = QuoteAwareTraderProbe(
         quote_payload=[],
@@ -143,15 +143,17 @@ def test_quote_execute_raises_when_all_quote_sources_are_unavailable(monkeypatch
     )
     executor = StockOrderExecutor(broker, planner)
 
-    with pytest.raises(ValueError, match="Unable to fetch executable reference price"):
-        executor.execute(StockOrder(symbol="AAPL", side="BUY", quantity=1))
+    executor.execute(StockOrder(symbol="AAPL", side="BUY", quantity=1))
 
     assert [entry[0] for entry in trader.calls] == [
         "get_stock_quotes",
         "get_current_stock_quote",
         "get_instrument",
+        "place_stock_order",
     ]
-    assert trader.placed_orders == []
+    assert len(trader.placed_orders) == 1
+    placed = trader.placed_orders[0][0]
+    assert placed.limit_price == pytest.approx(1.0)
 
 
 def test_quote_execute_raises_non_permission_quote_errors_without_submit(monkeypatch):

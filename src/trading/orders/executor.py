@@ -59,6 +59,23 @@ class StockOrderExecutor:
         side = _enum_value(order.side)
         quote = self._broker.get_limit_reference_price(order.symbol, side)
         if quote is None:
+            fallback_limit_price = plan.buy_limit_price_without_quote
+            if side == "BUY" and fallback_limit_price is not None:
+                logger.warning(
+                    "Quote unavailable for %s; using configured buy_limit_price_without_quote=%.4f",
+                    order.symbol,
+                    fallback_limit_price,
+                )
+                return StockOrder(
+                    symbol=order.symbol,
+                    side=order.side,
+                    quantity=order.quantity,
+                    order_type=OrderType.LIMIT,
+                    limit_price=fallback_limit_price,
+                    time_in_force=plan.time_in_force,
+                    extended_hours_trading=plan.extended_hours_trading,
+                    trading_session=order.trading_session,
+                )
             raise ValueError(f"Unable to fetch executable reference price for symbol {order.symbol}")
 
         limit_price = compute_buffered_limit_price(side, float(quote), plan.limit_buffer_bps)

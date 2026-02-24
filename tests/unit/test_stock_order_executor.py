@@ -89,6 +89,28 @@ def test_executor_raises_when_limit_reference_price_unavailable():
         executor.execute(base_order)
 
 
+def test_executor_uses_configured_buy_limit_price_when_quote_unavailable():
+    broker = BrokerProbe(quote=None)
+    planner = MagicMock()
+    planner.plan.return_value = StockOrderExecutionPlan(
+        order_type=OrderType.LIMIT,
+        time_in_force=TimeInForce.GTC,
+        extended_hours_trading=False,
+        limit_buffer_bps=50.0,
+        reason="off_hours_queued_limit_order",
+        buy_limit_price_without_quote=1.0,
+    )
+    executor = StockOrderExecutor(broker, planner)
+    base_order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
+
+    executor.execute(base_order)
+
+    assert len(broker.orders) == 1
+    submitted = broker.orders[0][0]
+    assert submitted.order_type == "LIMIT"
+    assert submitted.limit_price == 1.0
+
+
 def test_executor_normalizes_dict_order():
     broker = BrokerProbe(quote=100.0)
     planner = MagicMock()
