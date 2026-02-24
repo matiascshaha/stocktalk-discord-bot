@@ -1,5 +1,7 @@
 ﻿# Testing Structure
 
+Command reference: `docs/runbook.md` (`Testing Commands` section).
+
 ## Current Layout
 
 ```text
@@ -53,4 +55,5 @@ tests/
 ## References
 
 - Detailed strategy and command matrix: `tests/README.md`
+- Command list and workflows: `docs/runbook.md` (`Testing Commands`)
 - Manual end-to-end check: `docs/manual-testing.md`
