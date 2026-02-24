@@ -12,7 +12,7 @@ Read in this order before non-trivial edits:
 
 1. `docs/conventions.md`
 2. `docs/architecture.md`
-3. `docs/development-architecture.md`
+3. `docs/coding-conventions.md`
 4. `docs/python-conventions.md` (for Python code changes)
 5. `docs/testing.md`
 6. `docs/test-standards.md`
