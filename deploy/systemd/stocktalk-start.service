@@ -1,0 +1,6 @@
+[Unit]
+Description=Start Stocktalk service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl start stocktalk.service

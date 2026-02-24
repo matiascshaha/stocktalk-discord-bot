@@ -1,0 +1,11 @@
+[Unit]
+Description=Start Stocktalk at market pre-open weekdays
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 09:20:00
+Timezone=America/New_York
+Persistent=true
+Unit=stocktalk-start.service
+
+[Install]
+WantedBy=timers.target

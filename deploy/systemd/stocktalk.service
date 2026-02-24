@@ -1,0 +1,19 @@
+[Unit]
+Description=Stocktalk Discord Monitor
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/stocktalk
+ExecStartPre=/usr/bin/docker build -t stocktalk-bot:latest /opt/stocktalk
+ExecStartPre=-/usr/bin/docker rm -f stocktalk-bot
+ExecStart=/usr/bin/docker run --name stocktalk-bot --env-file /opt/stocktalk/.env -v /opt/stocktalk/data:/app/data stocktalk-bot:latest
+ExecStop=/usr/bin/docker stop -t 30 stocktalk-bot
+ExecStopPost=-/usr/bin/docker rm -f stocktalk-bot
+Restart=always
+RestartSec=10
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
