@@ -1,5 +1,10 @@
+import pytest
+
 from scripts.quality.run_confidence_suite import _build_env
 from tests.support.tooling.full_confidence import clear_runner_env, make_full_confidence_args
+
+
+pytestmark = [pytest.mark.integration, pytest.mark.system]
 
 
 def test_build_env_local_defaults(monkeypatch):

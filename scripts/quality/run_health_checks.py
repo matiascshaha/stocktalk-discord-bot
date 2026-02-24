@@ -112,7 +112,7 @@ def main() -> int:
                 py,
                 "-m",
                 "pytest",
-                "tests/contract/test_ai_parser_contract.py",
+                "tests/parser/contract/test_parser_contract.py",
                 "tests/unit/test_parser_schema.py",
             ],
             name="parser_deterministic",
@@ -122,7 +122,7 @@ def main() -> int:
 
     checks.append(
         _run(
-            [py, "-m", "pytest", "tests/integration"],
+            [py, "-m", "pytest", "tests/channels/discord/integration"],
             name="discord_mocked",
             external=False,
         )
@@ -130,7 +130,7 @@ def main() -> int:
 
     checks.append(
         _run(
-            [py, "-m", "pytest", "tests/contract/test_webull_contract.py"],
+            [py, "-m", "pytest", "tests/brokers/webull/contract/test_webull_contract.py"],
             name="webull_contract",
             external=False,
         )
@@ -140,7 +140,7 @@ def main() -> int:
         required_external_checks.add("ai_live_smoke")
         checks.append(
             _run(
-                [py, "-m", "pytest", "tests/smoke/test_ai_live_smoke.py", "-m", "smoke and live"],
+                [py, "-m", "pytest", "tests/parser/smoke/test_ai_live.py", "-m", "smoke and live"],
                 name="ai_live_smoke",
                 external=True,
             )
@@ -152,7 +152,7 @@ def main() -> int:
                     py,
                     "-m",
                     "pytest",
-                    "tests/integration/test_discord_flow.py",
+                    "tests/channels/discord/integration/test_message_flow.py",
                     "-k",
                     "live_ai_pipeline_message_to_trader",
                     "-m",
@@ -167,7 +167,7 @@ def main() -> int:
             CheckResult(
                 name="ai_live_smoke",
                 status="skipped",
-                command=f"{py} -m pytest tests/smoke/test_ai_live_smoke.py -m 'smoke and live'",
+                command=f"{py} -m pytest tests/parser/smoke/test_ai_live.py -m 'smoke and live'",
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
@@ -179,7 +179,7 @@ def main() -> int:
                 name="ai_to_trader_live_pipeline",
                 status="skipped",
                 command=(
-                    f"{py} -m pytest tests/integration/test_discord_flow.py "
+                    f"{py} -m pytest tests/channels/discord/integration/test_message_flow.py "
                     "-k live_ai_pipeline_message_to_trader -m 'smoke and live'"
                 ),
                 exit_code=0,
@@ -193,7 +193,14 @@ def main() -> int:
         required_external_checks.add("discord_live_smoke")
         checks.append(
             _run(
-                [py, "-m", "pytest", "tests/smoke/test_discord_live_smoke.py", "-m", "discord_live"],
+                [
+                    py,
+                    "-m",
+                    "pytest",
+                    "tests/channels/discord/smoke/test_discord_live.py",
+                    "-m",
+                    "smoke and live and channel and source_discord",
+                ],
                 name="discord_live_smoke",
                 external=True,
             )
@@ -203,7 +210,10 @@ def main() -> int:
             CheckResult(
                 name="discord_live_smoke",
                 status="skipped",
-                command=f"{py} -m pytest tests/smoke/test_discord_live_smoke.py -m discord_live",
+                command=(
+                    f"{py} -m pytest tests/channels/discord/smoke/test_discord_live.py "
+                    "-m 'smoke and live and channel and source_discord'"
+                ),
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
@@ -219,9 +229,9 @@ def main() -> int:
                     py,
                     "-m",
                     "pytest",
-                    "tests/smoke/test_webull_smoke.py",
+                    "tests/brokers/webull/smoke/test_webull_live.py",
                     "-m",
-                    "smoke and live and not webull_write",
+                    "smoke and live and not write",
                 ],
                 name="webull_read_smoke",
                 external=True,
@@ -232,7 +242,7 @@ def main() -> int:
             CheckResult(
                 name="webull_read_smoke",
                 status="skipped",
-                command=f"{py} -m pytest tests/smoke/test_webull_smoke.py -m 'smoke and live and not webull_write'",
+                command=f"{py} -m pytest tests/brokers/webull/smoke/test_webull_live.py -m 'smoke and live and not write'",
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,
@@ -248,9 +258,9 @@ def main() -> int:
                     py,
                     "-m",
                     "pytest",
-                    "tests/smoke/test_webull_smoke.py",
+                    "tests/brokers/webull/smoke/test_webull_live.py",
                     "-m",
-                    "smoke and live and webull_write",
+                    "smoke and live and write",
                 ],
                 name="webull_write_smoke",
                 external=True,
@@ -261,7 +271,7 @@ def main() -> int:
             CheckResult(
                 name="webull_write_smoke",
                 status="skipped",
-                command=f"{py} -m pytest tests/smoke/test_webull_smoke.py -m 'smoke and live and webull_write'",
+                command=f"{py} -m pytest tests/brokers/webull/smoke/test_webull_live.py -m 'smoke and live and write'",
                 exit_code=0,
                 duration_seconds=0.0,
                 external=True,

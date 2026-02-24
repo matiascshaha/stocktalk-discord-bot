@@ -18,19 +18,18 @@ from tests.support.matrix import ai_provider_has_credentials
 from tests.support.payloads.signals import build_signal_payload
 
 
+pytestmark = [pytest.mark.integration, pytest.mark.channel, pytest.mark.source_discord]
+
+
 PIPELINE_CASES = REAL_MESSAGES[:]
 LIVE_PIPELINE_CASES = select_live_cases(REAL_MESSAGES)
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 def test_client_initializes():
     client = StockMonitorClient(trader=None)
     assert client.client is not None
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_ignores_wrong_channel():
     client = StockMonitorClient(trader=None)
@@ -41,8 +40,6 @@ async def test_ignores_wrong_channel():
     client.parser.parse.assert_not_called()
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_ignores_own_message():
     client = StockMonitorClient(trader=None)
@@ -53,8 +50,6 @@ async def test_ignores_own_message():
     client.parser.parse.assert_not_called()
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_malformed_parser_response_does_not_notify_or_trade():
     trader = MagicMock()
@@ -68,8 +63,6 @@ async def test_malformed_parser_response_does_not_notify_or_trade():
     trader.place_stock_order.assert_not_called()
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_valid_signal_triggers_notify_and_trade():
     trader = MagicMock()
@@ -87,8 +80,6 @@ async def test_valid_signal_triggers_notify_and_trade():
     assert order.side == "BUY"
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_off_hours_uses_queued_limit_without_retry(monkeypatch):
     monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: False)
@@ -114,8 +105,6 @@ async def test_off_hours_uses_queued_limit_without_retry(monkeypatch):
     assert order.time_in_force == "GTC"
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_regular_hours_uses_market_order_without_retry(monkeypatch):
     monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
@@ -136,8 +125,6 @@ async def test_regular_hours_uses_market_order_without_retry(monkeypatch):
     assert order.order_type == "MARKET"
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_sell_signal_triggers_sell_order():
     trader = MagicMock()
@@ -154,8 +141,6 @@ async def test_sell_signal_triggers_sell_order():
     assert order.side == "SELL"
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_hold_signal_does_not_trade():
     trader = MagicMock()
@@ -171,8 +156,6 @@ async def test_hold_signal_does_not_trade():
     trader.place_stock_order.assert_not_called()
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 async def test_trade_failure_does_not_crash_message_handler():
     trader = MagicMock()
@@ -190,8 +173,6 @@ async def test_trade_failure_does_not_crash_message_handler():
     trader.place_stock_order.assert_called_once()
 
 
-@pytest.mark.unit
-@pytest.mark.contract
 @pytest.mark.asyncio
 @pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", PIPELINE_CASES)
 async def test_real_message_pipeline_fake_ai_to_trader(msg_id, author, text, should_pick, tickers):

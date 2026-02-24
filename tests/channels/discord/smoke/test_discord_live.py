@@ -9,9 +9,9 @@ import pytest
 from config.settings import CHANNEL_ID, DISCORD_TOKEN
 
 
-@pytest.mark.smoke
-@pytest.mark.live
-@pytest.mark.discord_live
+pytestmark = [pytest.mark.e2e, pytest.mark.smoke, pytest.mark.live, pytest.mark.channel, pytest.mark.source_discord]
+
+
 def test_discord_live_smoke():
     if os.getenv("TEST_DISCORD_LIVE", "0") != "1":
         pytest.skip("TEST_DISCORD_LIVE != 1")
