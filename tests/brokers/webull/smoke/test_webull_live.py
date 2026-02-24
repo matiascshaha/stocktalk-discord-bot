@@ -14,6 +14,7 @@ from tests.support.webull_smoke_helpers import (
 
 
 pytestmark = [pytest.mark.e2e, pytest.mark.smoke, pytest.mark.live, pytest.mark.broker, pytest.mark.broker_webull]
+PROD_WRITE_ACK = "YES_IM_LIVE"
 
 
 def test_webull_read_smoke_login(broker_matrix):
@@ -89,7 +90,8 @@ def test_webull_write_smoke_stock_order_opt_in(broker_matrix):
         quantity=1,
         order_type=OrderType.LIMIT,
         limit_price=1.0,
-        time_in_force=TimeInForce.DAY,
+        time_in_force=TimeInForce.GTC,
+        extended_hours_trading=True,
     )
 
     try:
@@ -119,6 +121,67 @@ def test_webull_write_smoke_stock_order_opt_in(broker_matrix):
     }
     append_smoke_check(REPORT_PATH, "webull_write_stock_order", "passed", details)
     assert isinstance(result, dict)
+
+
+@pytest.mark.write
+def test_webull_write_night_probe_production_manual_cleanup(broker_matrix):
+    require_webull_enabled(broker_matrix)
+    if os.getenv("TEST_WEBULL_NIGHT_PROBE", "0") != "1":
+        pytest.skip("TEST_WEBULL_NIGHT_PROBE != 1")
+    if os.getenv("TEST_WEBULL_ENV", "paper").strip().lower() != "production":
+        pytest.fail("Night probe must target production account (TEST_WEBULL_ENV=production)")
+    if os.getenv("TEST_WEBULL_PROD_ACK", "") != PROD_WRITE_ACK:
+        pytest.fail(f"Night probe requires TEST_WEBULL_PROD_ACK={PROD_WRITE_ACK}")
+
+    trader = build_webull_smoke_trader()
+    order = StockOrderRequest(
+        symbol="AAPL",
+        side=OrderSide.BUY,
+        quantity=1,
+        order_type=OrderType.LIMIT,
+        limit_price=1.0,
+        time_in_force=TimeInForce.GTC,
+        extended_hours_trading=True,
+    )
+
+    place_error = None
+    cancel_error = None
+    client_order_id = None
+    try:
+        result = trader.place_stock_order(order)
+        if not isinstance(result, dict):
+            raise AssertionError(f"Expected dict response, got {type(result)}")
+        client_order_id = str(result.get("client_order_id") or "")
+        if not client_order_id:
+            raise AssertionError(f"Missing client_order_id in response: {result}")
+    except Exception as exc:
+        place_error = str(exc)
+    finally:
+        if client_order_id:
+            try:
+                account_id = trader.resolve_account_id()
+                cancel_res = trader.order_api.cancel_order(account_id, client_order_id)
+                trader._check_response(cancel_res, "cancel_order")
+            except Exception as exc:
+                cancel_error = str(exc)
+
+    details = {
+        "paper_trade": trader.paper_trade,
+        "endpoint": trader._get_endpoint(),
+        "request_class": "order.place_order + order.cancel_order",
+        "client_order_id_tail": client_order_id[-6:] if client_order_id else None,
+        "place_error": place_error,
+        "cancel_error": cancel_error,
+    }
+    if place_error:
+        append_smoke_check(REPORT_PATH, "webull_write_night_probe_production", "failed", details)
+        pytest.fail(f"Night probe placement failed: {place_error}")
+    if cancel_error:
+        append_smoke_check(REPORT_PATH, "webull_write_night_probe_production", "failed", details)
+        pytest.fail(f"Night probe cleanup failed: {cancel_error}")
+
+    append_smoke_check(REPORT_PATH, "webull_write_night_probe_production", "passed", details)
+    assert client_order_id
 
 
 @pytest.mark.write
