@@ -1,95 +1,59 @@
-﻿# AGENTS.md
+# AGENTS.md
 
-This file defines how AI agents should operate in this repository.
+Agent operating guide for this repository. Keep it simple, accurate, and aligned with docs that are actively maintained.
 
 ## Mission
 
-Deliver correct changes fast by prioritizing context quality over prompt length.
+Ship correct changes fast, with clean structure and minimal churn.
 
-## Non-negotiable workflow
+## Context First (required)
 
-1. Retrieve context first.
-2. Cite evidence (`path:line`) before patching non-trivial tasks.
+Read in this order before non-trivial edits:
+
+1. `docs/conventions.md`
+2. `docs/architecture.md`
+3. `docs/coding-conventions.md`
+4. `docs/python-conventions.md` (for Python code changes)
+5. `docs/testing.md`
+6. `docs/test-standards.md`
+7. `docs/runbook.md`
+8. `docs/system-context/index.md` (when task touches product/platform behavior)
+9. relevant source files/tests
+10. `docs/ai-memory.md` (durable decisions/gotchas)
+
+## Non-Negotiable Workflow
+
+1. Gather context from docs and code first.
+2. Cite evidence (`path:line`) before non-trivial patches.
 3. Make the smallest safe change.
-4. Run validation commands.
-5. Update memory/docs when durable knowledge changes.
+4. Run validation commands from `docs/runbook.md`.
+5. Update docs/memory when behavior or durable decisions change.
 
-## Context fetch order
+## Code Placement Guardrails
 
-1. `docs/architecture.md`
-2. `docs/conventions.md`
-3. `docs/testing.md`
-4. `docs/system-context/index.md` (when task touches product/platform behavior)
-5. Domain docs (`docs/*-patterns.md`, `docs/*-runbook.md`)
-6. Relevant source files and tests
-7. `docs/ai-memory.md` for previous decisions and gotchas
+- Do not dump random helper functions into service/orchestration files.
+- If logic is only used by one class, keep it as a private class method.
+- If logic is shared, move it to a dedicated helper/module with a clear name.
+- Keep adapters thin and focused on mapping/transport.
+- Keep orchestration separate from policy/validation/mapping logic.
+- Keep folder-first organization as domains grow.
 
-## Required output format for implementation tasks
+## Testing Guardrails
 
-1. Relevant evidence list with file references.
-2. Patch summary.
-3. Validation command results.
-4. Risks and follow-ups.
+- Follow `docs/testing.md` for test placement.
+- Follow `docs/test-standards.md` for strategy and test quality.
+- Keep `test_*.py` files test-only; shared helpers go in `tests/support/` or `conftest.py`.
+- Keep default deterministic behavior intact (live/write suites are explicitly gated).
 
-## Validation policy
+## PR and Conflict Workflow
 
-Always run, in this order if available:
-1. Format/lint
-2. Typecheck/static analysis
-3. Targeted tests for changed scope
-4. Full test suite or impacted pipeline checks
+- Follow PR workflow and auto-merge policy in `docs/conventions.md` and `docs/runbook.md`.
+- Always check mergeability before enabling auto-merge.
+- If conflicts exist, ask the requester how to resolve each file before editing conflict blocks.
 
-Use commands from `docs/runbook.md`.
-
-## Change boundaries
+## Change Boundaries
 
 - Do not modify unrelated files.
-- Do not silently change APIs/contracts.
-- If assumptions are required, state them explicitly.
-
-## Project structure policy
-
-- Use folder-first organization for integration domains with multiple responsibilities.
-- Place provider code under `src/providers/<provider>/` and split by concern:
-  - request/transport client logic
-  - contract/schema definitions
-  - mapping/normalization helpers (when needed)
-- Place brokerage integrations under `src/brokerages/<broker>/` with one subpackage per broker (for example `webull`, `public`).
-- Keep brokerage transport/API wrappers separate from runtime execution policy and order-routing logic.
-- Place order-routing and execution decision logic under `src/trading/orders/`; do not embed broker strategy in Discord client adapters.
-- Keep adapters thin (`discord_client`, provider adapters): parse/map/delegate only, with no dumped business policy blocks.
-- Keep parser orchestration in parser modules and keep provider-specific protocol details in provider modules.
-- Avoid single-file dumps for growing domains; introduce subpackages early when it improves navigation and ownership.
-
-## Test structure policy
-
-- Test modules (`test_*.py`) should contain tests only.
-- Shared fixtures belong in `conftest.py`.
-- Shared fakes/factories/payloads/helpers belong in `tests/support/`.
-- Keep application tests in `tests/unit`, `tests/contract`, `tests/integration`, and `tests/smoke`.
-- Keep test-runner/tooling tests in `tests/tooling`.
-- Enforce purity with `python -m scripts.check_test_file_purity` in deterministic CI.
-
-## Memory update rules
-
-Update `docs/ai-memory.md` when discovering durable facts:
-- Stable build/test commands
-- Environment quirks
-- Selector/test flakiness patterns
-- CI failure signatures and fixes
-- Architectural decisions
-
-Every memory entry must include date and owner.
-
-## Escalation triggers
-
-Stop and ask for clarification when:
-- Requirements conflict with existing conventions.
-- Security/compliance boundaries are unclear.
-- Multiple valid solutions have materially different trade-offs.
-
-## Cursor integration note
-
-- Treat `.cursor/rules/*.mdc` as scoped routing rules.
-- Keep durable policy and standards in `AGENTS.md` and `docs/`.
-- If a rule changes behavior expectations, update matching docs in `docs/`.
+- Do not silently change public contracts.
+- State assumptions explicitly when required.
+- If requirements conflict with docs, stop and ask.
