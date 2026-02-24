@@ -1,6 +1,9 @@
 # Environment
 .env
+venv
 venv/
+.venv
+.venv/
 env/
 *.pyc
 __pycache__/
@@ -9,6 +12,7 @@ __pycache__/
 data/*.jsonl
 data/*.csv
 !data/.gitkeep
+artifacts/
 
 # IDE
 .vscode/

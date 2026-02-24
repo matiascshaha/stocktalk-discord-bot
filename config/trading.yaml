@@ -1,0 +1,191 @@
+# StockTalk Trading Configuration
+# Edit this file to configure behavior without touching code.
+# Secrets (Discord token, API keys) should stay in .env.
+# This replaces the old trading.yaml with clearer intent.
+
+version: 1
+
+# =============================================================================
+# DISCORD CONFIGURATION
+# =============================================================================
+discord:
+  # Target channel to monitor for analyst signals
+  channel_id: 1229546005788098580
+
+# =============================================================================
+# AI/PARSING CONFIGURATION
+# =============================================================================
+ai:
+  # Provider options: openai | anthropic | google | none
+  # If unset, the app will pick the first available key in .env
+  provider: auto
+
+  # If true, falls back to any available provider if the preferred one fails
+  fallback_to_available_provider: true
+
+  prompt:
+    # Path to the prompt template file
+    file: ./config/ai_parser.prompt
+
+  openai:
+    model: gpt-4.1-nano
+    max_tokens: 2000
+    temperature: 0.2
+
+# =============================================================================
+# TRADING EXECUTION CONFIGURATION
+# =============================================================================
+trading:
+  # Enable automatic trade execution via the selected broker adapter
+  auto_trade: true
+
+  # Active broker adapter: webull | public
+  broker: webull
+
+  # Enable option trade vehicles from parser output for execution workflows.
+  # false = keep option signals visible/observable but non-executable.
+  options_enabled: false
+  
+  # CRITICAL: Toggle between paper trading (UAT/test) and live trading (production)
+  # true = Paper trading (us-openapi-alb.uat.webullbroker.com) - SAFE FOR TESTING
+  # false = Live trading (api.webull.com) - REAL MONEY - USE WITH CAUTION
+  paper_trade: true
+  
+  # Minimum confidence threshold for AI-parsed picks (0.0-1.0)
+  # Picks below this confidence will be logged but not executed
+  min_confidence: 0.7
+  
+  # Default dollar amount per trade when weight is not specified
+  default_amount: 1000
+  
+  # Use market orders (vs limit orders)
+  use_market_orders: true
+  
+  # Allow extended hours trading (pre-market, after-market)
+  extended_hours_trading: false
+  
+  # Time in force: DAY, GTC, IOC, FOK
+  time_in_force: DAY
+
+  # During off-hours, submit queued limit order instead of market order.
+  queue_when_closed: true
+
+  # TIF for queued off-hours limit orders.
+  queue_time_in_force: GTC
+
+  # Price buffer in basis points for off-hours limit orders.
+  out_of_hours_limit_buffer_bps: 50
+
+  # Hard execution guard: reject trades that would drop below this projected margin equity %.
+  # Set to 0 to disable this runtime guard.
+  min_margin_equity_pct: 35
+
+# =============================================================================
+# ACCOUNT CONSTRAINTS (Natural Language)
+# =============================================================================
+# These constraints are passed to the AI parser to enforce position sizing,
+# margin management, and portfolio rules automatically.
+# Use natural language to describe your account rules.
+account_constraints: |
+  MARGIN CONSTRAINTS:
+  - Never let Margin Equity % fall below 35% after a trade.
+  - Do not place the trade if the resulting Margin Equity % would be < 35%.
+
+  TRADING RULES:
+  - Only execute LONG positions or PUT positions.
+  - Allowed instruments: common stock, CALL options, PUT options.
+  - No short selling.
+
+# =============================================================================
+# CHANNEL-TO-ANALYST MAPPING
+# =============================================================================
+# Map Discord channel IDs to analyst profiles.
+# Each analyst has custom sizing multipliers, options preferences, and margin rules.
+# Enables per-analyst configuration without code changes.
+analyst_channels:
+  # Format: channel_id: {name, commons_multiplier, options_multiplier, margin_buffer_required}
+  # Example:
+  "1229546005788098580": 
+    name: "Stock Talk"
+    analyst_preferences: |
+      When an analyst posts an options alert for a ticker:
+
+      You will be provided the full options chain in the prompt.
+
+      1) Determine analyst weighting:
+          - Bucket A: >= 5%
+          - Bucket B: < 5%
+
+      2) Buy the analyst’s exact recommended option:
+          - Bucket A: $2,000
+          - Bucket B: $1,000
+
+      3) Buy common shares:
+          - Bucket A: $4,000
+          - Bucket B: $3,000
+
+      4) Add a short-term lotto option (<30 DTE, nearest ATM from the chain) ONLY if
+          its mid price is <= 5% above the analyst’s stated average:
+          - Bucket A: $1,000
+          - Bucket B: $500
+
+      The lotto is for quick momentum and quick exit.
+  "1014979505359683726": 
+    name: "Stock Talk"
+    analyst_preferences: |
+      When an analyst posts an options alert for a ticker:
+
+      You will be provided the full options chain in the prompt.
+
+      1) Determine analyst weighting:
+          - Bucket A: >= 5%
+          - Bucket B: < 5%
+
+      2) Buy the analyst’s exact recommended option:
+          - Bucket A: $2,000
+          - Bucket B: $1,000
+
+      3) Buy common shares:
+          - Bucket A: $4,000
+          - Bucket B: $3,000
+
+      4) Add a short-term lotto option (<30 DTE, nearest ATM from the chain) ONLY if
+          its mid price is <= 5% above the analyst’s stated average:
+          - Bucket A: $1,000
+          - Bucket B: $500
+
+      The lotto is for quick momentum and quick exit.
+
+
+# =============================================================================
+# NOTIFICATION CONFIGURATION
+# =============================================================================
+notifications:
+  desktop_notifications: true
+  sound_alert: true
+  copy_to_clipboard: true
+
+# =============================================================================
+# WEBULL CONFIGURATION
+# =============================================================================
+webull:
+  region: US
+  # Paper trading endpoint (UAT) -- set via trading.paper_trade
+  # Production endpoint -- set via trading.paper_trade
+  # The WebullTrader class will automatically select based on trading.paper_trade
+  
+  # Account ID is fetched dynamically via API, can be cached here if needed
+  account_id: ""
+
+  test_app_key: "a88f2efed4dca02b9bc1a3cecbc35dba"
+  test_app_secret: "c2895b3526cc7c7588758351ddf425d6"
+  test_account_id: "J6HA4EBQRQFJD2J6NQH0F7M649"
+  
+  currency: USD
+  account_tax_type: GENERAL
+
+# Future broker credentials/config can also live under:
+# brokers:
+#   public:
+#     api_key: ""
+#     account_id: ""

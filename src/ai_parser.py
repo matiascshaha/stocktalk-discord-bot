@@ -1,274 +1,428 @@
-import anthropic
-import openai
 import json
 import re
-from config.settings import ANTHROPIC_API_KEY, OPENAI_API_KEY
-from src.utils.logger import setup_logger
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-logger = setup_logger('ai_parser')
+from pydantic import ValidationError
+from pytz import timezone
+
+from config.settings import (
+    AI_CONFIG,
+    AI_PROVIDER,
+    ANTHROPIC_API_KEY,
+    GOOGLE_API_KEY,
+    OPENAI_API_KEY,
+    TRADING_CONFIG,
+    get_account_constraints,
+    get_analyst_for_channel,
+)
+from src.models.parser_models import (
+    CONTRACT_VERSION,
+    ParsedMessage,
+    ParsedSignal,
+    ParsedVehicle,
+    ParserMeta,
+)
+from src.providers.client_factory import build_provider_client
+from src.providers.parser_dispatch import UnsupportedProviderError, request_provider_completion
+from src.utils.logger import setup_logger
+from src.utils.paths import resolve_prompt_path
+
+logger = setup_logger("ai_parser")
+
+
+IMMUTABLE_CONTRACT_INSTRUCTION = f"""
+# IMMUTABLE RESPONSE CONTRACT (DO NOT DEVIATE)
+Return ONLY valid JSON (no markdown) with this exact shape:
+{{
+  "contract_version": "{CONTRACT_VERSION}",
+  "source": {{
+    "author": "string|null",
+    "channel_id": "string|null",
+    "message_id": "string|null",
+    "message_text": "string|null"
+  }},
+  "signals": [
+    {{
+      "ticker": "string",
+      "action": "BUY|SELL|HOLD|NONE",
+      "confidence": 0.0,
+      "reasoning": "string",
+      "weight_percent": null,
+      "urgency": "LOW|MEDIUM|HIGH",
+      "sentiment": "BULLISH|BEARISH|NEUTRAL",
+      "is_actionable": false,
+      "vehicles": [
+        {{
+          "type": "STOCK|OPTION",
+          "enabled": true,
+          "intent": "EXECUTE|WATCH|INFO",
+          "side": "BUY|SELL|NONE",
+          "option_type": "CALL|PUT|null",
+          "strike": null,
+          "expiry": null,
+          "quantity_hint": null
+        }}
+      ]
+    }}
+  ],
+  "meta": {{
+    "status": "ok|no_action|invalid_json|provider_error",
+    "provider": "openai|anthropic|google|null",
+    "error": null,
+    "warnings": []
+  }}
+}}
+Rules:
+- ALWAYS include top-level keys: contract_version, source, signals, meta.
+- If no actionable output, return an empty signals array.
+- Portfolio recaps/watchlists/holdings summaries are NOT actionable; return an empty signals array unless the message includes a new execution command in this message.
+- Never add or rename top-level keys.
+""".strip()
+
 
 class AIParser:
-    """
-    AI-powered stock pick parser using Claude or GPT
-    
-    Primary: Claude Sonnet 4.5
-    Fallback: GPT-4
-    """
-    
+    """AI-powered parser that normalizes output to a strict, predictable contract."""
+
     def __init__(self):
         self.client = None
         self.provider = None
-        
-        if ANTHROPIC_API_KEY:
-            try:
-                self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-                self.provider = 'anthropic'
-                logger.info("Using Anthropic Claude for AI parsing")
-            except Exception as e:
-                logger.warning(f"Anthropic initialization failed: {e}")
-        
-        if not self.client and OPENAI_API_KEY:
-            try:
-                self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
-                self.provider = 'openai'
-                logger.info("Using OpenAI GPT for AI parsing")
-            except Exception as e:
-                logger.warning(f"OpenAI initialization failed: {e}")
-        
+        self.config = AI_CONFIG
+        self.options_enabled = bool(TRADING_CONFIG.get("options_enabled", False))
+        self.prompt_template = self._load_prompt_template()
+
+        self._init_client()
+
         if not self.client:
-            logger.warning("No AI provider available - using fallback regex parser only")
-    
-    def parse(self, message_text, author_name):
-        """Parse stock picks from message using AI"""
-        
+            logger.warning("No AI provider available")
+
+    def parse(
+        self,
+        message_text: str,
+        author_name: str,
+        channel_id: Optional[int] = None,
+        trading_account: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Parse a message into the canonical parser contract."""
+
+        source = {
+            "author": str(author_name) if author_name is not None else None,
+            "channel_id": str(channel_id) if channel_id is not None else None,
+            "message_id": None,
+            "message_text": str(message_text) if message_text is not None else None,
+        }
+
         if not self.client:
             logger.warning("No AI client available")
-            return self._fallback_parse(message_text)
-        
-        prompt = self._build_prompt(message_text, author_name)
-        
+            return self._empty_result(status="no_client", source=source)
+
+        prompt = self._build_prompt(
+            message_text=message_text,
+            author_name=author_name,
+            channel_id=channel_id,
+            trading_account=trading_account,
+        )
+
+        if not prompt.strip():
+            logger.warning("Prompt template is empty")
+            return self._empty_result(status="empty_prompt", source=source)
+
+        response_text = ""
         try:
-            if self.provider == 'anthropic':
-                response = self.client.messages.create(
-                    model="claude-sonnet-4-5",
-                    max_tokens=2000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                response_text = response.content[0].text.strip()
-            
-            elif self.provider == 'openai':
-                response = self.client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=2000
-                )
-                response_text = response.choices[0].message.content.strip()
-            
-            logger.debug(f"AI response: {response_text}")
-            
-            # Clean and parse JSON
-            response_text = self._clean_json(response_text)
-            picks = json.loads(response_text)
-            
-            return picks
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing error: {e}")
-            logger.debug(f"Raw response: {response_text}")
-            return self._fallback_parse(message_text)
-        
-        except Exception as e:
-            logger.error(f"AI parsing error: {e}")
-            return self._fallback_parse(message_text)
-    
-    def _build_prompt(self, message_text, author_name):
-        """Build AI prompt for parsing"""
-        return f"""You are analyzing a message from a professional stock trading Discord channel.
+            response_text = request_provider_completion(
+                provider=self.provider,
+                client=self.client,
+                config=self.config,
+                prompt=prompt,
+            )
+            cleaned = self._clean_json(response_text)
+            payload = json.loads(cleaned)
+            return self._coerce_result(payload, source=source)
+        except UnsupportedProviderError:
+            logger.error("AI provider is not set on initialized client")
+            return self._empty_result(status="unknown_provider", source=source)
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse AI response as JSON")
+            return self._empty_result(status="invalid_json", error=response_text, source=source)
+        except Exception as exc:
+            logger.error("AI parsing error: %s", exc)
+            return self._empty_result(status="provider_error", error=str(exc), source=source)
+    def _empty_result(self, status: str, source: Dict[str, Any], error: Optional[str] = None) -> Dict[str, Any]:
+        return ParsedMessage(
+            contract_version=CONTRACT_VERSION,
+            source=source,
+            signals=[],
+            meta=ParserMeta(status=status, provider=self.provider, error=error),
+        ).model_dump()
 
-Message from {author_name}:
-"{message_text}"
+    def _coerce_result(self, payload: Any, source: Dict[str, Any]) -> Dict[str, Any]:
+        signal_payloads: List[Dict[str, Any]] = []
 
-TASK: Extract ALL actionable stock picks from this message.
+        if isinstance(payload, dict):
+            if isinstance(payload.get("signals"), list):
+                signal_payloads = [s for s in payload.get("signals", []) if isinstance(s, dict)]
+            elif "ticker" in payload:
+                signal_payloads = [payload]
+        elif isinstance(payload, list):
+            signal_payloads = [s for s in payload if isinstance(s, dict)]
 
-IMPORTANT RULES:
-1. Only extract picks where there is CLEAR ACTION: "Added", "Buying", "New position", "Trimming", "Exiting", "Selling"
-2. IGNORE portfolio updates, commentary, market analysis, reminders, or general discussion
-3. IGNORE mentions of stocks without clear action (e.g., "watching XYZ" or "interesting stock")
-4. For options, extract strike price and expiration date
-5. VERY IMPORTANT — OPTIONS INTENT RULE:
+        normalized_signals: List[Dict[str, Any]] = []
+        for signal in signal_payloads:
+            normalized = self._normalize_signal(signal)
+            if normalized:
+                normalized_signals.append(normalized.model_dump())
 
-If the author expresses ANY interest, intention, plan, or consideration to buy calls or puts for a ticker,
-you MUST extract this as an OPTIONS BUY pick, even if:
+        status = "ok" if normalized_signals else "no_action"
+        result = ParsedMessage(
+            contract_version=CONTRACT_VERSION,
+            source=source,
+            signals=normalized_signals,
+            meta=ParserMeta(status=status, provider=self.provider, error=None),
+        )
+        return result.model_dump()
 
-- no expiration date is given
-- no price is given
-- the language is vague or future tense
-- the contract format is incomplete
+    def _normalize_signal(self, signal: Dict[str, Any]) -> Optional[ParsedSignal]:
+        if not isinstance(signal, dict):
+            return None
 
-Examples of intent language that MUST trigger an options BUY:
-- "may try to work into"
-- "looking to add"
-- "will add"
-- "may add"
-- "work into some calls"
-- "might build a position in calls"
-- "considering calls"
-- "want exposure via calls"
-- "options are illiquid but I may try"
-- "I may try to get into $85C"
-- "across multiple strikes"
+        action = str(signal.get("action") or "NONE").upper().strip()
+        raw_vehicles = signal.get("vehicles")
+        vehicles = self._normalize_vehicles(raw_vehicles, action)
 
-In these cases:
-- strike = parsed number if present, else null
-- expiry = null
-- option_type = CALL or PUT
+        payload = dict(signal)
+        payload["vehicles"] = [v.model_dump() for v in vehicles]
 
-STOCK PICK PATTERNS TO RECOGNIZE:
-- "Added $TICKER at $X.XX" = BUY
-- "New position: $TICKER" = BUY  
-- "Buying $TICKER" = BUY
-- "$TICKER (Shares + $XC Month 'YY)" = BUY with options
-- "Trimming $TICKER" = SELL (partial)
-- "Exiting $TICKER" = SELL (full)
-- "X% weight @ $Y.ZZ" = weight percentage
+        if "is_actionable" not in payload:
+            payload["is_actionable"] = action in {"BUY", "SELL", "HOLD"}
 
-OPTIONS FORMAT EXAMPLES:
-- "$115C Mar '26" = $115 strike CALL expiring March 2026
-- "$12.5C" = $12.50 strike CALL
-- "$30C Jun '26" = $30 strike CALL expiring June 2026
+        try:
+            return ParsedSignal.model_validate(payload)
+        except ValidationError:
+            return None
 
-IGNORE THESE:
-- Portfolio updates (lists of holdings)
-- Market commentary without specific action
-- General discussion or analysis
-- Reminders or announcements
-- Past performance discussions
+    def _normalize_vehicles(self, raw_vehicles: Any, action: str) -> List[ParsedVehicle]:
+        if not isinstance(raw_vehicles, list) or not raw_vehicles:
+            return [self._default_stock_vehicle(action)]
 
-Return a JSON array. For each pick include:
-{{
-  "ticker": "string (no $ symbol)",
-  "action": "BUY or SELL",
-  "confidence": 0.0-1.0 (how certain this is an actionable pick),
-  "weight": number or null (allocation percentage if mentioned),
-  "price": number or null (entry price if mentioned),
-  "strike": number or null (options strike price),
-  "option_type": "CALL" or "PUT" or "STOCK",
-  "expiry": "string or null (e.g., '2026-03-31' for Mar '26)",
-  "reasoning": "brief explanation",
-  "urgency": "LOW", "MEDIUM", or "HIGH",
-  "sentiment": "BULLISH" or "BEARISH"
-}}
+        normalized: List[ParsedVehicle] = []
+        for vehicle in raw_vehicles:
+            if not isinstance(vehicle, dict):
+                continue
 
-Return ONLY the JSON array, no other text. If no actionable picks found, return [].
+            vehicle_payload = dict(vehicle)
+            vtype = str(vehicle_payload.get("type") or "STOCK").upper().strip()
 
-EXAMPLES:
+            if "side" not in vehicle_payload:
+                if vtype == "STOCK" and action in {"BUY", "SELL"}:
+                    vehicle_payload["side"] = action
+                else:
+                    vehicle_payload["side"] = "NONE"
 
-Message: "Added $GLDD at $13.95 and some $12.5C for March at $1.75 avg just to add some juice. 4.5% weighting."
-Output: [
-  {{
-    "ticker": "GLDD",
-    "action": "BUY",
-    "confidence": 1.0,
-    "weight": 4.5,
-    "price": 13.95,
-    "strike": null,
-    "option_type": "STOCK",
-    "expiry": null,
-    "reasoning": "Explicitly added shares at $13.95 with 4.5% weight",
-    "urgency": "HIGH",
-    "sentiment": "BULLISH"
-  }},
-  {{
-    "ticker": "GLDD",
-    "action": "BUY",
-    "confidence": 1.0,
-    "weight": null,
-    "price": 1.75,
-    "strike": 12.5,
-    "option_type": "CALL",
-    "expiry": "2026-03-31",
-    "reasoning": "Added $12.5 calls for March 2026",
-    "urgency": "HIGH",
-    "sentiment": "BULLISH"
-  }}
-]
+            if "intent" not in vehicle_payload:
+                if vtype == "STOCK" and action in {"BUY", "SELL"}:
+                    vehicle_payload["intent"] = "EXECUTE"
+                else:
+                    vehicle_payload["intent"] = "INFO"
 
-Message: "New position: Pangea Logistics $PANL - 4% weight @ $7.23 avg on shares, also very small spot in $7.5C for May"
-Output: [
-  {{
-    "ticker": "PANL",
-    "action": "BUY",
-    "confidence": 1.0,
-    "weight": 4.0,
-    "price": 7.23,
-    "strike": null,
-    "option_type": "STOCK",
-    "expiry": null,
-    "reasoning": "New position at $7.23 with 4% weight",
-    "urgency": "HIGH",
-    "sentiment": "BULLISH"
-  }},
-  {{
-    "ticker": "PANL",
-    "action": "BUY",
-    "confidence": 0.9,
-    "weight": null,
-    "price": null,
-    "strike": 7.5,
-    "option_type": "CALL",
-    "expiry": "2026-05-31",
-    "reasoning": "Small position in $7.5 calls for May",
-    "urgency": "MEDIUM",
-    "sentiment": "BULLISH"
-  }}
-]
+            if "enabled" not in vehicle_payload:
+                vehicle_payload["enabled"] = True
 
-Message: "PORTFOLIO UPDATE - 15 POSITIONS... 20-21%: $ENS* (Shares + $115C Mar '26) - $116.63"
-Output: []
-Reason: This is a portfolio update, not a new actionable pick
+            if vtype == "OPTION" and not self.options_enabled:
+                vehicle_payload["enabled"] = False
 
-Message: "I expect $MU to meaningfully outperform the market tomorrow."
-Output: []
-Reason: This is commentary/prediction, not an actionable buy/sell order"""
-    
-    def _clean_json(self, text):
-        """Clean JSON response from AI"""
-        # Remove markdown code blocks
-        if text.startswith('```'):
-            text = re.sub(r'^```(?:json)?\n', '', text)
-            text = re.sub(r'\n```$', '', text)
+            try:
+                normalized.append(ParsedVehicle.model_validate(vehicle_payload))
+            except ValidationError:
+                continue
+
+        if not normalized:
+            return [self._default_stock_vehicle(action)]
+
+        return normalized
+
+    def _default_stock_vehicle(self, action: str) -> ParsedVehicle:
+        if action in {"BUY", "SELL"}:
+            return ParsedVehicle(
+                type="STOCK",
+                enabled=True,
+                intent="EXECUTE",
+                side=action,
+            )
+        return ParsedVehicle(type="STOCK", enabled=True, intent="INFO", side="NONE")
+
+    def _build_prompt(
+        self,
+        message_text: str,
+        author_name: str,
+        channel_id: Optional[int] = None,
+        trading_account: Optional[Any] = None,
+    ) -> str:
+        if trading_account is not None:
+            return self._render_prompt_with_account(
+                message_text=message_text,
+                author_name=author_name,
+                channel_id=channel_id,
+                trading_account=trading_account,
+            )
+        return self._render_prompt(message_text, author_name, channel_id=channel_id)
+
+    def _clear_remaining_placeholders(self, prompt: str) -> str:
+        return re.sub(r"\{\{[A-Z_]+\}\}", "", prompt)
+
+    def _append_contract_instruction(self, prompt: str) -> str:
+        return f"{prompt.rstrip()}\n\n{IMMUTABLE_CONTRACT_INSTRUCTION}\n"
+
+    def _render_prompt(self, message_text: str, author_name: str, channel_id: Optional[int] = None) -> str:
+        prompt = self.prompt_template or ""
+        eastern = timezone("US/Eastern")
+        current_time = datetime.now(eastern).strftime("%Y-%m-%d %H:%M:%S %Z")
+        analyst_rules = get_analyst_for_channel(channel_id) if channel_id else None
+        analyst_name = analyst_rules.get("name", "Unknown") if analyst_rules else "Unknown"
+        analyst_prefs = analyst_rules.get("analyst_preferences", "") if analyst_rules else ""
+        account_constraints = get_account_constraints()
+        trading_notice = "Return signals only. Runtime policy controls execution."
+
+        prompt = prompt.replace("{{CURRENT_TIME}}", current_time)
+        prompt = prompt.replace("{{AUTHOR_NAME}}", str(author_name))
+        prompt = prompt.replace("{{MESSAGE_TEXT}}", str(message_text))
+        prompt = prompt.replace("{{ACCOUNT_BALANCE}}", "N/A")
+        prompt = prompt.replace("{{DAY_BUYING_POWER}}", "N/A")
+        prompt = prompt.replace("{{OVERNIGHT_BUYING_POWER}}", "N/A")
+        prompt = prompt.replace("{{OPTION_BUYING_POWER}}", "N/A")
+        prompt = prompt.replace("{{MARGIN_BUFFER}}", "N/A")
+        prompt = prompt.replace("{{MARGIN_POWER}}", "N/A")
+        prompt = prompt.replace("{{CASH_POWER}}", "N/A")
+        prompt = prompt.replace("{{MARGIN_EQUITY_PERCENTAGE}}", "N/A")
+        prompt = prompt.replace("{{ANALYST_NAME}}", analyst_name)
+        prompt = prompt.replace("{{ANALYST_PREFERENCES}}", analyst_prefs)
+        prompt = prompt.replace("{{OPTIONS_CHAIN}}", "N/A")
+        prompt = prompt.replace("{{ACCOUNT_CONSTRAINTS}}", account_constraints)
+        prompt = prompt.replace("{{EXTRA_IMPORTANT_DETAILS}}", trading_notice)
+        prompt = self._clear_remaining_placeholders(prompt)
+        return self._append_contract_instruction(prompt)
+
+    def _require(self, d: dict, key: str):
+        if key not in d:
+            raise KeyError(f"Missing required key from Webull payload: {key}")
+        return d[key]
+
+    def _require_currency_asset(self, account_balance: dict) -> dict:
+        assets = self._require(account_balance, "account_currency_assets")
+        if not isinstance(assets, list) or not assets:
+            raise ValueError("account_currency_assets missing or empty")
+        return assets[0]
+
+    def _render_prompt_with_account(
+        self,
+        message_text: str,
+        author_name: str,
+        channel_id: Optional[int] = None,
+        trading_account: Optional[Any] = None,
+    ) -> str:
+        template = self.prompt_template or ""
+
+        analyst_rules = get_analyst_for_channel(channel_id) if channel_id else None
+        analyst_name = analyst_rules.get("name", "Unknown") if analyst_rules else "Unknown"
+        analyst_prefs = analyst_rules.get("analyst_preferences", "") if analyst_rules else ""
+
+        account_balance = trading_account.get_account_balance() if trading_account else None
+        if not account_balance:
+            logger.warning("No account balance data available for prompt; using simple prompt instead")
+            return self._render_prompt(message_text, author_name, channel_id=channel_id)
+
+        total_market_value = float(self._require(account_balance, "total_market_value"))
+        currency = self._require_currency_asset(account_balance)
+        net_liquidation_value = float(self._require(currency, "net_liquidation_value"))
+        margin_equity_percentage = (net_liquidation_value / total_market_value * 100.0) if total_market_value > 0 else 100.0
+        margin_power = float(self._require(currency, "margin_power"))
+        cash_power = float(self._require(currency, "cash_power"))
+
+        account_constraints = get_account_constraints()
+
+        prompt = template
+        eastern = timezone("US/Eastern")
+        current_time = datetime.now(eastern).strftime("%Y-%m-%d %H:%M:%S %Z")
+        prompt = prompt.replace("{{CURRENT_TIME}}", current_time)
+        prompt = prompt.replace("{{AUTHOR_NAME}}", str(author_name))
+        prompt = prompt.replace("{{MESSAGE_TEXT}}", str(message_text))
+        prompt = prompt.replace("{{ACCOUNT_BALANCE}}", f"{net_liquidation_value:,.2f}")
+        prompt = prompt.replace("{{MARGIN_POWER}}", f"{margin_power:,.2f}")
+        prompt = prompt.replace("{{CASH_POWER}}", f"{cash_power:,.2f}")
+        prompt = prompt.replace("{{MARGIN_EQUITY_PERCENTAGE}}", f"{margin_equity_percentage:,.2f}")
+        prompt = prompt.replace("{{ANALYST_NAME}}", analyst_name)
+        prompt = prompt.replace("{{ANALYST_PREFERENCES}}", analyst_prefs)
+        prompt = prompt.replace("{{OPTIONS_CHAIN}}", "")
+        prompt = prompt.replace("{{ACCOUNT_CONSTRAINTS}}", account_constraints)
+        prompt = self._clear_remaining_placeholders(prompt)
+        return self._append_contract_instruction(prompt)
+
+    def _load_prompt_template(self) -> str:
+        path = self.config.get("prompt_file") if isinstance(self.config, dict) else None
+        prompt_path = resolve_prompt_path(path)
+        logger.info("Loading prompt template from: %s", prompt_path)
+
+        try:
+            return prompt_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Failed to load prompt template from %s: %s", prompt_path, exc)
+            return ""
+
+    def _init_client(self):
+        provider = (AI_PROVIDER or "").lower().strip()
+        fallback = bool(self.config.get("fallback_to_available_provider"))
+
+        if provider in ("", "auto"):
+            provider = None
+
+        if provider:
+            self._try_init_provider(provider)
+            if not self.client and fallback:
+                self._init_first_available()
+        else:
+            self._init_first_available()
+
+    def _init_first_available(self):
+        for name in ("anthropic", "openai", "google"):
+            if self._provider_key_available(name):
+                self._try_init_provider(name)
+                if self.client:
+                    return
+
+    def _provider_key_available(self, provider: str) -> bool:
+        if provider == "anthropic":
+            return bool(ANTHROPIC_API_KEY)
+        if provider == "openai":
+            return bool(OPENAI_API_KEY)
+        if provider == "google":
+            return bool(GOOGLE_API_KEY)
+        return False
+
+    def _try_init_provider(self, provider: str):
+        try:
+            client = build_provider_client(
+                provider=provider,
+                config=self.config,
+                anthropic_api_key=ANTHROPIC_API_KEY,
+                openai_api_key=OPENAI_API_KEY,
+                google_api_key=GOOGLE_API_KEY,
+            )
+            if client is None:
+                return
+
+            self.client = client
+            self.provider = provider
+
+            if provider == "anthropic":
+                logger.info("Using Anthropic for AI parsing")
+            elif provider == "openai":
+                logger.info("Using OpenAI for AI parsing")
+            elif provider == "google":
+                logger.info("Using Google Gemini for AI parsing")
+        except Exception as exc:
+            logger.warning("%s initialization failed: %s", provider.title(), exc)
+
+    def _clean_json(self, text: str) -> str:
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\\n", "", text)
+            text = re.sub(r"\\n```$", "", text)
         return text.strip()
-    
-    def _fallback_parse(self, message_text):
-        """Fallback regex parser if AI fails"""
-        logger.warning("Using fallback regex parser")
-        
-        picks = []
-        
-        # Look for explicit buy patterns
-        buy_patterns = [
-            r'(?:Added|Buying|New position:?)\s+\$?([A-Z]{1,5})',
-            r'\$([A-Z]{1,5})\s+at\s+\$?([\d.]+)',
-        ]
-        
-        for pattern in buy_patterns:
-            matches = re.finditer(pattern, message_text, re.IGNORECASE)
-            for match in matches:
-                ticker = match.group(1).upper()
-                price = float(match.group(2)) if len(match.groups()) > 1 else None
-                
-                picks.append({
-                    'ticker': ticker,
-                    'action': 'BUY',
-                    'confidence': 0.6,
-                    'weight': None,
-                    'price': price,
-                    'strike': None,
-                    'option_type': 'STOCK',
-                    'expiry': None,
-                    'reasoning': 'Fallback regex match',
-                    'urgency': 'MEDIUM',
-                    'sentiment': 'BULLISH'
-                })
-        
-        return picks
