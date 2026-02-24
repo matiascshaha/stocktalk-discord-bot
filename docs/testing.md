@@ -1,45 +1,59 @@
-﻿# Testing Commands
+﻿# Testing Structure
 
-Use one script:
+Command reference: `docs/runbook.md` (`Testing Commands` section).
 
-```bash
-./scripts/testing/run.sh list
+## Current Layout
+
+```text
+tests/
+  brokers/
+    webull/
+      contract/
+      smoke/
+  channels/
+    discord/
+      integration/
+      smoke/
+  data/
+  parser/
+    contract/
+    smoke/
+  support/
+    cases/
+    factories/
+    fakes/
+    payloads/
+    tooling/
+  system/
+    integration/
+  unit/
 ```
 
-## Core
+## Placement Rules
 
-```bash
-./scripts/testing/run.sh quick
-./scripts/testing/run.sh live
-```
+- `tests/unit/`: deterministic unit-level checks.
+- `tests/parser/`: parser contract + parser smoke/live checks.
+- `tests/channels/discord/`: Discord integration flow + Discord live smoke.
+- `tests/brokers/webull/`: Webull contract checks + Webull live/read/write smoke.
+- `tests/system/integration/`: cross-domain quality/confidence integration checks.
+- `tests/support/`: reusable fakes/factories/helpers/tooling support.
+- `tests/data/`: reusable static test data fixtures.
 
-## AI Parser
+## Markers and Default Selection
 
-```bash
-./scripts/testing/run.sh ai deterministic
-./scripts/testing/run.sh ai live
-```
+- Marker taxonomy is defined in `pytest.ini`.
+- `pytest` defaults to deterministic scope with `-m "not live and not write"`.
+- `--strict-markers` is enabled; undeclared markers fail collection.
 
-## Discord
+## Purity and Reuse Rules
 
-```bash
-./scripts/testing/run.sh discord deterministic
-./scripts/testing/run.sh discord live
-```
+- `test_*.py` modules should contain tests only.
+- Shared setup goes in `conftest.py`.
+- Shared helpers belong in `tests/support/`.
+- Enforced by `python -m scripts.check_test_file_purity`.
 
-## Webull
+## References
 
-```bash
-./scripts/testing/run.sh webull contract
-./scripts/testing/run.sh webull read-paper
-./scripts/testing/run.sh webull read-production
-./scripts/testing/run.sh webull write-paper
-./scripts/testing/run.sh webull night-probe YES_IM_LIVE
-./scripts/testing/run.sh night YES_IM_LIVE
-```
-
-## Safety
-
-- `pytest` default excludes `live` and `write`.
-- Production write verification is manual only.
-- Night probe requires `YES_IM_LIVE` and auto-cancels after submit.
+- Detailed strategy and command matrix: `tests/README.md`
+- Command list and workflows: `docs/runbook.md` (`Testing Commands`)
+- Manual end-to-end check: `docs/manual-testing.md`
