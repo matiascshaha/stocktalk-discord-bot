@@ -4,6 +4,12 @@
 
 - Branch naming: `feature/<name>`, `fix/<name>`, `chore/<name>`
 - PR title format: `[area] concise summary`
+- After the first push for a branch, open a PR immediately and enable auto-merge.
+- Keep auto-merge enabled for that PR as new commits are pushed.
+- Auto-merge is configured on the PR, not on `git push`.
+- Standard command: `gh pr merge --auto --squash <pr-number>`
+- Always check PR mergeability/conflicts before enabling auto-merge.
+- If conflicts exist, ask the requester how each conflict should be resolved before applying conflict edits.
 
 ## Coding standards
 

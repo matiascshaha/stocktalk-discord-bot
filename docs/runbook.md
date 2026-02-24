@@ -60,6 +60,34 @@ Useful runtime modes:
 - Auto-trade mode: set `trading.auto_trade: true` and configure broker credentials in `.env`.
 - Paper-trade safety: set `trading.paper_trade: true` for manual validation.
 
+## PR Workflow (Auto-Merge Required)
+
+Create a PR from the current branch:
+
+```bash
+gh pr create --base webull-integration --head webull-wt-1 --fill
+```
+
+Enable auto-merge right after PR creation:
+
+```bash
+gh pr merge --auto --squash <pr-number>
+```
+
+Useful checks:
+
+```bash
+gh pr checks <pr-number> --watch
+gh pr view <pr-number> --web
+gh pr view <pr-number> --json mergeable,baseRefName,headRefName
+```
+
+Conflict handling rule:
+
+- Before enabling auto-merge, check `mergeable` status.
+- If the PR is conflicted, stop and ask the requester how to resolve each conflict.
+- Ask explicitly whether to prefer current branch changes, base branch changes, or a manual merge per file.
+
 ## Deterministic Test Commands
 
 Fast local deterministic default:
