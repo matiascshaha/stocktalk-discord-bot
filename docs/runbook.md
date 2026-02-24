@@ -1,33 +1,159 @@
 ﻿# Developer Runbook
 
-Replace placeholders with your real commands.
+Canonical commands for setup, running the monitor, and validating test confidence.
+
+## Prerequisites
+
+- Run commands from repository root.
+- Use Python 3.11.x.
+- Activate virtual environment before running app/tests.
 
 ## Setup
 
-- Install dependencies: `<SETUP_COMMAND>`
-- Start services: `<START_COMMAND>`
+Preferred automated setup:
 
-## Validation
+```bash
+python3 scripts/bootstrap/project_setup.py
+source .venv/bin/activate
+```
 
-- Lint: `<LINT_COMMAND>`
-- Typecheck: `<TYPECHECK_COMMAND>`
-- Unit tests: `<UNIT_TEST_COMMAND>`
-- Integration tests: `<INTEGRATION_TEST_COMMAND>`
-- E2E tests: `<E2E_COMMAND>`
+Manual setup:
 
-## Targeted test examples
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade "pip<25" "setuptools<70" wheel
+PIP_NO_BUILD_ISOLATION=1 pip install -r requirements.txt
+pip install -e .
+```
 
-- Playwright single spec: `<PW_SINGLE_SPEC_COMMAND>`
-- Robot single suite/test: `<ROBOT_SINGLE_TEST_COMMAND>`
+## Configuration and Credential Checks
 
-## Build and release
+```bash
+cp .env.example .env
+python -m scripts.diagnostics.verify_credentials
+```
 
-- Build: `<BUILD_COMMAND>`
-- Package: `<PACKAGE_COMMAND>`
-- Deploy: `<DEPLOY_COMMAND>`
+Main config files:
 
-## Troubleshooting quick wins
+- `config/trading.yaml`
+- `config/ai_parser.prompt`
+- `.env`
 
-- Clear caches: `<CACHE_CLEAR_COMMAND>`
-- Recreate test data: `<TESTDATA_RESET_COMMAND>`
-- Check CI logs: `<CI_LOG_COMMAND>`
+## Run the Tool
+
+Default monitor run:
+
+```bash
+python -m src.main
+```
+
+Editable-install console entrypoint:
+
+```bash
+stock-monitor
+```
+
+Useful runtime modes:
+
+- Monitor-only mode: set `trading.auto_trade: false` in `config/trading.yaml`.
+- Auto-trade mode: set `trading.auto_trade: true` and configure broker credentials in `.env`.
+- Paper-trade safety: set `trading.paper_trade: true` for manual validation.
+
+## Deterministic Test Commands
+
+Fast local deterministic default:
+
+```bash
+pytest
+```
+
+Deterministic CI-style run:
+
+```bash
+python -m scripts.check_test_file_purity
+python -m pytest tests -m "not smoke and not live and not write"
+```
+
+Targeted deterministic suites:
+
+```bash
+pytest tests/unit
+pytest tests/parser/contract/test_parser_contract.py tests/unit/test_parser_schema.py
+pytest tests/channels/discord/integration/test_message_flow.py -k "not live_ai_pipeline_message_to_trader"
+pytest tests/brokers/webull/contract/test_webull_contract.py
+pytest tests/system/integration
+```
+
+## Smoke and Live Test Commands
+
+Parser AI live smoke:
+
+```bash
+TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
+```
+
+AI to trader live pipeline:
+
+```bash
+TEST_AI_LIVE=1 TEST_AI_SCOPE=sample pytest tests/channels/discord/integration/test_message_flow.py -k "live_ai_pipeline_message_to_trader" -m "smoke and live"
+```
+
+Webull live read smoke:
+
+```bash
+TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write"
+```
+
+Webull live write smoke (opt-in):
+
+```bash
+TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=paper pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and write"
+```
+
+Discord live smoke:
+
+```bash
+TEST_DISCORD_LIVE=1 pytest tests/channels/discord/smoke/test_discord_live.py -m "smoke and live and channel and source_discord"
+```
+
+## Quality Runners
+
+Health check runner:
+
+```bash
+python -m scripts.quality.run_health_checks
+TEST_MODE=strict python -m scripts.quality.run_health_checks
+```
+
+Confidence suite runner:
+
+```bash
+python -m scripts.quality.run_confidence_suite
+python -m scripts.quality.run_confidence_suite --mode local
+python -m scripts.quality.run_confidence_suite --webull-env paper
+python -m scripts.quality.run_confidence_suite --webull-write 1
+```
+
+Full scenario matrix:
+
+```bash
+python -m scripts.quality.run_full_matrix --list
+python -m scripts.quality.run_full_matrix
+python -m scripts.quality.run_full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
+python -m scripts.quality.run_full_matrix --only webull_read_paper,webull_write_paper
+```
+
+## Artifacts and Reports
+
+- Health report JSON: `artifacts/health_report.json`
+- Reliability workflow deterministic JUnit: `artifacts/junit-deterministic.xml`
+- Reliability workflow external smoke JUnit: `artifacts/junit-external-smoke.xml`
+
+## Related Docs
+
+- Detailed test strategy and matrix: `tests/README.md`
+- Test structure policy: `docs/testing.md`
+- Test standards playbook: `docs/test-standards.md`
+- Manual happy-path check: `docs/manual-testing.md`
+- Script details: `docs/SCRIPTS.md`
