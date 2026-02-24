@@ -1,6 +1,9 @@
 # Environment
 .env
+venv
 venv/
+.venv
+.venv/
 env/
 *.pyc
 __pycache__/
@@ -28,5 +31,3 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
-
-.venv/

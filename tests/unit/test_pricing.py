@@ -14,6 +14,15 @@ def test_compute_buffered_limit_price_sell_subtracts_buffer():
     assert compute_buffered_limit_price("SELL", 100.0, 50.0) == 99.5
 
 
+def test_compute_buffered_limit_price_enforces_cent_tick_for_prices_above_one():
+    assert compute_buffered_limit_price("BUY", 85.78, 50.0) == 86.21
+    assert compute_buffered_limit_price("SELL", 85.78, 50.0) == 85.35
+
+
+def test_compute_buffered_limit_price_keeps_sub_dollar_precision():
+    assert compute_buffered_limit_price("BUY", 0.95, 50.0) == 0.9547
+
+
 def test_compute_buffered_limit_price_clamps_negative_buffer_to_zero():
     assert compute_buffered_limit_price("BUY", 100.0, -10.0) == 100.0
 

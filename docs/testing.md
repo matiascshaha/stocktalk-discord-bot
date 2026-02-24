@@ -1,42 +1,56 @@
-﻿# Testing Strategy
+﻿# Testing Structure
 
-## Test pyramid
+## Current Layout
 
-- Unit tests: fast logic validation.
-- Integration tests: service boundaries and contracts.
-- E2E/UI tests: user-critical paths only.
+```text
+tests/
+  brokers/
+    webull/
+      contract/
+      smoke/
+  channels/
+    discord/
+      integration/
+      smoke/
+  data/
+  parser/
+    contract/
+    smoke/
+  support/
+    cases/
+    factories/
+    fakes/
+    payloads/
+    tooling/
+  system/
+    integration/
+  unit/
+```
 
-## Test layout policy
+## Placement Rules
 
-- Top-level test folders are domain-first: `tests/unit`, `tests/parser`, `tests/channels`, `tests/brokers`, `tests/system`.
-- Strategy split happens inside domains as needed: `contract`, `integration`, `smoke`.
-- Marker taxonomy is orthogonal and standardized (`unit|contract|integration|e2e`, `smoke`, `live`, `write`, plus domain markers).
-- Shared test setup belongs in `conftest.py` or `tests/support/`, not in test modules.
+- `tests/unit/`: deterministic unit-level checks.
+- `tests/parser/`: parser contract + parser smoke/live checks.
+- `tests/channels/discord/`: Discord integration flow + Discord live smoke.
+- `tests/brokers/webull/`: Webull contract checks + Webull live/read/write smoke.
+- `tests/system/integration/`: cross-domain quality/confidence integration checks.
+- `tests/support/`: reusable fakes/factories/helpers/tooling support.
+- `tests/data/`: reusable static test data fixtures.
 
-## Test module purity
+## Markers and Default Selection
 
-- Test modules should contain tests only.
-- Do not define helper classes/functions in `test_*.py` files.
-- Move fakes/factories/payload builders into `tests/support/`.
-- Enforced in CI by `python -m scripts.check_test_file_purity`.
+- Marker taxonomy is defined in `pytest.ini`.
+- `pytest` defaults to deterministic scope with `-m "not live and not write"`.
+- `--strict-markers` is enabled; undeclared markers fail collection.
 
-## Quality gates
+## Purity and Reuse Rules
 
-- No merge if lint/typecheck fails.
-- No merge if impacted tests fail.
-- Flaky test mitigation required before re-enabling unstable suites.
+- `test_*.py` modules should contain tests only.
+- Shared setup goes in `conftest.py`.
+- Shared helpers belong in `tests/support/`.
+- Enforced by `python -m scripts.check_test_file_purity`.
 
-## Flaky test policy
+## References
 
-1. Detect and tag flaky tests.
-2. Capture trace/log/screenshot evidence.
-3. Triage root cause within agreed SLA.
-4. Quarantine only with linked issue and owner.
-
-## Coverage
-
-Track coverage trends; do not optimize for vanity percentages.
-
-## Manual happy path
-
-For a super simple end-to-end manual check (run app, send one Discord message, verify local output + Webull paper order attempt), use `docs/manual-testing.md`.
+- Detailed strategy and command matrix: `tests/README.md`
+- Manual end-to-end check: `docs/manual-testing.md`
