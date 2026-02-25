@@ -7,6 +7,7 @@ Use this file as durable memory for high-value repo knowledge.
 | Date | Area | Type | Fact/Decision | Evidence | Owner | Review date |
 |---|---|---|---|---|---|---|
 | YYYY-MM-DD | ui-tests | fact | Replace me | path:line | handle | YYYY-MM-DD |
+| 2026-02-25 | ops | command | `scripts/ops/do_app_control.sh` supports `--action enable|disable`; `disable` applies no-autostart behavior by running `systemctl disable` plus stop. | scripts/ops/do_app_control.sh:9; docs/deploy-digitalocean.md:181 | codex | 2026-05-25 |
 | 2026-02-25 | ai | decision | `ai.provider=none` is an explicit hard disable and no longer falls back to available providers, even if `ai.fallback_to_available_provider=true`. | src/ai_parser.py:370; tests/unit/test_parser_schema.py:208 | codex | 2026-05-25 |
 | 2026-02-25 | ops | decision | VM runtime mode control is host-mounted config: systemd passes `CONFIG_PATH=/app/config/trading.yaml` and bind-mounts `/opt/stocktalk/config/trading.yaml`, allowing `ai.provider` and `trading.auto_trade` changes without rebuilding images. | deploy/systemd/stocktalk.service:15; docs/deploy-digitalocean.md:74 | codex | 2026-05-25 |
 | 2026-02-25 | ops | decision | Production VM deploy path is prebuilt GHCR image pull with pinned SHA tags; `stocktalk.service` no longer builds images on VM start. | deploy/systemd/stocktalk.service:1; docs/deploy-digitalocean.md:1 | codex | 2026-05-25 |

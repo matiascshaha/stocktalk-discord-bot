@@ -182,6 +182,8 @@ Redeploy the previous known-good SHA:
 ./scripts/ops/do_app_control.sh --host <droplet-ip> --action logs --identity ~/.ssh/id_ed25519_stocktalk
 ./scripts/ops/do_app_control.sh --host <droplet-ip> --action stop --identity ~/.ssh/id_ed25519_stocktalk
 ./scripts/ops/do_app_control.sh --host <droplet-ip> --action start --identity ~/.ssh/id_ed25519_stocktalk
+./scripts/ops/do_app_control.sh --host <droplet-ip> --action disable --identity ~/.ssh/id_ed25519_stocktalk
+./scripts/ops/do_app_control.sh --host <droplet-ip> --action enable --identity ~/.ssh/id_ed25519_stocktalk
 ```
 
 For non-interactive control commands with a passphrase-protected key, use the same `ssh-add` setup from section 4 and run with `BATCH_MODE=1`. `The agent has no identities` means no key is loaded in your local `ssh-agent`.

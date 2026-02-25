@@ -6,7 +6,7 @@ usage() {
 Control the stocktalk systemd service on a remote VM via SSH.
 
 Usage:
-  ./scripts/ops/do_app_control.sh --host <ip-or-hostname> --action <start|stop|restart|status|logs>
+  ./scripts/ops/do_app_control.sh --host <ip-or-hostname> --action <start|stop|restart|status|logs|enable|disable>
     [--user <user>] [--identity <private-key-path>] [--port <ssh-port>]
 
 Notes:
@@ -44,7 +44,7 @@ if [[ -z "${HOST}" || -z "${ACTION}" ]]; then
 fi
 
 case "${ACTION}" in
-  start|stop|restart|status|logs) ;;
+  start|stop|restart|status|logs|enable|disable) ;;
   *)
     echo "error: invalid action '${ACTION}'" >&2
     usage
@@ -92,6 +92,10 @@ if [[ "${ACTION}" == "logs" ]]; then
   REMOTE_CMD="sudo journalctl -u stocktalk -n 200 --no-pager"
 elif [[ "${ACTION}" == "status" ]]; then
   REMOTE_CMD="sudo systemctl status stocktalk --no-pager"
+elif [[ "${ACTION}" == "enable" ]]; then
+  REMOTE_CMD="sudo systemctl enable stocktalk && sudo systemctl status stocktalk --no-pager"
+elif [[ "${ACTION}" == "disable" ]]; then
+  REMOTE_CMD="sudo systemctl disable stocktalk && sudo systemctl stop stocktalk && sudo systemctl status stocktalk --no-pager || true"
 else
   REMOTE_CMD="sudo systemctl ${ACTION} stocktalk && sudo systemctl status stocktalk --no-pager"
 fi
