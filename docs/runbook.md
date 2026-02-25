@@ -60,6 +60,48 @@ Useful runtime modes:
 - Auto-trade mode: set `trading.auto_trade: true` and configure broker credentials in `.env`.
 - Paper-trade safety: set `trading.paper_trade: true` for manual validation.
 
+## Deploy Commands (DigitalOcean + GHCR)
+
+Publish image from GitHub Actions:
+
+```bash
+gh workflow run publish-image.yml
+```
+
+Local publish fallback:
+
+```bash
+IMAGE_REPOSITORY=ghcr.io/<owner>/stocktalk-discord-bot
+IMAGE_TAG="$(git rev-parse HEAD)"
+echo "<github-token>" | docker login ghcr.io -u <github-username> --password-stdin
+docker build -t "${IMAGE_REPOSITORY}:${IMAGE_TAG}" -t "${IMAGE_REPOSITORY}:latest" .
+docker push "${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+docker push "${IMAGE_REPOSITORY}:latest"
+```
+
+One-time GHCR auth on VM:
+
+```bash
+echo "<github-token>" | sudo docker login ghcr.io -u <github-username> --password-stdin
+```
+
+Deploy immutable SHA image:
+
+```bash
+./scripts/ops/do_deploy_image.sh \
+  --host <droplet-ip> \
+  --image-repository ghcr.io/<owner>/stocktalk-discord-bot \
+  --image-tag <full-commit-sha> \
+  --identity ~/.ssh/id_ed25519_stocktalk
+```
+
+Roll forward/rollback by SHA:
+
+```bash
+./scripts/ops/do_deploy_image.sh --host <droplet-ip> --image-tag <full-commit-sha> --identity ~/.ssh/id_ed25519_stocktalk
+./scripts/ops/do_deploy_image.sh --host <droplet-ip> --image-tag <previous-good-sha> --identity ~/.ssh/id_ed25519_stocktalk
+```
+
 ## PR Workflow (Auto-Merge Required)
 
 Create a PR from the current branch:
