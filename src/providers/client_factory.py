@@ -1,9 +1,7 @@
 """Provider client initialization helpers."""
 
+import importlib
 from typing import Any, Dict, Optional
-
-import anthropic
-import openai
 
 
 def build_provider_client(
@@ -18,20 +16,31 @@ def build_provider_client(
     if normalized_provider == "anthropic":
         if not anthropic_api_key:
             return None
-        return anthropic.Anthropic(api_key=anthropic_api_key)
+        anthropic_module = _import_optional_dependency("anthropic")
+        return anthropic_module.Anthropic(api_key=anthropic_api_key)
 
     if normalized_provider == "openai":
         if not openai_api_key:
             return None
-        return openai.OpenAI(api_key=openai_api_key)
+        openai_module = _import_optional_dependency("openai")
+        return openai_module.OpenAI(api_key=openai_api_key)
 
     if normalized_provider == "google":
         if not google_api_key:
             return None
-        import google.generativeai as genai
+        genai = _import_optional_dependency("google.generativeai")
 
         genai.configure(api_key=google_api_key)
         model_name = config["google"]["model"]
         return genai.GenerativeModel(model_name)
 
     return None
+
+
+def _import_optional_dependency(module_name: str) -> Any:
+    try:
+        return importlib.import_module(module_name)
+    except ImportError as exc:
+        raise RuntimeError(
+            f"Missing optional dependency '{module_name}'. Install it to use this AI provider."
+        ) from exc

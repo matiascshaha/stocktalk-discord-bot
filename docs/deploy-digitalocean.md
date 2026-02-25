@@ -1,6 +1,18 @@
-# DigitalOcean VM Deployment (doctl)
+# DigitalOcean VM Deployment (doctl + GHCR)
 
-This guide deploys the app to a long-running Droplet with manual control.
+This guide uses a staged, low-cost deployment model:
+
+- Build/publish Docker images in GitHub Actions.
+- Deploy immutable SHA-tagged images to the Droplet.
+- Do not build Docker images on the VM.
+
+This avoids build-time OOM on small droplets.
+
+From local machine, you can connect without hardcoding IP:
+
+```bash
+./scripts/ops/do_ssh_vm.sh stocktalk-vm root
+```
 
 ## Cost and "Turn Off" Modes
 
@@ -10,11 +22,12 @@ This guide deploys the app to a long-running Droplet with manual control.
 
 If your requirement is "not billed anymore," use snapshot + destroy.
 
-## Prerequisites
+## 1) Prerequisites
 
 - `doctl` installed and authenticated.
 - SSH key added to DigitalOcean.
-- Docker available on the VM (bootstrap script handles this).
+- GitHub repository has Actions enabled.
+- GitHub Container Registry (GHCR) package publishing allowed for the repo.
 
 Auth check:
 
@@ -23,15 +36,15 @@ doctl auth list
 doctl account get
 ```
 
-## 1) Pick Cheapest Size in Region
+## 2) Pick Cheapest Size in Region
 
 ```bash
 ./scripts/ops/do_select_cheapest_size.sh nyc1
 ```
 
-The script selects the cheapest *available* size slug for the region.
+The script selects the cheapest available size slug for the region.
 
-## 2) Create Droplet (Cheapest)
+## 3) Create Droplet
 
 ```bash
 ./scripts/ops/do_create_droplet.sh \
@@ -43,55 +56,133 @@ The script selects the cheapest *available* size slug for the region.
 
 Optional: add project assignment with `--project <project-id>`.
 
-## 3) Bootstrap VM
+## 4) Bootstrap VM (One Command)
 
-SSH to the Droplet, clone the repo, then:
-
-```bash
-sudo ./scripts/ops/bootstrap_vm.sh --start-now
-```
-
-Optional market-hours app schedule (start 09:20 ET, stop 16:10 ET weekdays):
+From your local machine:
 
 ```bash
-sudo ./scripts/ops/bootstrap_vm.sh --install-market-hours-timers
-sudo systemctl start stocktalk-start.timer stocktalk-stop.timer
+./scripts/ops/do_bootstrap_vm.sh --host <droplet-ip> --identity ~/.ssh/id_ed25519_stocktalk
 ```
 
-## 4) Configure Secrets
+If your key has a passphrase and you want non-interactive runs:
+
+```bash
+ssh-add ~/.ssh/id_ed25519_stocktalk
+BATCH_MODE=1 ./scripts/ops/do_bootstrap_vm.sh --host <droplet-ip> --identity ~/.ssh/id_ed25519_stocktalk
+```
+
+`bootstrap_vm.sh` creates:
+
+- `/opt/stocktalk/.env` from `.env.example` (if missing)
+- `/opt/stocktalk/.env.runtime` from `deploy/systemd/stocktalk.env.runtime.example` (if missing)
+
+The runtime file must be set to your GHCR image before first app start.
+
+Optional market-hours schedule (start 09:20 ET, stop 16:10 ET weekdays):
+
+```bash
+./scripts/ops/do_bootstrap_vm.sh --host <droplet-ip> --install-market-hours-timers --identity ~/.ssh/id_ed25519_stocktalk
+ssh -i ~/.ssh/id_ed25519_stocktalk root@<droplet-ip> 'sudo systemctl start stocktalk-start.timer stocktalk-stop.timer'
+```
+
+## 5) Configure App Secrets
 
 On VM:
 
 ```bash
-sudo cp /opt/stocktalk/.env.example /opt/stocktalk/.env
 sudo nano /opt/stocktalk/.env
 ```
 
-Then restart:
+Use monitor-only defaults first (`trading.auto_trade=false`).
+
+## 6) Publish Image to GHCR
+
+Workflow: `.github/workflows/publish-image.yml`
+
+- Trigger automatically on push to `main`.
+- Or run manually:
 
 ```bash
-sudo systemctl restart stocktalk
+gh workflow run publish-image.yml
 ```
 
-## 5) App Control (Manual)
+Image tags produced:
 
-From local machine:
+- `ghcr.io/<owner>/stocktalk-discord-bot:<full-commit-sha>`
+- `ghcr.io/<owner>/stocktalk-discord-bot:latest` (default branch convenience tag)
+
+Optional local publish fallback:
 
 ```bash
-./scripts/ops/do_app_control.sh --host <droplet-ip> --action status
-./scripts/ops/do_app_control.sh --host <droplet-ip> --action start
-./scripts/ops/do_app_control.sh --host <droplet-ip> --action stop
-./scripts/ops/do_app_control.sh --host <droplet-ip> --action logs
+IMAGE_REPOSITORY=ghcr.io/<owner>/stocktalk-discord-bot
+IMAGE_TAG="$(git rev-parse HEAD)"
+echo "<github-token>" | docker login ghcr.io -u <github-username> --password-stdin
+docker build -t "${IMAGE_REPOSITORY}:${IMAGE_TAG}" -t "${IMAGE_REPOSITORY}:latest" .
+docker push "${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+docker push "${IMAGE_REPOSITORY}:latest"
 ```
 
-## 6) VM Power Control (Still Billed)
+## 7) Configure GHCR Pull Auth on VM (One Time)
+
+Create a GitHub token with package read access, then on VM:
+
+```bash
+echo "<github-token>" | sudo docker login ghcr.io -u <github-username> --password-stdin
+```
+
+## 8) Deploy Pinned Image Tag
+
+First deploy (set repository + tag):
+
+```bash
+./scripts/ops/do_deploy_image.sh \
+  --host <droplet-ip> \
+  --image-repository ghcr.io/<owner>/stocktalk-discord-bot \
+  --image-tag <full-commit-sha> \
+  --identity ~/.ssh/id_ed25519_stocktalk
+```
+
+Next deploys (tag only):
+
+```bash
+./scripts/ops/do_deploy_image.sh \
+  --host <droplet-ip> \
+  --image-tag <full-commit-sha> \
+  --identity ~/.ssh/id_ed25519_stocktalk
+```
+
+For non-interactive deploys with a passphrase-protected key, use the `ssh-add` flow from section 4 and run with `BATCH_MODE=1`.
+
+## 9) Rollback
+
+Redeploy the previous known-good SHA:
+
+```bash
+./scripts/ops/do_deploy_image.sh \
+  --host <droplet-ip> \
+  --image-tag <previous-good-sha> \
+  --identity ~/.ssh/id_ed25519_stocktalk
+```
+
+## 10) App Control and Logs
+
+```bash
+./scripts/ops/do_app_control.sh --host <droplet-ip> --action status --identity ~/.ssh/id_ed25519_stocktalk
+./scripts/ops/do_app_control.sh --host <droplet-ip> --action logs --identity ~/.ssh/id_ed25519_stocktalk
+./scripts/ops/do_app_control.sh --host <droplet-ip> --action stop --identity ~/.ssh/id_ed25519_stocktalk
+./scripts/ops/do_app_control.sh --host <droplet-ip> --action start --identity ~/.ssh/id_ed25519_stocktalk
+```
+
+For non-interactive control commands with a passphrase-protected key, use the same `ssh-add` setup from section 4 and run with `BATCH_MODE=1`. `The agent has no identities` means no key is loaded in your local `ssh-agent`.
+
+## 11) VM Power Control (Still Billed)
 
 ```bash
 ./scripts/ops/do_shutdown_vm.sh --droplet stocktalk-vm
 ./scripts/ops/do_power_on_vm.sh --droplet stocktalk-vm
 ```
 
-## 7) Stop Billing (Snapshot + Destroy)
+## 12) Stop Billing (Snapshot + Destroy)
 
 ```bash
 ./scripts/ops/do_stop_billing.sh --droplet stocktalk-vm
@@ -105,7 +196,7 @@ This script:
 
 It prints snapshot ID/name for restore.
 
-## 8) Restore from Snapshot
+## 13) Restore from Snapshot
 
 ```bash
 ./scripts/ops/do_restore_from_snapshot.sh \
@@ -116,16 +207,17 @@ It prints snapshot ID/name for restore.
   --tag stocktalk
 ```
 
-Then start app:
+Then redeploy a known-good image tag:
 
 ```bash
-./scripts/ops/do_app_control.sh --host <droplet-ip> --action start
+./scripts/ops/do_deploy_image.sh \
+  --host <droplet-ip> \
+  --image-tag <known-good-sha> \
+  --identity ~/.ssh/id_ed25519_stocktalk
 ```
 
-## 9) Recommended Safety Defaults
+If SSH returns `Permission denied (publickey)` after snapshot restore:
 
-- First run with `trading.auto_trade=false`.
-- Validate parser and notifications before enabling auto-trade.
-- Keep write-path tests opt-in only.
-
-Use validation commands from `docs/runbook.md`.
+- Snapshot image may not accept newly attached keys.
+- Recover access through DigitalOcean web console/recovery flow and re-add your key to `~/.ssh/authorized_keys`.
+- For future restores, prefer a source snapshot where cloud-init key injection is verified, or recreate from fresh Ubuntu + `bootstrap_vm.sh`.

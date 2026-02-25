@@ -1,8 +1,13 @@
+import os
+
 import pytest
 
 from src.providers.parser_dispatch import UnsupportedProviderError, request_provider_completion
 from tests.support.fakes.ai_clients import CapturingOpenAIClient, FakeAnthropicClient, FakeGoogleClient
 from tests.support.provider_configs import parser_provider_config
+
+RUN_OPTIONAL_PROVIDER_TESTS = os.getenv("RUN_OPTIONAL_PROVIDER_TESTS") == "1"
+OPTIONAL_PROVIDER_TESTS_REASON = "Optional provider tests are disabled. Set RUN_OPTIONAL_PROVIDER_TESTS=1 to run."
 
 
 @pytest.mark.unit
@@ -15,6 +20,7 @@ def test_request_provider_completion_routes_openai():
 
 
 @pytest.mark.unit
+@pytest.mark.skipif(not RUN_OPTIONAL_PROVIDER_TESTS, reason=OPTIONAL_PROVIDER_TESTS_REASON)
 def test_request_provider_completion_routes_anthropic():
     client = FakeAnthropicClient('{"signals":[]}')
     result = request_provider_completion("anthropic", client, parser_provider_config(), "hello")
@@ -24,6 +30,7 @@ def test_request_provider_completion_routes_anthropic():
 
 
 @pytest.mark.unit
+@pytest.mark.skipif(not RUN_OPTIONAL_PROVIDER_TESTS, reason=OPTIONAL_PROVIDER_TESTS_REASON)
 def test_request_provider_completion_routes_google():
     client = FakeGoogleClient('{"signals":[]}')
     result = request_provider_completion("google", client, parser_provider_config(), "hello")

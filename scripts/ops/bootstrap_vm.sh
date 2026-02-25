@@ -42,7 +42,23 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 echo "Installing Docker runtime packages..."
 apt-get update
-apt-get install -y --no-install-recommends docker.io docker-compose-plugin ca-certificates curl rsync
+
+APT_PACKAGES=(
+  docker.io
+  ca-certificates
+  curl
+  rsync
+)
+
+if apt-cache show docker-compose-plugin >/dev/null 2>&1; then
+  APT_PACKAGES+=(docker-compose-plugin)
+elif apt-cache show docker-compose-v2 >/dev/null 2>&1; then
+  APT_PACKAGES+=(docker-compose-v2)
+else
+  echo "warning: no Docker Compose package found in apt repositories; continuing without compose plugin." >&2
+fi
+
+apt-get install -y --no-install-recommends "${APT_PACKAGES[@]}"
 
 systemctl enable --now docker
 
@@ -53,6 +69,11 @@ mkdir -p /opt/stocktalk/data
 if [[ ! -f /opt/stocktalk/.env && -f /opt/stocktalk/.env.example ]]; then
   cp /opt/stocktalk/.env.example /opt/stocktalk/.env
   echo "Created /opt/stocktalk/.env from .env.example (fill secrets before starting app)." >&2
+fi
+
+if [[ ! -f /opt/stocktalk/.env.runtime && -f /opt/stocktalk/deploy/systemd/stocktalk.env.runtime.example ]]; then
+  cp /opt/stocktalk/deploy/systemd/stocktalk.env.runtime.example /opt/stocktalk/.env.runtime
+  echo "Created /opt/stocktalk/.env.runtime from example (set IMAGE_REPOSITORY/IMAGE_TAG before starting app)." >&2
 fi
 
 install -m 0644 "${REPO_ROOT}/deploy/systemd/stocktalk.service" /etc/systemd/system/stocktalk.service
@@ -72,7 +93,12 @@ if [[ "${INSTALL_TIMERS}" == "1" ]]; then
 fi
 
 if [[ "${START_NOW}" == "1" ]]; then
-  systemctl start stocktalk.service
+  if [[ -f /opt/stocktalk/.env.runtime ]] && grep -q 'replace-with-github-owner' /opt/stocktalk/.env.runtime; then
+    echo "Skipping start: /opt/stocktalk/.env.runtime still has placeholder IMAGE_REPOSITORY." >&2
+    echo "Deploy an image tag first, then start stocktalk.service." >&2
+  else
+    systemctl start stocktalk.service
+  fi
 fi
 
 echo "Bootstrap complete."

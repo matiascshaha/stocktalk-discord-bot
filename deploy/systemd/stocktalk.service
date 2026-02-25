@@ -6,11 +6,15 @@ Wants=network-online.target docker.service
 [Service]
 Type=simple
 WorkingDirectory=/opt/stocktalk
-ExecStartPre=/usr/bin/docker build -t stocktalk-bot:latest /opt/stocktalk
-ExecStartPre=-/usr/bin/docker rm -f stocktalk-bot
-ExecStart=/usr/bin/docker run --name stocktalk-bot --env-file /opt/stocktalk/.env -v /opt/stocktalk/data:/app/data stocktalk-bot:latest
-ExecStop=/usr/bin/docker stop -t 30 stocktalk-bot
-ExecStopPost=-/usr/bin/docker rm -f stocktalk-bot
+Environment=IMAGE_REPOSITORY=ghcr.io/replace-with-github-owner/stocktalk-discord-bot
+Environment=IMAGE_TAG=latest
+Environment=CONTAINER_NAME=stocktalk-bot
+EnvironmentFile=-/opt/stocktalk/.env.runtime
+ExecStartPre=/bin/sh -lc '/usr/bin/docker pull "${IMAGE_REPOSITORY}:${IMAGE_TAG}"'
+ExecStartPre=-/bin/sh -lc '/usr/bin/docker rm -f "${CONTAINER_NAME}"'
+ExecStart=/bin/sh -lc '/usr/bin/docker run --name "${CONTAINER_NAME}" --env-file /opt/stocktalk/.env -v /opt/stocktalk/data:/app/data "${IMAGE_REPOSITORY}:${IMAGE_TAG}"'
+ExecStop=/bin/sh -lc '/usr/bin/docker stop -t 30 "${CONTAINER_NAME}"'
+ExecStopPost=-/bin/sh -lc '/usr/bin/docker rm -f "${CONTAINER_NAME}"'
 Restart=always
 RestartSec=10
 TimeoutStartSec=0

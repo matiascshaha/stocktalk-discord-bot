@@ -15,7 +15,7 @@ REGION="${1:-}"
 JSON="$(doctl compute size list --output json)"
 
 SLUG="$(
-  python3 - "${REGION}" <<'PY' <<<"${JSON}"
+  python3 -c '
 import json
 import sys
 
@@ -44,7 +44,7 @@ if not candidates:
 
 candidates.sort(key=lambda row: (row[0], row[1], row[2]))
 print(candidates[0][2])
-PY
+' "${REGION}" <<<"${JSON}"
 )"
 
 if [[ -z "${SLUG}" ]]; then
