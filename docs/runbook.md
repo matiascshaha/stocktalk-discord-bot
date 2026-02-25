@@ -264,7 +264,8 @@ python -m scripts.quality.run_full_matrix --only webull_read_paper,webull_write_
 
 - Health report JSON: `artifacts/health_report.json`
 - Reliability workflow deterministic JUnit: `artifacts/junit-deterministic.xml`
-- Reliability workflow external smoke JUnit: `artifacts/junit-external-smoke.xml`
+- Reliability workflow external smoke JUnit (read): `artifacts/junit-external-smoke-read.xml`
+- Reliability workflow external smoke JUnit (write): `artifacts/junit-external-smoke-write.xml`
 
 ## Related Docs
 
