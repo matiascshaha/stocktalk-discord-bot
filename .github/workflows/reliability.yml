@@ -44,17 +44,17 @@ jobs:
   external-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    continue-on-error: true
     env:
       TEST_MODE: "smoke"
-      TEST_WEBULL_READ: ${{ secrets.WEBULL_APP_KEY != '' && '1' || '0' }}
+      TEST_WEBULL_READ: ${{ secrets.WEBULL_APP_KEY != '' && secrets.WEBULL_APP_SECRET != '' && '1' || '0' }}
+      TEST_WEBULL_WRITE: ${{ secrets.WEBULL_APP_KEY != '' && secrets.WEBULL_APP_SECRET != '' && '1' || '0' }}
       TEST_AI_LIVE: "0"
       TEST_BROKERS: "webull"
-      TEST_WEBULL_ENV: "production"
+      TEST_WEBULL_ENV: "paper"
       WEBULL_APP_KEY: ${{ secrets.WEBULL_APP_KEY }}
       WEBULL_APP_SECRET: ${{ secrets.WEBULL_APP_SECRET }}
       WEBULL_ACCOUNT_ID: ${{ secrets.WEBULL_ACCOUNT_ID }}
-      PAPER_TRADE: "false"
+      PAPER_TRADE: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -69,10 +69,11 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -e .
 
-      - name: Run external smoke (read-only)
+      - name: Run external smoke (read + write, paper)
         run: |
           mkdir -p artifacts
-          python -m pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write and broker and broker_webull" --junitxml=artifacts/junit-external-smoke.xml
+          python -m pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write and broker and broker_webull" --junitxml=artifacts/junit-external-smoke-read.xml
+          python -m pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and write and broker and broker_webull" --junitxml=artifacts/junit-external-smoke-write.xml
 
       - name: Upload external smoke artifacts
         if: always()
@@ -80,27 +81,5 @@ jobs:
         with:
           name: external-smoke-artifacts
           path: |
-            artifacts/junit-external-smoke.xml
-
-  summary:
-    runs-on: ubuntu-latest
-    needs:
-      - deterministic-tests
-      - external-smoke
-    if: always()
-    steps:
-      - name: Build summary markdown
-        run: |
-          mkdir -p artifacts
-          cat > artifacts/reliability-summary.md << 'EOF'
-          # Reliability Summary
-
-          - deterministic-tests: ${{ needs.deterministic-tests.result }}
-          - external-smoke: ${{ needs.external-smoke.result }}
-          EOF
-
-      - name: Upload summary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: reliability-summary
-          path: artifacts/reliability-summary.md
+            artifacts/junit-external-smoke-read.xml
+            artifacts/junit-external-smoke-write.xml
