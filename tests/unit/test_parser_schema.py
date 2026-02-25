@@ -1,5 +1,6 @@
 import pytest
 
+import src.ai_parser as ai_parser_module
 from src.ai_parser import AIParser
 from src.models.parser_models import ParsedMessage
 from tests.data.stocktalk_real_messages import REAL_MESSAGES
@@ -202,3 +203,24 @@ def test_portfolio_summary_is_prompt_handled_not_preblocked():
     prompt = parser.client.calls[0]["messages"][0]["content"]
     assert "If the message is PORTFOLIO_SUMMARY, return no picks." in prompt
     assert "Do NOT treat holdings inventory lines as execution signals" in prompt
+
+
+def test_ai_provider_none_disables_client_even_when_fallback_enabled(monkeypatch):
+    calls = []
+
+    def fake_try_init_provider(self, provider):
+        calls.append(("try", provider))
+
+    def fake_init_first_available(self):
+        calls.append(("first_available", None))
+
+    monkeypatch.setattr(ai_parser_module, "AI_PROVIDER", "none")
+    monkeypatch.setitem(ai_parser_module.AI_CONFIG, "fallback_to_available_provider", True)
+    monkeypatch.setattr(ai_parser_module.AIParser, "_try_init_provider", fake_try_init_provider)
+    monkeypatch.setattr(ai_parser_module.AIParser, "_init_first_available", fake_init_first_available)
+
+    parser = ai_parser_module.AIParser()
+
+    assert parser.client is None
+    assert parser.provider is None
+    assert calls == []

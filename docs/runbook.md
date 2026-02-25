@@ -57,6 +57,7 @@ stock-monitor
 Useful runtime modes:
 
 - Monitor-only mode: set `trading.auto_trade: false` in `config/trading.yaml`.
+- No-AI mode: set `ai.provider: none` in `config/trading.yaml`.
 - Auto-trade mode: set `trading.auto_trade: true` and configure broker credentials in `.env`.
 - Paper-trade safety: set `trading.paper_trade: true` for manual validation.
 
@@ -94,6 +95,14 @@ Deploy immutable SHA image:
   --image-tag <full-commit-sha> \
   --identity ~/.ssh/id_ed25519_stocktalk
 ```
+
+VM runtime config file used by container:
+
+```bash
+/opt/stocktalk/config/trading.yaml
+```
+
+Container is started with `CONFIG_PATH=/app/config/trading.yaml` and host bind mount of that file.
 
 Roll forward/rollback by SHA:
 
@@ -264,8 +273,7 @@ python -m scripts.quality.run_full_matrix --only webull_read_paper,webull_write_
 
 - Health report JSON: `artifacts/health_report.json`
 - Reliability workflow deterministic JUnit: `artifacts/junit-deterministic.xml`
-- Reliability workflow external smoke JUnit (read): `artifacts/junit-external-smoke-read.xml`
-- Reliability workflow external smoke JUnit (write): `artifacts/junit-external-smoke-write.xml`
+- Reliability workflow external smoke JUnit: `artifacts/junit-external-smoke.xml`
 
 ## Related Docs
 

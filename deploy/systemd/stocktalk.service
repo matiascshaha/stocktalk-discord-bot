@@ -12,7 +12,7 @@ Environment=CONTAINER_NAME=stocktalk-bot
 EnvironmentFile=-/opt/stocktalk/.env.runtime
 ExecStartPre=/bin/sh -lc '/usr/bin/docker pull "${IMAGE_REPOSITORY}:${IMAGE_TAG}"'
 ExecStartPre=-/bin/sh -lc '/usr/bin/docker rm -f "${CONTAINER_NAME}"'
-ExecStart=/bin/sh -lc '/usr/bin/docker run --name "${CONTAINER_NAME}" --env-file /opt/stocktalk/.env -v /opt/stocktalk/data:/app/data "${IMAGE_REPOSITORY}:${IMAGE_TAG}"'
+ExecStart=/bin/sh -lc '/usr/bin/docker run --name "${CONTAINER_NAME}" --env-file /opt/stocktalk/.env -e CONFIG_PATH=/app/config/trading.yaml -v /opt/stocktalk/config/trading.yaml:/app/config/trading.yaml:ro -v /opt/stocktalk/data:/app/data "${IMAGE_REPOSITORY}:${IMAGE_TAG}"'
 ExecStop=/bin/sh -lc '/usr/bin/docker stop -t 30 "${CONTAINER_NAME}"'
 ExecStopPost=-/bin/sh -lc '/usr/bin/docker rm -f "${CONTAINER_NAME}"'
 Restart=always
