@@ -57,6 +57,7 @@ stock-monitor
 Useful runtime modes:
 
 - Monitor-only mode: set `trading.auto_trade: false` in `config/trading.yaml`.
+- No-AI mode: set `ai.provider: none` in `config/trading.yaml`.
 - Auto-trade mode: set `trading.auto_trade: true` and configure broker credentials in `.env`.
 - Paper-trade safety: set `trading.paper_trade: true` for manual validation.
 
@@ -94,6 +95,14 @@ Deploy immutable SHA image:
   --image-tag <full-commit-sha> \
   --identity ~/.ssh/id_ed25519_stocktalk
 ```
+
+VM runtime config file used by container:
+
+```bash
+/opt/stocktalk/config/trading.yaml
+```
+
+Container is started with `CONFIG_PATH=/app/config/trading.yaml` and host bind mount of that file.
 
 Roll forward/rollback by SHA:
 

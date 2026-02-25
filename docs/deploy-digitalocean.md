@@ -75,6 +75,7 @@ BATCH_MODE=1 ./scripts/ops/do_bootstrap_vm.sh --host <droplet-ip> --identity ~/.
 
 - `/opt/stocktalk/.env` from `.env.example` (if missing)
 - `/opt/stocktalk/.env.runtime` from `deploy/systemd/stocktalk.env.runtime.example` (if missing)
+- `/opt/stocktalk/config/trading.yaml` from `config/trading.yaml` (via repo sync)
 
 The runtime file must be set to your GHCR image before first app start.
 
@@ -85,7 +86,7 @@ Optional market-hours schedule (start 09:20 ET, stop 16:10 ET weekdays):
 ssh -i ~/.ssh/id_ed25519_stocktalk root@<droplet-ip> 'sudo systemctl start stocktalk-start.timer stocktalk-stop.timer'
 ```
 
-## 5) Configure App Secrets
+## 5) Configure Runtime Secrets and Modes
 
 On VM:
 
@@ -93,7 +94,17 @@ On VM:
 sudo nano /opt/stocktalk/.env
 ```
 
-Use monitor-only defaults first (`trading.auto_trade=false`).
+Set runtime mode in:
+
+```bash
+sudo nano /opt/stocktalk/config/trading.yaml
+```
+
+Recommended safe defaults:
+
+- `ai.provider: none` (no AI API calls/cost)
+- `trading.auto_trade: false` (monitor-only, no order execution)
+- `trading.paper_trade: true` (extra safety if auto-trade is re-enabled later)
 
 ## 6) Publish Image to GHCR
 

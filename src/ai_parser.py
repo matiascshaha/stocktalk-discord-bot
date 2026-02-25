@@ -371,6 +371,10 @@ class AIParser:
         provider = (AI_PROVIDER or "").lower().strip()
         fallback = bool(self.config.get("fallback_to_available_provider"))
 
+        if provider == "none":
+            logger.info("AI provider disabled via config (ai.provider=none)")
+            return
+
         if provider in ("", "auto"):
             provider = None
 
