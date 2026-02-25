@@ -8,6 +8,12 @@ This guide uses a staged, low-cost deployment model:
 
 This avoids build-time OOM on small droplets.
 
+From local machine, you can connect without hardcoding IP:
+
+```bash
+./scripts/ops/do_ssh_vm.sh stocktalk-vm root
+```
+
 ## Cost and "Turn Off" Modes
 
 - App off (`systemctl stop stocktalk`): VM still billed.
