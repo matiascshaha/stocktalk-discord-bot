@@ -3,7 +3,7 @@ import json
 import pytest
 
 from src.ai_parser import AIParser
-from tests.data.stocktalk_real_messages import REAL_MESSAGES
+from tests.data.stocktalk_real_messages import REAL_PIPELINE_CASES, MessageFixture
 from tests.support.factories.parser import parser_with_fake_openai_response
 
 
@@ -51,11 +51,9 @@ def test_parse_normalizes_single_signal_dict_response():
     assert result["signals"][0]["ticker"] == "MSFT"
 
 
-@pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", REAL_MESSAGES)
-def test_regression_real_messages_with_fixed_ai_contract(msg_id, author, text, should_pick, tickers):
-    _ = msg_id
-
-    if should_pick:
+@pytest.mark.parametrize("case", REAL_PIPELINE_CASES, ids=lambda case: case.scenario_id)
+def test_regression_real_messages_with_fixed_ai_contract(case: MessageFixture):
+    if case.should_pick:
         fake_payload = {
             "signals": [
                 {
@@ -64,22 +62,22 @@ def test_regression_real_messages_with_fixed_ai_contract(msg_id, author, text, s
                     "confidence": 0.9,
                     "vehicles": [{"type": "STOCK", "intent": "EXECUTE", "side": "BUY"}],
                 }
-                for ticker in sorted(tickers)
+                for ticker in sorted(case.expected_tickers)
             ]
         }
     else:
         fake_payload = {"signals": []}
 
     parser = parser_with_fake_openai_response(json.dumps(fake_payload))
-    result = parser.parse(text, author)
+    result = parser.parse(case.text, case.author)
 
     assert isinstance(result, dict)
     assert "signals" in result
     assert isinstance(result["signals"], list)
 
     found = {signal["ticker"] for signal in result["signals"] if isinstance(signal, dict) and signal.get("ticker")}
-    if should_pick:
-        for ticker in tickers:
-            assert ticker in found, f"{msg_id} missing ticker {ticker}"
+    if case.should_pick:
+        for ticker in case.expected_tickers:
+            assert ticker in found, f"{case.scenario_id} missing ticker {ticker}"
     else:
-        assert found == set(), f"{msg_id} should not produce signals"
+        assert found == set(), f"{case.scenario_id} should not produce signals"

@@ -9,7 +9,7 @@ import src.discord_client as discord_client_module
 import src.trading.orders.planner as order_planner_module
 from src.ai_parser import AIParser
 from src.discord_client import StockMonitorClient
-from tests.data.stocktalk_real_messages import REAL_MESSAGES
+from tests.data.stocktalk_real_messages import REAL_PIPELINE_CASES, MessageFixture
 from tests.support.cases.live_scope import select_live_cases
 from tests.support.factories.discord_messages import TEST_CHANNEL_ID, WRONG_CHANNEL_ID, build_message
 from tests.support.factories.parser import parser_with_fake_openai_response
@@ -21,8 +21,8 @@ from tests.support.payloads.signals import build_signal_payload
 pytestmark = [pytest.mark.integration, pytest.mark.channel, pytest.mark.source_discord]
 
 
-PIPELINE_CASES = REAL_MESSAGES[:]
-LIVE_PIPELINE_CASES = select_live_cases(REAL_MESSAGES)
+PIPELINE_CASES = list(REAL_PIPELINE_CASES)
+LIVE_PIPELINE_CASES = select_live_cases(PIPELINE_CASES)
 
 
 def test_client_initializes():
@@ -174,31 +174,33 @@ async def test_trade_failure_does_not_crash_message_handler():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", PIPELINE_CASES)
-async def test_real_message_pipeline_fake_ai_to_trader(msg_id, author, text, should_pick, tickers):
-    _ = msg_id
+@pytest.mark.parametrize("case", PIPELINE_CASES, ids=lambda case: case.scenario_id)
+async def test_real_message_pipeline_fake_ai_to_trader(case: MessageFixture):
     trader = TraderProbe()
     client = StockMonitorClient(trader=trader)
     type(client.client).user = SimpleNamespace(id=999)
     client.notifier.notify = MagicMock()
     client._log_signals = MagicMock()
 
-    if should_pick:
+    if case.should_pick:
         fake_payload = {
-            "signals": [build_signal_payload(ticker, "BUY", confidence=0.95, weight_percent=None) for ticker in sorted(tickers)]
+            "signals": [
+                build_signal_payload(ticker, "BUY", confidence=0.95, weight_percent=None)
+                for ticker in sorted(case.expected_tickers)
+            ]
         }
     else:
         fake_payload = {"signals": []}
     client.parser = parser_with_fake_openai_response(json.dumps(fake_payload))
 
-    await client.on_message(build_message(text, author_id=321, channel_id=TEST_CHANNEL_ID))
+    await client.on_message(build_message(case.text, author_id=321, channel_id=TEST_CHANNEL_ID))
 
-    if should_pick:
-        assert len(trader.orders) == len(tickers)
+    if case.should_pick:
+        assert len(trader.orders) == len(case.expected_tickers)
         assert trader.account_requests >= 1
         parsed_payload = client.notifier.notify.call_args[0][0]
         found = {signal["ticker"] for signal in parsed_payload["signals"]}
-        for ticker in tickers:
+        for ticker in case.expected_tickers:
             assert ticker in found
     else:
         assert trader.orders == []
@@ -208,9 +210,8 @@ async def test_real_message_pipeline_fake_ai_to_trader(msg_id, author, text, sho
 @pytest.mark.smoke
 @pytest.mark.live
 @pytest.mark.asyncio
-@pytest.mark.parametrize("msg_id, author, text, should_pick, tickers", LIVE_PIPELINE_CASES)
-async def test_live_ai_pipeline_message_to_trader(msg_id, author, text, should_pick, tickers):
-    _ = msg_id
+@pytest.mark.parametrize("case", LIVE_PIPELINE_CASES, ids=lambda case: case.scenario_id)
+async def test_live_ai_pipeline_message_to_trader(case: MessageFixture):
     if os.getenv("TEST_AI_LIVE", "0") != "1":
         pytest.skip("TEST_AI_LIVE != 1")
 
@@ -227,9 +228,9 @@ async def test_live_ai_pipeline_message_to_trader(msg_id, author, text, should_p
     client.notifier.notify = MagicMock()
     client._log_signals = MagicMock()
 
-    await client.on_message(build_message(text, author_id=321, channel_id=TEST_CHANNEL_ID))
+    await client.on_message(build_message(case.text, author_id=321, channel_id=TEST_CHANNEL_ID))
 
-    if should_pick:
+    if case.should_pick:
         assert len(trader.orders) > 0
         assert trader.account_requests >= 1
         notify_payload = client.notifier.notify.call_args[0][0]
@@ -238,6 +239,6 @@ async def test_live_ai_pipeline_message_to_trader(msg_id, author, text, should_p
         found = {
             signal["ticker"] for signal in notify_payload["signals"] if isinstance(signal, dict) and signal.get("ticker")
         }
-        assert found & tickers
+        assert found & case.expected_tickers
     else:
         assert trader.orders == []

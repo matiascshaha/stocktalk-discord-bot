@@ -206,6 +206,8 @@ Targeted deterministic suites:
 pytest tests/unit
 pytest tests/parser/contract/test_parser_contract.py tests/unit/test_parser_schema.py
 pytest tests/channels/discord/integration/test_message_flow.py -k "not live_ai_pipeline_message_to_trader"
+pytest tests/brokers/webull/integration/test_paper_trade_discord_flow.py
+pytest tests/brokers/webull/integration/test_paper_trade_account_context.py
 pytest tests/brokers/webull/contract/test_webull_contract.py
 pytest tests/system/integration
 ```
@@ -216,6 +218,12 @@ Parser AI live smoke:
 
 ```bash
 TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
+```
+
+Parser live prompt validator (frozen scenario contract checks):
+
+```bash
+TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -k "prompt_contract_validator" -m "smoke and live"
 ```
 
 AI to trader live pipeline:
