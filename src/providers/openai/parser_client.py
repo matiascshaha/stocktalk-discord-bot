@@ -43,9 +43,17 @@ def request_parser_completion(
     max_tokens: int,
     temperature: float,
 ) -> str:
+    system_instruction = (
+        "You are a strict trading-alert parser. "
+        "Return only JSON that matches the provided response schema exactly. "
+        "If no actionable trade exists in the message, return an empty signals array."
+    )
     response = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": prompt},
+        ],
         max_tokens=max_tokens,
         temperature=temperature,
         response_format=parser_response_format(),

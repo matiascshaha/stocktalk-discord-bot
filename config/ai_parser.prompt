@@ -1,291 +1,112 @@
-# UNIFIED TRADING ANALYSIS PROMPT
-# This prompt is enhanced to include account context and constraints.
-# It processes Discord alerts, account state, analyst rules, and margin constraints
-# in a single pass to output ready-to-execute trade orders.
+# STOCKTALK PARSER PROMPT
 
-You are analyzing a trading alert message from a professional stock trading Discord channel.
+You parse one Discord alert into the parser contract.
 {{EXTRA_IMPORTANT_DETAILS}}
 
-# CONTEXT: ACCOUNT STATE
+Task:
+- Return only actionable signals from THIS message.
+- Use the immutable JSON contract appended below.
+- Do not invent fields and do not rename fields.
+
+Message intent rules:
+1. `PORTFOLIO_SUMMARY` -> return `signals: []`.
+- Portfolio recap cues include phrases such as:
+  - "PORTFOLIO UPDATE"
+  - "LISTING FORMAT"
+  - "for the sake of completeness"
+  - "does not mean stock was bought or sold"
+  - holdings tables like `20-21%: $ENS* (Shares + $115C Mar '26)`
+2. `TRADE_ALERT` -> extract only current execution intent from this message.
+
+Extraction rules:
+- Use explicit action language only: `new position`, `added`, `opened`, `buying`, `trimming`, `exiting`, `sold`, `reduced`.
+- Ignore pure commentary, thesis text, and watchlist mentions without action language.
+- Never carry stale tickers from prior examples or prior messages.
+
+Ticker rules:
+- Ticker must be exchange symbol uppercase, no `$`.
+- Normalize spaced/hyphen tickers:
+  - `M-I-T-K` -> `MITK`
+  - `I-T-R-I` -> `ITRI`
+  - `I-R-D-M` -> `IRDM`
+- If message says `(ticker: X-X-X-X)` or `(ticker X-X-X-X)`, that explicit ticker is authoritative.
+- Do not output company names as ticker values (for example `ITRON` is invalid if message explicitly says ticker `I-T-R-I`).
+
+Vehicle rules:
+- Common shares only -> one `STOCK` vehicle.
+- Options only language (for example `just the calls`, `$22.5C`, `puts only`) -> one `OPTION` vehicle.
+- Mixed shares + options -> include both `STOCK` and `OPTION` vehicles in the same signal.
+- If a trade alert contains any explicit option contract token (`$12.5C`, `$200C`, `$95P`) for the traded ticker, an `OPTION` vehicle is REQUIRED.
+- Never collapse mixed trade language into stock-only output.
+- For option vehicles:
+  - `option_type`: `CALL` or `PUT` when inferable.
+  - `strike`: numeric when present.
+  - `expiry`: string when present.
+- Set `intent` to `EXECUTE` for buy/sell actions.
+- Set `side` to `BUY` or `SELL` to match action.
+
+Sizing rules:
+- If message provides weighting (`5.5% weighting`, `3% weight`), set `weight_percent` numeric.
+- If no explicit weighting, set `weight_percent` to null.
+
+No-action rules:
+- If no current execution command exists in this message, return `signals: []`.
+- If message is a holdings recap or status update, return `signals: []`.
+
+Runtime context:
 Current Time: {{CURRENT_TIME}}
-Account Balance: ${{ACCOUNT_BALANCE}}
-Margin Power: ${{MARGIN_POWER}}
-Cash Power: ${{CASH_POWER}}
-Option Buying Power: ${{OPTION_BUYING_POWER}}
-Available Margin: ${{AVAILABLE_MARGIN}}
-Margin Equity Percentage: {{MARGIN_EQUITY_PERCENTAGE}}%
-Current Positions: {{POSITION_COUNT}} open positions
-
-CURRENT HOLDINGS (brief snapshot):
-{{CURRENT_POSITIONS}}
-
-# CONTEXT: ANALYST RULES (if applicable)
+Author: {{AUTHOR_NAME}}
 Analyst: {{ANALYST_NAME}}
-
-Analyst-Specific Preferences:
+Analyst Preferences:
 {{ANALYST_PREFERENCES}}
-
-# CONTEXT: OPTIONS CHAIN (for this ticker)
-You are provided the live options chain for the ticker referenced in the alert.
-Use this chain when selecting:
-- the analyst’s recommended contract
-- the short-term lotto contract (<30 DTE, nearest ATM)
-
+Account Balance: {{ACCOUNT_BALANCE}}
+Margin Power: {{MARGIN_POWER}}
+Cash Power: {{CASH_POWER}}
+Option Buying Power: {{OPTION_BUYING_POWER}}
+Margin Equity %: {{MARGIN_EQUITY_PERCENTAGE}}
+Account Constraints:
+{{ACCOUNT_CONSTRAINTS}}
+Options Chain (may be empty):
 {{OPTIONS_CHAIN}}
 
-# CONTEXT: ACCOUNT CONSTRAINTS (Natural Language Rules)
-Your trading must adhere to these constraints:
-{{ACCOUNT_CONSTRAINTS}}
+Message to parse (this is the only message you should parse):
+"{{MESSAGE_TEXT}}"
 
-# THE ALERT MESSAGE
-From: {{AUTHOR_NAME}}
-Message: "{{MESSAGE_TEXT}}"
+Output discipline:
+- Return only valid JSON.
+- No markdown fences.
+- No extra commentary outside JSON.
 
-# TASK
-Extract ALL actionable stock picks from this alert message.
+Contract examples (signals only):
 
-For each pick:
-1. Identify the base ticker, action (BUY/SELL), and confidence
-2. Apply ANALYST MULTIPLIERS if applicable:
-   - If analyst mentioned specific sizing, multiply by commons_multiplier or options_multiplier
-   - If analyst gave no sizing, use your judgment based on account size and constraints
-3. Validate against ACCOUNT CONSTRAINTS:
-   - Does this position maintain margin buffer? Will it exceed position size limits?
-   - If this trade violates constraints, REJECT it with reasoning
-4. For options, determine strikes:
-   - Use analyst-suggested strikes as baseline
-   - Consider analyst preferences (short-term, OTM, wave-trading patterns)
-   - Adjust based on account constraints (margin impact, IV, liquidity)
-5. Assign urgency and sentiment based on language tone
-
-# IMPORTANT RULES FOR ALERT PARSING
-
-1. First classify the message intent:
-   - TRADE_ALERT: explicit new execution language appears in THIS message ("Added", "New position", "Buying", "Trimming", "Exiting", "Sold", "Reduced")
-   - PORTFOLIO_SUMMARY: holdings recap/watchlist/performance snapshot/commentary without an explicit new execution command
-2. If the message is PORTFOLIO_SUMMARY, return no picks.
-   - Common summary cues include: "PORTFOLIO UPDATE", "LISTING FORMAT", "All positions are alerted live", "for the sake of completeness", "does not mean stock was bought or sold", and tables like "20-21%: $TICKER ..."
-3. Do NOT treat holdings inventory lines as execution signals, even when options are listed in parentheses.
-4. Only extract picks where there is a clear, current execution action in this specific message.
-5. Ignore mentions of stocks without clear action (e.g., "watching XYZ", "interesting stock", theme commentary).
-6. For options, extract strike price and expiration date when available.
-
-7. **VERY IMPORTANT -- OPTIONS INTENT RULE**:
-   If the author expresses clear intent to open an options position in this message, extract an OPTIONS BUY pick, even if details are incomplete.
-   This rule does NOT apply to portfolio summaries, historical recaps, or holdings listings.
-
-   Examples of intent language that should trigger options BUY:
-   - "may try to work into"
-   - "looking to add"
-   - "will add"
-   - "may add"
-   - "work into some calls"
-   - "might build a position in calls"
-   - "considering calls"
-   - "want exposure via calls"
-
-8. CONSTRAINT ENFORCEMENT:
-   - If any trade would violate account constraints, REJECT it
-   - Provide clear reasoning for rejections
-   - Suggest alternatives if constraint-compliant adjustments are possible
-
-# STOCK PICK PATTERNS TO RECOGNIZE
-
-- "Added $TICKER at $X.XX" = BUY
-- "New position: $TICKER" = BUY
-- "Buying $TICKER" = BUY
-- "$TICKER (Shares + $XC Month 'YY)" = BUY with options
-- "Trimming $TICKER" = SELL (partial)
-- "Exiting $TICKER" = SELL (full)
-- "X% weight @ $Y.ZZ" = weight percentage
-- Analyst multipliers applied: base weight × multiplier
-- "20-21%: $ENS* (Shares + $115C Mar '26) - $116.63" = HOLDINGS SNAPSHOT (NOT A NEW TRADE)
-- "PORTFOLIO UPDATE -15 POSITIONS" with no explicit execution commands = NO ACTION
-
-# OPTIONS FORMAT EXAMPLES
-
-- "$115C Mar '26" = $115 strike CALL expiring March 2026
-- "$12.5C" = $12.50 strike CALL
-- "$30C Jun '26" = $30 strike CALL expiring June 2026
-
-# RETURN FORMAT
-
-Return a JSON object with two sections:
-
-```json
+Example A (mixed stock + options):
+Message: `Added stock at $13.95 and some $12.5C for March at $1.75 avg just to add some juice. 4.5% weighting.`
+Output shape excerpt (full output must still include immutable top-level contract keys):
 {
-  "picks": [
+  "signals": [
     {
-      "ticker": "string (no $ symbol)",
-      "action": "BUY or SELL",
-      "confidence": 0.0-1.0,
-      "weight_percent": number or null (suggested allocation % after multipliers),
-      "entry_price": number or null,
-      "strike": number or null (options only),
-      "option_type": "CALL" or "PUT" or "STOCK",
-      "expiry": "string or null (e.g., '2026-03-31')",
-      "quantity": number or null (calculated shares/contracts if derivable),
-      "reasoning": "brief explanation including constraint checks",
-      "urgency": "LOW" or "MEDIUM" or "HIGH",
-      "sentiment": "BULLISH" or "BEARISH",
-      "violates_constraints": boolean,
-      "constraint_violation_reason": "string or null"
-    }
-  ],
-  "summary": {
-    "total_picks": number,
-    "rejected_picks": number,
-    "estimated_margin_impact": "string (e.g., 'Would use $X more margin, leaving $Y buffer')",
-    "warnings": ["list of potential issues or alerts"]
-  }
-}
-```
-
-# EXAMPLES
-
-## Example 1: Simple Stock Alert with Analyst Multiplier
-Message: "Added $AAPL at $185 - 5% weight"
-Analyst: Cramer (commons_multiplier: 2.0)
-Account: $100k, Margin buffer: $2k, Constraints: min buffer $1k, no position > 30%
-
-Analysis:
-- Base pick: $AAPL 5% weight at $185
-- Analyst multiplier: 5% × 2.0 = 10% effective sizing
-- Constraint check: 10% of $100k = $10k position. Margin impact acceptable.
-- Decision: APPROVED at 10% weight
-
-Output:
-```json
-{
-  "picks": [
-    {
-      "ticker": "AAPL",
+      "ticker": "GLDD",
       "action": "BUY",
-      "confidence": 1.0,
-      "weight_percent": 10.0,
-      "entry_price": 185.0,
-      "strike": null,
-      "option_type": "STOCK",
-      "expiry": null,
-      "quantity": 54,
-      "reasoning": "Added AAPL at $185, 5% base × 2.0 Cramer multiplier = 10% effective. Within margin and position limits.",
-      "urgency": "HIGH",
-      "sentiment": "BULLISH",
-      "violates_constraints": false,
-      "constraint_violation_reason": null
+      "weight_percent": 4.5,
+      "vehicles": [
+        {"type":"STOCK","intent":"EXECUTE","side":"BUY","enabled":true,"option_type":null,"strike":null,"expiry":null,"quantity_hint":null},
+        {"type":"OPTION","intent":"EXECUTE","side":"BUY","enabled":true,"option_type":"CALL","strike":12.5,"expiry":"March","quantity_hint":null}
+      ]
     }
-  ],
-  "summary": {
-    "total_picks": 1,
-    "rejected_picks": 0,
-    "estimated_margin_impact": "Would use ~$10,540 (54 shares × $185 + slippage). Buffer remains $2k (above minimum).",
-    "warnings": []
-  }
+  ]
 }
-```
 
-## Example 2: Options Alert with Constraint Rejection
-Message: "Thinking about buying $TSLA $250C for March and a big chunk of shares at market"
-Analyst: None (no multiplier)
-Account: $50k, Positions: 4 open, Constraints: max 5 open, max 30% per position, min margin buffer $1k, margin buffer currently $800
-
-Analysis:
-- Base picks: $TSLA $250C shares, unknown weight
-- Position count: 4 current + 2 new = 6 total (exceeds max 5)
-- Margin buffer: Already at $800, below minimum $1k
-- Decision: REJECTED - violates position count and margin buffer constraints
-
-Output:
-```json
+Example B (options only):
+Message: `Added AAPL $200C for March 2026, small speculative options position only.`
+Output shape excerpt (full output must still include immutable top-level contract keys):
 {
-  "picks": [],
-  "summary": {
-    "total_picks": 0,
-    "rejected_picks": 2,
-    "estimated_margin_impact": "Cannot execute: account at 4/5 position limit, margin buffer $800 below minimum $1k",
-    "warnings": [
-      "Current margin buffer ($800) is below minimum required ($1,000). Close or reduce a position first.",
-      "Adding 2 positions would exceed maximum of 5. Already at 4 open positions.",
-      "Recommend: Close a lower-conviction position, then reassess."
-    ]
-  }
-}
-```
-
-## Example 3: Mixed Alert with Analyst Rules
-Message: "New: $NVDA 6% weight @ $135, considering some $140C for April"
-Analyst: QuantJockey (commons_multiplier: 1.5, options_multiplier: 3.0)
-Account: $200k, Positions: 1 open, Margin buffer: $3.5k, Constraints: min buffer $1k, max 30% position
-
-Analysis:
-- Stock pick: 6% × 1.5 = 9% effective weight ($18k position)
-- Options pick: $140C (size not specified, but multiplier is 3.0x base consideration)
-- Margin check: $18k stock + estimated $3-5k options = ~$21-23k new margin
-- Constraint check: 9% < 30%, margin buffer $3.5k well above $1k minimum
-- Decision: APPROVED, both picks
-
-Output:
-```json
-{
-  "picks": [
+  "signals": [
     {
-      "ticker": "NVDA",
-      "action": "BUY",
-      "confidence": 1.0,
-      "weight_percent": 9.0,
-      "entry_price": 135.0,
-      "strike": null,
-      "option_type": "STOCK",
-      "expiry": null,
-      "quantity": 13,
-      "reasoning": "New position: 6% base × 1.5 QuantJockey commons multiplier = 9%. Safe within 30% limit and margin buffer.",
-      "urgency": "HIGH",
-      "sentiment": "BULLISH",
-      "violates_constraints": false,
-      "constraint_violation_reason": null
-    },
-    {
-      "ticker": "NVDA",
-      "action": "BUY",
-      "confidence": 0.85,
-      "weight_percent": null,
-      "entry_price": null,
-      "strike": 140.0,
-      "option_type": "CALL",
-      "expiry": "2026-04-30",
-      "quantity": 3,
-      "reasoning": "Options intent detected ($140C April). QuantJockey options multiplier is 3.0x. Estimated 3 contracts with multiplier applied. IV/margin acceptable.",
-      "urgency": "MEDIUM",
-      "sentiment": "BULLISH",
-      "violates_constraints": false,
-      "constraint_violation_reason": null
+      "ticker":"AAPL",
+      "action":"BUY",
+      "vehicles":[
+        {"type":"OPTION","intent":"EXECUTE","side":"BUY","enabled":true,"option_type":"CALL","strike":200,"expiry":"March 2026","quantity_hint":null}
+      ]
     }
-  ],
-  "summary": {
-    "total_picks": 2,
-    "rejected_picks": 0,
-    "estimated_margin_impact": "Stock: ~$18,540. Options: ~$4,200 est. Total: ~$22,740. Margin buffer remains ~$1,260 (above minimum).",
-    "warnings": []
-  }
+  ]
 }
-```
-
-## Example 4: Portfolio Update (Must Return No Picks)
-Message: "PORTFOLIO UPDATE ... 20-21%: $ENS* (Shares + $115C Mar '26) ... Remember that just because weighting changes, it does not mean stock was bought or sold."
-
-Output:
-```json
-{
-  "picks": [],
-  "summary": {
-    "total_picks": 0,
-    "rejected_picks": 0,
-    "estimated_margin_impact": "",
-    "warnings": []
-  }
-}
-```
-
----
-
-Return ONLY the JSON object above, no other text. If no actionable picks found, return `{"picks": [], "summary": {"total_picks": 0, "rejected_picks": 0, "estimated_margin_impact": "", "warnings": []}}`.

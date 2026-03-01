@@ -147,6 +147,7 @@ class AIParser:
         except Exception as exc:
             logger.error("AI parsing error: %s", exc)
             return self._empty_result(status="provider_error", error=str(exc), source=source)
+
     def _empty_result(self, status: str, source: Dict[str, Any], error: Optional[str] = None) -> Dict[str, Any]:
         return ParsedMessage(
             contract_version=CONTRACT_VERSION,
@@ -157,12 +158,17 @@ class AIParser:
 
     def _coerce_result(self, payload: Any, source: Dict[str, Any]) -> Dict[str, Any]:
         signal_payloads: List[Dict[str, Any]] = []
+        warnings: List[str] = []
 
         if isinstance(payload, dict):
             if isinstance(payload.get("signals"), list):
                 signal_payloads = [s for s in payload.get("signals", []) if isinstance(s, dict)]
             elif "ticker" in payload:
                 signal_payloads = [payload]
+            elif "picks" in payload:
+                warning = "Provider returned unsupported 'picks' format; expected top-level 'signals'."
+                warnings.append(warning)
+                logger.warning(warning)
         elif isinstance(payload, list):
             signal_payloads = [s for s in payload if isinstance(s, dict)]
 
@@ -177,7 +183,7 @@ class AIParser:
             contract_version=CONTRACT_VERSION,
             source=source,
             signals=normalized_signals,
-            meta=ParserMeta(status=status, provider=self.provider, error=None),
+            meta=ParserMeta(status=status, provider=self.provider, error=None, warnings=warnings),
         )
         return result.model_dump()
 

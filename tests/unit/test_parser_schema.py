@@ -3,7 +3,7 @@ import pytest
 import src.ai_parser as ai_parser_module
 from src.ai_parser import AIParser
 from src.models.parser_models import ParsedMessage
-from tests.data.stocktalk_real_messages import REAL_MESSAGES
+from tests.data.stocktalk_real_messages import MESSAGE_FIXTURES
 from tests.support.fakes.ai_clients import CapturingOpenAIClient, ErrorOpenAIClient, FakeOpenAIClient
 
 
@@ -189,20 +189,41 @@ def test_portfolio_summary_is_prompt_handled_not_preblocked():
     parser.provider = "openai"
     parser.client = CapturingOpenAIClient('{"signals": []}')
 
-    portfolio_message = next(
-        text
-        for _msg_id, _author, text, should_pick, _tickers in REAL_MESSAGES
-        if not should_pick and "PORTFOLIO UPDATE" in text
-    )
+    portfolio_message = MESSAGE_FIXTURES["real_portfolio_update_no_action"].text
 
     result = parser.parse(portfolio_message, "stocktalkweekly")
     assert result["meta"]["status"] == "no_action"
     assert result["signals"] == []
     assert len(parser.client.calls) == 1
 
-    prompt = parser.client.calls[0]["messages"][0]["content"]
-    assert "If the message is PORTFOLIO_SUMMARY, return no picks." in prompt
-    assert "Do NOT treat holdings inventory lines as execution signals" in prompt
+    call = parser.client.calls[0]
+    assert call["messages"][0]["role"] == "system"
+    prompt = call["messages"][1]["content"]
+    assert "`PORTFOLIO_SUMMARY` -> return `signals: []`." in prompt
+    assert "holdings tables like `20-21%: $ENS* (Shares + $115C Mar '26)`" in prompt
+
+
+def test_parser_flags_unsupported_picks_shape():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = FakeOpenAIClient(
+        """
+        {
+          "picks": [
+            {
+              "ticker": "AAPL",
+              "action": "BUY",
+              "confidence": 0.88
+            }
+          ]
+        }
+        """
+    )
+
+    result = parser.parse("Added AAPL $200C for March 2026, small speculative options position only.", "stocktalkweekly")
+    assert result["meta"]["status"] == "no_action"
+    assert result["signals"] == []
+    assert result["meta"]["warnings"] == ["Provider returned unsupported 'picks' format; expected top-level 'signals'."]
 
 
 def test_ai_provider_none_disables_client_even_when_fallback_enabled(monkeypatch):
