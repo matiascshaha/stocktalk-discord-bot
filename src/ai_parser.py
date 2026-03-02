@@ -12,7 +12,6 @@ from config.settings import (
     ANTHROPIC_API_KEY,
     GOOGLE_API_KEY,
     OPENAI_API_KEY,
-    TRADING_CONFIG,
     get_account_constraints,
     get_analyst_for_channel,
 )
@@ -89,7 +88,6 @@ class AIParser:
         self.client = None
         self.provider = None
         self.config = AI_CONFIG
-        self.options_enabled = bool(TRADING_CONFIG.get("options_enabled", False))
         self.prompt_template = self._load_prompt_template()
 
         self._init_client()
@@ -424,9 +422,6 @@ class AIParser:
 
             if "enabled" not in vehicle_payload:
                 vehicle_payload["enabled"] = True
-
-            if vtype == "OPTION" and not self.options_enabled:
-                vehicle_payload["enabled"] = False
 
             try:
                 normalized.append(ParsedVehicle.model_validate(vehicle_payload))

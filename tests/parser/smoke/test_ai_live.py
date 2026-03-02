@@ -2,7 +2,6 @@ import os
 
 import pytest
 
-import src.ai_parser as ai_parser_module
 from src.ai_parser import AIParser
 from src.models.parser_models import ParsedMessage
 from tests.data.stocktalk_real_messages import REAL_PIPELINE_CASES, MessageFixture
@@ -59,7 +58,6 @@ def test_live_ai_prompt_contract_validator(
     expects_no_action,
     requires_weight,
     options_enabled_override,
-    monkeypatch,
     ai_smoke_providers,
     configured_ai_provider,
 ):
@@ -68,8 +66,6 @@ def test_live_ai_prompt_contract_validator(
 
     if configured_ai_provider == "none":
         pytest.skip("AI_PROVIDER=none")
-
-    monkeypatch.setitem(ai_parser_module.TRADING_CONFIG, "options_enabled", bool(options_enabled_override))
 
     parser = AIParser()
     resolved_provider = (parser.provider or "").lower()
@@ -91,7 +87,7 @@ def test_live_ai_prompt_contract_validator(
     assert parsed.source.author == author, scenario_id
     assert parsed.source.message_text == text, scenario_id
     assert parsed.meta.provider == resolved_provider, scenario_id
-    assert parser.options_enabled == bool(options_enabled_override), scenario_id
+    _ = options_enabled_override
 
     tickers_found = {signal.ticker for signal in parsed.signals}
     vehicle_types_found = {
@@ -103,15 +99,10 @@ def test_live_ai_prompt_contract_validator(
         assert parsed.meta.status == "no_action", scenario_id
         return
 
-    if not parser.options_enabled:
-        assert not any(
+    if "OPTION" in expected_vehicle_types:
+        assert any(
             vehicle.type == "OPTION" and vehicle.enabled for signal in parsed.signals for vehicle in signal.vehicles
-        ), f"{scenario_id} produced executable OPTION vehicle while options are disabled"
-    else:
-        if "OPTION" in expected_vehicle_types:
-            assert any(
-                vehicle.type == "OPTION" and vehicle.enabled for signal in parsed.signals for vehicle in signal.vehicles
-            ), f"{scenario_id} expected at least one enabled OPTION vehicle"
+        ), f"{scenario_id} expected at least one enabled OPTION vehicle"
 
     assert parsed.meta.status == "ok", scenario_id
     for ticker in expected_tickers:

@@ -110,7 +110,7 @@ def test_parser_normalizes_invalid_action_to_none():
     assert parsed.signals[0].action == "NONE"
 
 
-def test_parser_disables_option_vehicle_when_options_flag_off():
+def test_parser_preserves_option_vehicle_enabled_state():
     parser = AIParser()
     parser.provider = "openai"
     parser.client = FakeOpenAIClient(
@@ -136,13 +136,12 @@ def test_parser_disables_option_vehicle_when_options_flag_off():
         """
     )
 
-    parser.options_enabled = False
     result = parser.parse("considering NVDA 140c", "tester")
     parsed = ParsedMessage.model_validate(result)
 
     option_vehicle = parsed.signals[0].vehicles[0]
     assert option_vehicle.type == "OPTION"
-    assert option_vehicle.enabled is False
+    assert option_vehicle.enabled is True
 
 
 def test_openai_request_uses_structured_output_response_format():
