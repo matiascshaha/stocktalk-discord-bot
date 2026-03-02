@@ -207,13 +207,6 @@ TRADING_CONFIG = {
     ),
 }
 
-# Notification Settings
-NOTIFICATION_CONFIG = {
-    'desktop_notifications': _as_bool(_cfg('notifications.desktop_notifications', True), True),
-    'sound_alert': _as_bool(_cfg('notifications.sound_alert', True), True),
-    'copy_to_clipboard': _as_bool(_cfg('notifications.copy_to_clipboard', True), True),
-}
-
 # Validate required settings
 def validate_config():
     """Validate that required configuration is present"""

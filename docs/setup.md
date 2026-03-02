@@ -95,7 +95,7 @@ cp .env.example .env
 
 ### 8b. Configure (no-code)
 
-Edit these files to control AI, trading, and notifications without touching Python:
+Edit these files to control AI and trading behavior without touching Python:
 
 - `config/trading.yaml`
 - `config/ai_parser.prompt`
@@ -195,15 +195,11 @@ Loading up on AAPL 20%
 
 You should see:
 - Console output showing the pick
-- Desktop notification (if enabled)
 - Entry in `data/picks_log.jsonl`
 
-### 3. Test Notifications
+### 3. Verify Signal Output
 
 Verify:
-- Desktop notification appears
-- Ticker copied to clipboard
-- Sound plays (if enabled)
 - Console shows formatted output
 
 ### 4. Test Auto-Trading (Advanced)
@@ -255,17 +251,6 @@ Verify:
 - Verify trading PIN is correct
 - Check if market is open (for market orders)
 - Review Webull API documentation for changes
-
-### Notification Issues
-
-**Desktop notifications not working:**
-- Windows: Check notification settings in Windows
-- macOS: Check System Preferences → Notifications
-- Linux: May need `libnotify` installed
-
-**Sound not playing:**
-- Windows: Check system volume
-- macOS/Linux: May need additional packages
 
 ## Production Deployment
 
