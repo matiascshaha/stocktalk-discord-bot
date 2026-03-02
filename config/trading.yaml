@@ -30,6 +30,12 @@ ai:
   openai:
     model: gpt-4.1-nano
     max_tokens: 900
+    # Optional low-latency parser path:
+    # 1) fast intent+ticker classification
+    # 2) fallback to full structured parse on ambiguity/low confidence
+    fast_path_enabled: false
+    fast_confidence_threshold: 0.85
+    fast_max_tokens: 250
     temperature: 0.0
 
 # =============================================================================

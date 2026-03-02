@@ -220,6 +220,12 @@ Parser AI live smoke:
 TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
 ```
 
+Parser AI live smoke using OpenAI fast-path (when provider resolves to OpenAI):
+
+```bash
+TEST_AI_LIVE=1 TEST_AI_FAST_PATH=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
+```
+
 Parser live prompt validator (frozen scenario contract checks):
 
 ```bash
