@@ -89,6 +89,7 @@ class AIParser:
         self.provider = None
         self.config = AI_CONFIG
         self.prompt_template = self._load_prompt_template()
+        self.fast_prompt_template = self._load_fast_prompt_template()
 
         self._init_client()
 
@@ -203,7 +204,10 @@ class AIParser:
 
         max_tokens = int(openai_config.get("fast_max_tokens", 250) or 250)
         confidence_threshold = float(openai_config.get("fast_confidence_threshold", 0.85) or 0.85)
-        prompt = self._build_fast_prompt(message_text)
+        prompt = self._render_fast_prompt(message_text)
+        if not prompt.strip():
+            logger.warning("Fast prompt template is empty; skipping fast-path")
+            return None
 
         try:
             response_text = request_fast_parser_completion(
@@ -257,19 +261,10 @@ class AIParser:
         }
         return self._coerce_result({"signals": [signal]}, source=source)
 
-    def _build_fast_prompt(self, message_text: str) -> str:
-        return (
-            "Classify this Discord analyst message for trading intent. "
-            "Return only JSON. "
-            "If no new trade recommendation exists in this message, set status to no_action. "
-            "If unclear, set status to ambiguous. "
-            "primary_ticker must be symbol only (no $). "
-            "vehicle_hint: stock|option|mixed|unknown. "
-            "action: BUY|SELL|NONE. "
-            "evidence_text should be a short direct quote from the message. "
-            "sizing_text should copy any explicit size/weight phrase or 'unspecified'.\n\n"
-            f"Message:\n{message_text}"
-        )
+    def _render_fast_prompt(self, message_text: str) -> str:
+        prompt = self.fast_prompt_template or ""
+        prompt = prompt.replace("{{MESSAGE_TEXT}}", str(message_text))
+        return self._clear_remaining_placeholders(prompt)
 
     def _normalize_fast_confidence(self, value: Any) -> float:
         try:
@@ -558,6 +553,18 @@ class AIParser:
             return prompt_path.read_text(encoding="utf-8")
         except Exception as exc:
             logger.warning("Failed to load prompt template from %s: %s", prompt_path, exc)
+            return ""
+
+    def _load_fast_prompt_template(self) -> str:
+        openai_config = self.config.get("openai", {}) if isinstance(self.config, dict) else {}
+        path = openai_config.get("fast_prompt_file") if isinstance(openai_config, dict) else None
+        prompt_path = resolve_prompt_path(path)
+        logger.info("Loading fast prompt template from: %s", prompt_path)
+
+        try:
+            return prompt_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Failed to load fast prompt template from %s: %s", prompt_path, exc)
             return ""
 
     def _init_client(self):

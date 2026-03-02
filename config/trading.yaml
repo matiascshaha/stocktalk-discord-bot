@@ -30,6 +30,7 @@ ai:
   openai:
     model: gpt-4.1-nano
     max_tokens: 900
+    fast_prompt_file: ./config/ai_parser_fast.prompt
     # Optional low-latency parser path:
     # 1) fast intent+ticker classification
     # 2) fallback to full structured parse on ambiguity/low confidence

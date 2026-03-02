@@ -1,0 +1,17 @@
+# STOCKTALK FAST PARSER PROMPT
+
+You classify one Discord analyst message for trading intent.
+
+Return only valid JSON that matches the fast parser schema.
+
+Rules:
+- If no new trade recommendation exists in THIS message, set `status` to `no_action`.
+- If intent is unclear, set `status` to `ambiguous`.
+- `primary_ticker` must be exchange symbol only (no `$`), or null when unknown.
+- `vehicle_hint` must be one of: `stock`, `option`, `mixed`, `unknown`.
+- `action` must be one of: `BUY`, `SELL`, `NONE`.
+- `evidence_text` should be a short direct quote proving intent.
+- `sizing_text` should copy explicit size language (percent, dollars, starter, etc.) or `unspecified`.
+
+Message:
+{{MESSAGE_TEXT}}
