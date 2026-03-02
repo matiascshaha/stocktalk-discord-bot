@@ -34,7 +34,7 @@ def test_builder_notional_path_does_not_mutate_input_order_quantity():
 
     payload = builder.build(order, notional_dollar_amount=1000.0)
 
-    assert payload["qty"] == 10
+    assert payload["qty"] == 5
     assert order.quantity == 1
     assert calls == [(balance, 1000.0)]
 
@@ -66,7 +66,7 @@ def test_builder_weighting_path_does_not_mutate_input_order_quantity():
     assert calls == [(balance, 2000.0)]
 
 
-def test_resolve_notional_sizing_price_prefers_limit_price():
+def test_resolve_notional_sizing_price_uses_conservative_buy_basis():
     order = StockOrderRequest(
         symbol="AAPL",
         side=OrderSide.BUY,
@@ -75,7 +75,19 @@ def test_resolve_notional_sizing_price_prefers_limit_price():
         limit_price=1.0,
     )
     price = resolve_notional_sizing_price(order, {"last_price": "500.0"})
-    assert price == 1.0
+    assert price == 500.0
+
+
+def test_resolve_notional_sizing_price_buy_uses_higher_of_quote_or_limit():
+    order = StockOrderRequest(
+        symbol="AAPL",
+        side=OrderSide.BUY,
+        quantity=1,
+        order_type=OrderType.LIMIT,
+        limit_price=1000.0,
+    )
+    price = resolve_notional_sizing_price(order, {"last_price": "500.0"})
+    assert price == 1000.0
 
 
 def test_normalize_stock_quantity_rejects_sub_share():

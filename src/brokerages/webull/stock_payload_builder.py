@@ -117,11 +117,22 @@ def resolve_instrument_price(instrument: Mapping[str, Any]) -> Optional[float]:
 
 
 def resolve_notional_sizing_price(order: StockOrderRequest, instrument: Mapping[str, Any]) -> Optional[float]:
+    instrument_price = resolve_instrument_price(instrument)
+    limit_price: Optional[float] = None
+
     if order.limit_price is not None:
         try:
-            limit_price = float(order.limit_price)
+            parsed = float(order.limit_price)
+            if parsed > 0:
+                limit_price = parsed
         except (TypeError, ValueError):
             limit_price = None
-        if limit_price is not None and limit_price > 0:
-            return limit_price
-    return resolve_instrument_price(instrument)
+
+    if instrument_price is not None:
+        side = str(getattr(order.side, "value", order.side or "")).upper().strip()
+        if side == "BUY" and limit_price is not None:
+            # Conservative BUY sizing: don't assume a lower execution price than the current instrument quote.
+            return max(instrument_price, limit_price)
+        return instrument_price
+
+    return limit_price

@@ -157,6 +157,27 @@ async def test_hold_signal_does_not_trade():
 
 
 @pytest.mark.asyncio
+async def test_low_confidence_signal_does_not_trade():
+    trader = MagicMock()
+    client = StockMonitorClient(trader=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    client.parser.parse = MagicMock(
+        return_value={"signals": [build_signal_payload("AAPL", "BUY", confidence=0.0)], "meta": {"status": "ok"}}
+    )
+
+    original_min_confidence = discord_client_module.TRADING_CONFIG.get("min_confidence")
+    discord_client_module.TRADING_CONFIG["min_confidence"] = 0.7
+    try:
+        await client.on_message(build_message("Buy AAPL", author_id=321, channel_id=TEST_CHANNEL_ID))
+    finally:
+        discord_client_module.TRADING_CONFIG["min_confidence"] = original_min_confidence
+
+    client.notifier.notify.assert_called_once()
+    trader.place_stock_order.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_trade_failure_does_not_crash_message_handler():
     trader = MagicMock()
     trader.place_stock_order = MagicMock(side_effect=RuntimeError("INVALID_PARAMETER"))

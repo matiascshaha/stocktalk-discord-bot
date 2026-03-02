@@ -133,6 +133,14 @@ class StockMonitorClient:
             # Execute trades if executor available
             if self.order_executor:
                 for signal in signal_objs:
+                    if not self._passes_min_confidence(signal):
+                        logger.info(
+                            "Skipping trade for %s due to confidence %.3f below min_confidence %.3f",
+                            signal.ticker,
+                            float(signal.confidence),
+                            self._min_confidence_threshold(),
+                        )
+                        continue
                     order = self._signal_to_stock_order(signal)
                     if not order:
                         continue
@@ -172,6 +180,16 @@ class StockMonitorClient:
             side=side,
             quantity=1,
         )
+
+    def _min_confidence_threshold(self) -> float:
+        try:
+            return float(TRADING_CONFIG.get("min_confidence", 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _passes_min_confidence(self, signal: ParsedSignal) -> bool:
+        threshold = self._min_confidence_threshold()
+        return float(signal.confidence) >= threshold
     
     def _log_signals(self, message, parsed_message):
         """Log parsed signals to file."""
