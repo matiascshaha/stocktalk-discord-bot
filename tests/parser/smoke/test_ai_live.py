@@ -2,23 +2,15 @@ import os
 
 import pytest
 
-import src.ai_parser as ai_parser_module
 from src.ai_parser import AIParser
 from src.models.parser_models import ParsedMessage
 from tests.data.stocktalk_real_messages import REAL_PIPELINE_CASES, MessageFixture
 from tests.support.cases.ai_live_prompt_validator import LIVE_PROMPT_VALIDATOR_CASES
 from tests.support.matrix import ai_provider_has_credentials
+from tests.support.tooling.ai_live import apply_fast_path_toggle
 
 
 pytestmark = [pytest.mark.e2e, pytest.mark.smoke, pytest.mark.live, pytest.mark.parser]
-
-
-def _apply_fast_path_toggle(monkeypatch):
-    if os.getenv("TEST_AI_FAST_PATH", "0") != "1":
-        return
-    monkeypatch.setitem(ai_parser_module.AI_CONFIG["openai"], "fast_path_enabled", True)
-    monkeypatch.setitem(ai_parser_module.AI_CONFIG["openai"], "fast_confidence_threshold", 0.85)
-    monkeypatch.setitem(ai_parser_module.AI_CONFIG["openai"], "fast_max_tokens", 250)
 
 
 @pytest.mark.parametrize("case", REAL_PIPELINE_CASES, ids=lambda case: case.scenario_id)
@@ -29,7 +21,7 @@ def test_live_ai_smoke(case: MessageFixture, monkeypatch, ai_smoke_providers, co
     if configured_ai_provider == "none":
         pytest.skip("AI_PROVIDER=none")
 
-    _apply_fast_path_toggle(monkeypatch)
+    apply_fast_path_toggle(monkeypatch)
 
     parser = AIParser()
     resolved_provider = (parser.provider or "").lower()
@@ -79,7 +71,7 @@ def test_live_ai_prompt_contract_validator(
     if configured_ai_provider == "none":
         pytest.skip("AI_PROVIDER=none")
 
-    _apply_fast_path_toggle(monkeypatch)
+    apply_fast_path_toggle(monkeypatch)
 
     parser = AIParser()
     resolved_provider = (parser.provider or "").lower()
