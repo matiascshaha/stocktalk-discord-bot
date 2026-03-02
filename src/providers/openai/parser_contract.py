@@ -2,26 +2,12 @@
 
 from typing import Any, Dict
 
-from src.models.parser_models import CONTRACT_VERSION
-
 
 OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["contract_version", "source", "signals", "meta"],
+    "required": ["signals"],
     "properties": {
-        "contract_version": {"type": "string", "enum": [CONTRACT_VERSION]},
-        "source": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["author", "channel_id", "message_id", "message_text"],
-            "properties": {
-                "author": {"type": ["string", "null"]},
-                "channel_id": {"type": ["string", "null"]},
-                "message_id": {"type": ["string", "null"]},
-                "message_text": {"type": ["string", "null"]},
-            },
-        },
         "signals": {
             "type": "array",
             "items": {
@@ -75,20 +61,6 @@ OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
                         },
                     },
                 },
-            },
-        },
-        "meta": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["status", "provider", "error", "warnings"],
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": ["ok", "no_action", "invalid_json", "provider_error"],
-                },
-                "provider": {"type": ["string", "null"], "enum": ["openai", "anthropic", "google", None]},
-                "error": {"type": ["string", "null"]},
-                "warnings": {"type": "array", "items": {"type": "string"}},
             },
         },
     },

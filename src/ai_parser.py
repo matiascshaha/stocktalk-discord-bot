@@ -35,13 +35,6 @@ IMMUTABLE_CONTRACT_INSTRUCTION = f"""
 # IMMUTABLE RESPONSE CONTRACT (DO NOT DEVIATE)
 Return ONLY valid JSON (no markdown) with this exact shape:
 {{
-  "contract_version": "{CONTRACT_VERSION}",
-  "source": {{
-    "author": "string|null",
-    "channel_id": "string|null",
-    "message_id": "string|null",
-    "message_text": "string|null"
-  }},
   "signals": [
     {{
       "ticker": "string",
@@ -65,16 +58,10 @@ Return ONLY valid JSON (no markdown) with this exact shape:
         }}
       ]
     }}
-  ],
-  "meta": {{
-    "status": "ok|no_action|invalid_json|provider_error",
-    "provider": "openai|anthropic|google|null",
-    "error": null,
-    "warnings": []
-  }}
+  ]
 }}
 Rules:
-- ALWAYS include top-level keys: contract_version, source, signals, meta.
+- ALWAYS include top-level key: signals.
 - If no actionable output, return an empty signals array.
 - Portfolio recaps/watchlists/holdings summaries are NOT actionable; return an empty signals array unless the message includes a new execution command in this message.
 - Never add or rename top-level keys.

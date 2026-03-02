@@ -172,8 +172,7 @@ def test_openai_request_uses_structured_output_response_format():
     assert response_format["type"] == "json_schema"
     assert response_format["json_schema"]["strict"] is True
     schema = response_format["json_schema"]["schema"]
-    for key in ("contract_version", "source", "signals", "meta"):
-        assert key in schema["required"]
+    assert schema["required"] == ["signals"]
 
 
 def test_openai_request_failure_returns_provider_error():
