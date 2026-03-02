@@ -3,8 +3,13 @@ import pytest
 import src.ai_parser as ai_parser_module
 from src.ai_parser import AIParser
 from src.models.parser_models import ParsedMessage
-from tests.data.stocktalk_real_messages import REAL_MESSAGES
-from tests.support.fakes.ai_clients import CapturingOpenAIClient, ErrorOpenAIClient, FakeOpenAIClient
+from tests.data.stocktalk_real_messages import MESSAGE_FIXTURES
+from tests.support.fakes.ai_clients import (
+    CapturingOpenAIClient,
+    ErrorOpenAIClient,
+    FakeOpenAIClient,
+    SequencedOpenAIClient,
+)
 
 
 pytestmark = pytest.mark.unit
@@ -105,7 +110,7 @@ def test_parser_normalizes_invalid_action_to_none():
     assert parsed.signals[0].action == "NONE"
 
 
-def test_parser_disables_option_vehicle_when_options_flag_off():
+def test_parser_preserves_option_vehicle_enabled_state():
     parser = AIParser()
     parser.provider = "openai"
     parser.client = FakeOpenAIClient(
@@ -131,13 +136,12 @@ def test_parser_disables_option_vehicle_when_options_flag_off():
         """
     )
 
-    parser.options_enabled = False
     result = parser.parse("considering NVDA 140c", "tester")
     parsed = ParsedMessage.model_validate(result)
 
     option_vehicle = parsed.signals[0].vehicles[0]
     assert option_vehicle.type == "OPTION"
-    assert option_vehicle.enabled is False
+    assert option_vehicle.enabled is True
 
 
 def test_openai_request_uses_structured_output_response_format():
@@ -160,16 +164,15 @@ def test_openai_request_uses_structured_output_response_format():
 
     result = parser.parse("Adding AAPL", "tester")
     assert result["meta"]["status"] == "ok"
-    assert len(parser.client.calls) == 1
+    assert len(parser.client.calls) == 2
 
-    call = parser.client.calls[0]
-    assert "response_format" in call
-    response_format = call["response_format"]
+    full_parse_call = parser.client.calls[1]
+    assert "response_format" in full_parse_call
+    response_format = full_parse_call["response_format"]
     assert response_format["type"] == "json_schema"
     assert response_format["json_schema"]["strict"] is True
     schema = response_format["json_schema"]["schema"]
-    for key in ("contract_version", "source", "signals", "meta"):
-        assert key in schema["required"]
+    assert schema["required"] == ["signals"]
 
 
 def test_openai_request_failure_returns_provider_error():
@@ -180,8 +183,9 @@ def test_openai_request_failure_returns_provider_error():
     result = parser.parse("Adding MSFT", "tester")
     assert result["meta"]["status"] == "provider_error"
     assert result["signals"] == []
-    assert len(parser.client.calls) == 1
+    assert len(parser.client.calls) == 2
     assert "response_format" in parser.client.calls[0]
+    assert "response_format" in parser.client.calls[1]
 
 
 def test_portfolio_summary_is_prompt_handled_not_preblocked():
@@ -189,20 +193,41 @@ def test_portfolio_summary_is_prompt_handled_not_preblocked():
     parser.provider = "openai"
     parser.client = CapturingOpenAIClient('{"signals": []}')
 
-    portfolio_message = next(
-        text
-        for _msg_id, _author, text, should_pick, _tickers in REAL_MESSAGES
-        if not should_pick and "PORTFOLIO UPDATE" in text
-    )
+    portfolio_message = MESSAGE_FIXTURES["real_portfolio_update_no_action"].text
 
     result = parser.parse(portfolio_message, "stocktalkweekly")
     assert result["meta"]["status"] == "no_action"
     assert result["signals"] == []
-    assert len(parser.client.calls) == 1
+    assert len(parser.client.calls) == 2
 
-    prompt = parser.client.calls[0]["messages"][0]["content"]
-    assert "If the message is PORTFOLIO_SUMMARY, return no picks." in prompt
-    assert "Do NOT treat holdings inventory lines as execution signals" in prompt
+    call = parser.client.calls[1]
+    assert call["messages"][0]["role"] == "system"
+    prompt = call["messages"][1]["content"]
+    assert "`PORTFOLIO_SUMMARY` -> return `signals: []`." in prompt
+    assert "holdings tables like `20-21%: $ENS* (Shares + $115C Mar '26)`" in prompt
+
+
+def test_parser_flags_unsupported_picks_shape():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = FakeOpenAIClient(
+        """
+        {
+          "picks": [
+            {
+              "ticker": "AAPL",
+              "action": "BUY",
+              "confidence": 0.88
+            }
+          ]
+        }
+        """
+    )
+
+    result = parser.parse("Added AAPL $200C for March 2026, small speculative options position only.", "stocktalkweekly")
+    assert result["meta"]["status"] == "no_action"
+    assert result["signals"] == []
+    assert result["meta"]["warnings"] == ["Provider returned unsupported 'picks' format; expected top-level 'signals'."]
 
 
 def test_ai_provider_none_disables_client_even_when_fallback_enabled(monkeypatch):
@@ -224,3 +249,143 @@ def test_ai_provider_none_disables_client_even_when_fallback_enabled(monkeypatch
     assert parser.client is None
     assert parser.provider is None
     assert calls == []
+
+
+def test_openai_fast_path_accepts_confident_actionable_result(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"actionable","confidence":0.92,"primary_ticker":"AAPL",'
+                '"vehicle_hint":"stock","action":"BUY","evidence_text":"New position: Apple $AAPL",'
+                '"sizing_text":"3% weight"}'
+            )
+        ]
+    )
+
+    monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
+
+    result = parser.parse("New position: Apple $AAPL - 3% weight @ $190 avg on shares", "stocktalkweekly")
+    parsed = ParsedMessage.model_validate(result)
+
+    assert parsed.meta.status == "ok"
+    assert len(parsed.signals) == 1
+    assert parsed.signals[0].ticker == "AAPL"
+    assert parsed.signals[0].action == "BUY"
+    assert parsed.signals[0].vehicles[0].type == "STOCK"
+    assert len(parser.client.calls) == 1
+    assert parser.client.calls[0]["response_format"]["json_schema"]["name"] == "stocktalk_parser_fast_contract"
+
+
+def test_openai_fast_path_falls_back_to_full_parse_when_ambiguous(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"ambiguous","confidence":0.42,"primary_ticker":null,'
+                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+            ),
+            (
+                '{"signals":[{"ticker":"MSFT","action":"BUY","confidence":0.9,'
+                '"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}]}'
+            ),
+        ]
+    )
+
+    monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
+
+    result = parser.parse("Buying MSFT now", "stocktalkweekly")
+    parsed = ParsedMessage.model_validate(result)
+
+    assert parsed.meta.status == "ok"
+    assert len(parsed.signals) == 1
+    assert parsed.signals[0].ticker == "MSFT"
+    assert len(parser.client.calls) == 2
+    assert parser.client.calls[0]["response_format"]["json_schema"]["name"] == "stocktalk_parser_fast_contract"
+    assert parser.client.calls[1]["response_format"]["json_schema"]["name"] == "stocktalk_parser_contract"
+
+
+def test_openai_fallback_parse_uses_configured_stronger_model(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"ambiguous","confidence":0.4,"primary_ticker":null,'
+                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+            ),
+            (
+                '{"signals":[{"ticker":"AAPL","action":"BUY","confidence":0.9,'
+                '"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}]}'
+            ),
+        ]
+    )
+
+    monkeypatch.setitem(parser.config["openai"], "fallback_model", "gpt-4.1-mini")
+    monkeypatch.setitem(parser.config["openai"], "fallback_max_tokens", 1800)
+    monkeypatch.setitem(parser.config["openai"], "fallback_temperature", 0.0)
+
+    result = parser.parse("buy AAPL", "stocktalkweekly")
+    parsed = ParsedMessage.model_validate(result)
+    assert parsed.meta.status == "ok"
+
+    fallback_call = parser.client.calls[1]
+    assert fallback_call["model"] == "gpt-4.1-mini"
+    assert fallback_call["max_tokens"] == 1800
+    assert fallback_call["temperature"] == 0.0
+
+
+def test_openai_full_parse_does_not_retry_on_actionable_zero_confidence():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"ambiguous","confidence":0.40,"primary_ticker":null,'
+                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+            ),
+            (
+                '{"signals":[{"ticker":"CRML","action":"BUY","confidence":0.0,"is_actionable":true,'
+                '"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}]}'
+            ),
+        ]
+    )
+
+    result = parser.parse("Adding CRML, 5% weighting, all shares", "stocktalkweekly")
+    parsed = ParsedMessage.model_validate(result)
+
+    assert parsed.meta.status == "ok"
+    assert len(parsed.signals) == 1
+    assert parsed.signals[0].ticker == "CRML"
+    assert parsed.signals[0].confidence == 0.0
+    assert len(parser.client.calls) == 2
+
+
+def test_openai_fast_path_includes_option_for_mixed_contract_tokens(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"actionable","confidence":0.93,"primary_ticker":"GLDD",'
+                '"vehicle_hint":"stock","action":"BUY","evidence_text":"Added stock at $13.95 and some $12.5C",'
+                '"sizing_text":"4.5% weighting"}'
+            )
+        ]
+    )
+
+    monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
+
+    result = parser.parse(
+        "Added stock at $13.95 and some $12.5C for March at $1.75 avg just to add some juice. 4.5% weighting.",
+        "stocktalkweekly",
+    )
+    parsed = ParsedMessage.model_validate(result)
+    vehicles = parsed.signals[0].vehicles
+    vehicle_types = {vehicle.type for vehicle in vehicles}
+
+    assert parsed.meta.status == "ok"
+    assert parsed.signals[0].ticker == "GLDD"
+    assert vehicle_types == {"STOCK", "OPTION"}

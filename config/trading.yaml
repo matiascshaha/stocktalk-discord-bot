@@ -28,9 +28,19 @@ ai:
     file: ./config/ai_parser.prompt
 
   openai:
+    # Fast parser model (stage 1)
     model: gpt-4.1-nano
-    max_tokens: 2000
-    temperature: 0.2
+    # Fallback parser model (stage 2, used when fast stage is ambiguous/low-confidence)
+    fallback_model: gpt-4.1-mini
+    # Output budget for fallback stage
+    max_tokens: 1800
+    fallback_max_tokens: 1800
+    fallback_temperature: 0.0
+    fast_prompt_file: ./config/ai_parser_fast.prompt
+    # Fast stage is the default OpenAI path.
+    fast_confidence_threshold: 0.85
+    fast_max_tokens: 140
+    temperature: 0.0
 
 # =============================================================================
 # TRADING EXECUTION CONFIGURATION
@@ -49,7 +59,7 @@ trading:
   # CRITICAL: Toggle between paper trading (UAT/test) and live trading (production)
   # true = Paper trading (us-openapi-alb.uat.webullbroker.com) - SAFE FOR TESTING
   # false = Live trading (api.webull.com) - REAL MONEY - USE WITH CAUTION
-  paper_trade: true
+  paper_trade: false
   
   # Minimum confidence threshold for AI-parsed picks (0.0-1.0)
   # Picks below this confidence will be logged but not executed

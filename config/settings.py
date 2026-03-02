@@ -139,7 +139,13 @@ AI_CONFIG = {
     'prompt_file': _cfg('ai.prompt.file', 'config/ai_parser.prompt'),
     'openai': {
         'model': _cfg('ai.openai.model', 'gpt-4.1-nano'),
-        'max_tokens': _as_int(_cfg('ai.openai.max_tokens', 2000), 2000),
+        'max_tokens': _as_int(_cfg('ai.openai.max_tokens', 1800), 1800),
+        'fast_prompt_file': _cfg('ai.openai.fast_prompt_file', 'config/ai_parser_fast.prompt'),
+        'fast_confidence_threshold': _as_float(_cfg('ai.openai.fast_confidence_threshold', 0.85), 0.85),
+        'fast_max_tokens': _as_int(_cfg('ai.openai.fast_max_tokens', 140), 140),
+        'fallback_model': _cfg('ai.openai.fallback_model', 'gpt-4.1-mini'),
+        'fallback_max_tokens': _as_int(_cfg('ai.openai.fallback_max_tokens', _cfg('ai.openai.max_tokens', 1800)), 1800),
+        'fallback_temperature': _as_float(_cfg('ai.openai.fallback_temperature', 0.0), 0.0),
         'temperature': _as_float(_cfg('ai.openai.temperature', 0.2), 0.2),
     },
     'anthropic': {

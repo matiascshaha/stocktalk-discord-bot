@@ -2,26 +2,12 @@
 
 from typing import Any, Dict
 
-from src.models.parser_models import CONTRACT_VERSION
-
 
 OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["contract_version", "source", "signals", "meta"],
+    "required": ["signals"],
     "properties": {
-        "contract_version": {"type": "string", "enum": [CONTRACT_VERSION]},
-        "source": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["author", "channel_id", "message_id", "message_text"],
-            "properties": {
-                "author": {"type": ["string", "null"]},
-                "channel_id": {"type": ["string", "null"]},
-                "message_id": {"type": ["string", "null"]},
-                "message_text": {"type": ["string", "null"]},
-            },
-        },
         "signals": {
             "type": "array",
             "items": {
@@ -77,20 +63,22 @@ OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
                 },
             },
         },
-        "meta": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["status", "provider", "error", "warnings"],
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": ["ok", "no_action", "invalid_json", "provider_error"],
-                },
-                "provider": {"type": ["string", "null"], "enum": ["openai", "anthropic", "google", None]},
-                "error": {"type": ["string", "null"]},
-                "warnings": {"type": "array", "items": {"type": "string"}},
-            },
-        },
+    },
+}
+
+
+OPENAI_FAST_PARSER_JSON_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["status", "confidence", "primary_ticker", "vehicle_hint", "action", "evidence_text", "sizing_text"],
+    "properties": {
+        "status": {"type": "string", "enum": ["actionable", "no_action", "ambiguous"]},
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "primary_ticker": {"type": ["string", "null"]},
+        "vehicle_hint": {"type": "string", "enum": ["stock", "option", "mixed", "unknown"]},
+        "action": {"type": "string", "enum": ["BUY", "SELL", "NONE"]},
+        "evidence_text": {"type": "string"},
+        "sizing_text": {"type": "string"},
     },
 }
 
@@ -102,5 +90,16 @@ def parser_response_format() -> Dict[str, Any]:
             "name": "stocktalk_parser_contract",
             "strict": True,
             "schema": OPENAI_PARSER_JSON_SCHEMA,
+        },
+    }
+
+
+def parser_fast_response_format() -> Dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "stocktalk_parser_fast_contract",
+            "strict": True,
+            "schema": OPENAI_FAST_PARSER_JSON_SCHEMA,
         },
     }

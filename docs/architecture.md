@@ -10,7 +10,10 @@ For deep details, use `docs/system-context/`.
 1. `python -m src.main` starts app boot and runs `validate_config()` (`src/main.py`).
 2. If `trading.auto_trade=true`, `create_broker_runtime(...)` selects broker runtime (`webull` or `public`) (`src/brokerages/factory.py`).
 3. `StockMonitorClient` connects to Discord and filters messages by channel/self/length (`src/discord_client.py`).
-4. `AIParser.parse(...)` sends prompt to selected provider (`openai`/`anthropic`/`google`) and normalizes output to parser contract (`src/ai_parser.py`).
+4. `AIParser.parse(...)` sends prompt to selected provider:
+   - OpenAI runs fast-stage parsing first, then full-parse fallback on low confidence/ambiguity.
+   - Anthropic/Google run full-parse path.
+   Parser normalizes provider output to parser contract (`src/ai_parser.py`).
 5. Parsed payload is validated as `ParsedMessage` (`src/models/parser_models.py`).
 6. Signals are notified and logged to `data/picks_log.jsonl` (`src/notifier.py`, `src/discord_client.py`).
 7. If broker runtime exists, executable STOCK vehicles are converted into `StockOrder` and passed to `StockOrderExecutor` (`src/trading/orders/executor.py`).
@@ -23,7 +26,7 @@ For deep details, use `docs/system-context/`.
 |---|---|---|
 | Boot | Validate config, choose monitor-only vs auto-trade | `src/main.py`, `config/settings.py` |
 | Ingestion | Discord events and message guards | `src/discord_client.py` |
-| Parsing | Provider dispatch + contract normalization | `src/ai_parser.py`, `src/providers/*`, `src/models/parser_models.py` |
+| Parsing | Fast-stage intent parse + full-parse fallback + contract normalization | `src/ai_parser.py`, `config/ai_parser_fast.prompt`, `config/ai_parser.prompt`, `src/providers/*`, `src/models/parser_models.py` |
 | Observability | Notifications + JSONL logging | `src/notifier.py`, `src/utils/logger.py` |
 | Execution Policy | Build executable stock orders and choose order strategy | `src/trading/orders/planner.py`, `src/trading/orders/executor.py` |
 | Broker Boundary | Stable execution/market-data port | `src/brokerages/ports.py` |
@@ -33,6 +36,7 @@ For deep details, use `docs/system-context/`.
 ## Core Contracts and Boundaries
 
 - Parser contract: `ParsedMessage` -> `source`, `signals[]`, `meta` (`src/models/parser_models.py`).
+- OpenAI model contract for full parse is minimal (`signals` only); parser injects `source` and `meta` locally before normalization.
 - Execution gate is vehicle-based, not action-only:
   - `vehicles[].type == STOCK`
   - `vehicles[].enabled == true`

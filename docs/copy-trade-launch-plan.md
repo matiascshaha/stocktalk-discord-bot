@@ -19,8 +19,18 @@
 - Phase 2: `trading.paper_trade: false`
 
 ## Frozen Message
-- Use: `
-`
+- Use: `New position: Apple $AAPL - 3% weight @ $190 avg on shares`
+
+## Deterministic E2E Preflight
+1. Run: `pytest tests/brokers/webull/integration/test_paper_trade_discord_flow.py`
+2. Confirm pass for:
+   - common shares recommendation
+   - options-only recommendation
+   - mixed commons+options recommendation
+   - no-action payload
+   - weighted recommendation
+   - default dollar-sizing path
+3. Run account-context guards: `pytest tests/brokers/webull/integration/test_paper_trade_account_context.py`
 
 ## Phase 1 (Paper E2E)
 1. Start app: `python -m src.main`

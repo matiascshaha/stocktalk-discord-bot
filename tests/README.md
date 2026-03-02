@@ -40,6 +40,11 @@ Behavior mapping:
 - `action=SELL` -> place SELL stock order
 - `action=HOLD` -> no order placement
 
+Provider-path note:
+
+- OpenAI parser runtime is fast-stage first with fallback full parse.
+- Webull/Discord integration tests in this tree mock `AIParser.parse(...)` normalized output (post-parser contract), not raw provider response payloads.
+
 ## Directory Layout
 
 Top-level folders are domain-first:
@@ -86,8 +91,11 @@ Default run behavior (`pytest.ini`):
 | System/tooling integration | Validate matrix/confidence/flags script behavior | `pytest tests/system/integration` | None | Yes |
 | Discord mocked flow | Verify filtering + notifier/trader behavior deterministically | `pytest tests/channels/discord/integration/test_message_flow.py -k "not live_ai_pipeline_message_to_trader"` | None | Yes |
 | Message-to-trader deterministic pipeline | Verify real message fixtures through parser shape into trader order calls | `pytest tests/channels/discord/integration/test_message_flow.py -k "real_message_pipeline_fake_ai_to_trader"` | None | Yes |
+| Webull integration Discord-paper flow | Verify mocked Discord + mocked parser output through real stock execution path and picks-log append behavior | `pytest tests/brokers/webull/integration/test_paper_trade_discord_flow.py` | None | Yes |
+| Webull integration account-context branches | Verify insufficient-buying-power, margin-buffer violations, and order-submit rejection handling in Discord-driven flow | `pytest tests/brokers/webull/integration/test_paper_trade_account_context.py` | None | Yes |
 | Webull SDK contracts | Verify adapter compatibility + payload builders | `pytest tests/brokers/webull/contract/test_webull_contract.py` | None | Yes |
 | AI live smoke | Validate real provider behavior for enabled provider matrix | `TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"` | AI key + network | No |
+| AI live prompt validator | Validate frozen scenario messages map to expected parser contract/tickers/vehicle types with real provider | `TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -k "prompt_contract_validator" -m "smoke and live"` | AI key + network | No |
 | AI->Trader live pipeline | Validate live AI parsing and trader routing path | `TEST_AI_LIVE=1 TEST_AI_SCOPE=sample pytest tests/channels/discord/integration/test_message_flow.py -k "live_ai_pipeline_message_to_trader" -m "smoke and live"` | AI key + network | No |
 | Webull read smoke | Validate login/account/balance/instrument with real endpoint | `TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write"` | Webull credentials + network | No (initially) |
 | Discord live smoke | Validate real Discord connectivity and channel access | `TEST_DISCORD_LIVE=1 pytest tests/channels/discord/smoke/test_discord_live.py -m "smoke and live and channel and source_discord"` | Discord token + network | No |
@@ -145,3 +153,4 @@ Exit codes:
 - `TEST_WEBULL_ENV` (`paper`, `production`)
 - `TEST_AI_PROVIDERS` (default: `openai,anthropic,google`)
 - `TEST_BROKERS` (default: `webull`)
+- `TEST_AI_FAST_PATH` (optional override knobs for OpenAI fast-stage test runs)

@@ -10,7 +10,7 @@ Discord message -> structured signal -> optional trade execution.
 ## What The App Does
 
 1. Watches a configured Discord channel.
-2. Sends each relevant message to your configured AI provider.
+2. Sends each relevant message to your configured AI provider (OpenAI runs fast-stage first, then falls back to a stronger model when needed).
 3. Normalizes AI output into a strict parser contract.
 4. Sends notifications and appends logs.
 5. Optionally places stock orders when `trading.auto_trade=true` (Webull execution path implemented).
@@ -32,7 +32,8 @@ flowchart TB
     subgraph Ingest["Message Ingestion (src/discord_client.py)"]
         D["Discord message"] --> G["Guards: target channel, not self, min length"]
         G --> P["AIParser.parse(...)"]
-        CFG["config/ai_parser.prompt"] --> P
+        CFG_FAST["config/ai_parser_fast.prompt"] --> P
+        CFG_FULL["config/ai_parser.prompt"] --> P
         P --> PD["providers.parser_dispatch"]
         PD --> OA["OpenAI client"]
         PD --> AN["Anthropic client"]
@@ -69,7 +70,9 @@ flowchart TB
 2. If auto-trade is enabled, `create_broker_runtime(...)` resolves broker runtime (`webull`/`public`).
 3. `StockMonitorClient` receives Discord messages.
 4. Guard checks run (target channel, not self message, minimum content).
-5. `AIParser.parse(...)` builds prompt context and calls provider (`openai`/`anthropic`/`google`).
+5. `AIParser.parse(...)` calls provider flow:
+   - OpenAI: fast prompt first (`gpt-4.1-nano`), then fallback full parse (`gpt-4.1-mini`) on low confidence/ambiguity.
+   - Anthropic/Google: full parse only.
 6. AI output is normalized to `ParsedMessage`/`ParsedSignal` and validated by the parser contract.
 7. Signals are notified/logged, then only executable STOCK vehicles are mapped into `StockOrder`.
 8. `StockOrderExecutor` applies planner rules (market session + config) and routes to broker adapter.
@@ -109,9 +112,12 @@ Execution note:
 - `action` is part of parser semantics but runtime stock execution gates on `vehicles[*]` plus `ticker`.
 - Other AI fields may exist but do not currently change stock order routing.
 
-## AI Prompt Template (Rules + Variables)
+## AI Prompt Templates (Rules + Variables)
 
-Prompt template source: `config/ai_parser.prompt`.
+Prompt template sources:
+
+- Fast stage (OpenAI): `config/ai_parser_fast.prompt`
+- Full parse stage: `config/ai_parser.prompt`
 
 Runtime variables currently injected by `AIParser`:
 
@@ -119,12 +125,11 @@ Runtime variables currently injected by `AIParser`:
 - When trader/account context exists: `ACCOUNT_BALANCE`, `MARGIN_POWER`, `CASH_POWER`, `MARGIN_EQUITY_PERCENTAGE`.
 - Current gaps: placeholders like full live `OPTIONS_CHAIN` are not fully populated yet.
 
-Core parsing rules from the template:
+Core parsing behavior:
 
-- Extract only clear action picks (`Added`, `Buying`, `Trimming`, `Exiting`, `Selling`).
-- Ignore commentary/watchlist text with no explicit action.
-- Apply the options-intent rule: intent language for calls/puts counts as actionable options BUY intent.
-- Return structured JSON matching the parser contract (`contract_version`, `source`, `signals`, `meta`).
+- Fast stage returns compact intent fields (`status`, `confidence`, `primary_ticker`, `vehicle_hint`, `action`, `evidence_text`, `sizing_text`).
+- If fast-stage confidence is insufficient, parser runs full structured extraction.
+- OpenAI full parse model output is `signals` only; parser injects `source` and `meta` locally.
 
 Contract boundary note:
 
@@ -178,7 +183,8 @@ docker compose up --build
 
 - Secrets: `.env`
 - Main app settings: `config/trading.yaml`
-- AI prompt template: `config/ai_parser.prompt`
+- AI fast prompt template: `config/ai_parser_fast.prompt`
+- AI fallback/full prompt template: `config/ai_parser.prompt`
 
 ## Testing And Confidence
 

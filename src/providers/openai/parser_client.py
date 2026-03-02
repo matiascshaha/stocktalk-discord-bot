@@ -3,7 +3,7 @@
 import json
 from typing import Any, List
 
-from src.providers.openai.parser_contract import parser_response_format
+from src.providers.openai.parser_contract import parser_fast_response_format, parser_response_format
 
 
 def extract_structured_message_content(response: Any) -> str:
@@ -43,11 +43,43 @@ def request_parser_completion(
     max_tokens: int,
     temperature: float,
 ) -> str:
+    system_instruction = (
+        "You are a strict trading-alert parser. "
+        "Return only JSON that matches the provided response schema exactly. "
+        "If no actionable trade exists in the message, return an empty signals array."
+    )
     response = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": prompt},
+        ],
         max_tokens=max_tokens,
         temperature=temperature,
         response_format=parser_response_format(),
+    )
+    return extract_structured_message_content(response)
+
+
+def request_fast_parser_completion(
+    client: Any,
+    model: str,
+    prompt: str,
+    max_tokens: int,
+    temperature: float,
+) -> str:
+    system_instruction = (
+        "You classify one trading message into actionable intent and primary ticker. "
+        "Return only JSON matching the provided schema exactly."
+    )
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=max_tokens,
+        temperature=temperature,
+        response_format=parser_fast_response_format(),
     )
     return extract_structured_message_content(response)

@@ -34,6 +34,21 @@ class ErrorOpenAIClient:
         raise RuntimeError("response_format unsupported")
 
 
+class SequencedOpenAIClient:
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls.append(kwargs)
+        if not self._responses:
+            raise RuntimeError("No queued response")
+        payload = self._responses.pop(0)
+        message = SimpleNamespace(content=payload)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
 class FakeAnthropicClient:
     def __init__(self, response_text: str):
         self.calls = []
