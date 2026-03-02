@@ -164,11 +164,11 @@ def test_openai_request_uses_structured_output_response_format():
 
     result = parser.parse("Adding AAPL", "tester")
     assert result["meta"]["status"] == "ok"
-    assert len(parser.client.calls) == 1
+    assert len(parser.client.calls) == 2
 
-    call = parser.client.calls[0]
-    assert "response_format" in call
-    response_format = call["response_format"]
+    full_parse_call = parser.client.calls[1]
+    assert "response_format" in full_parse_call
+    response_format = full_parse_call["response_format"]
     assert response_format["type"] == "json_schema"
     assert response_format["json_schema"]["strict"] is True
     schema = response_format["json_schema"]["schema"]
@@ -183,8 +183,9 @@ def test_openai_request_failure_returns_provider_error():
     result = parser.parse("Adding MSFT", "tester")
     assert result["meta"]["status"] == "provider_error"
     assert result["signals"] == []
-    assert len(parser.client.calls) == 1
+    assert len(parser.client.calls) == 2
     assert "response_format" in parser.client.calls[0]
+    assert "response_format" in parser.client.calls[1]
 
 
 def test_portfolio_summary_is_prompt_handled_not_preblocked():
@@ -197,9 +198,9 @@ def test_portfolio_summary_is_prompt_handled_not_preblocked():
     result = parser.parse(portfolio_message, "stocktalkweekly")
     assert result["meta"]["status"] == "no_action"
     assert result["signals"] == []
-    assert len(parser.client.calls) == 1
+    assert len(parser.client.calls) == 2
 
-    call = parser.client.calls[0]
+    call = parser.client.calls[1]
     assert call["messages"][0]["role"] == "system"
     prompt = call["messages"][1]["content"]
     assert "`PORTFOLIO_SUMMARY` -> return `signals: []`." in prompt
@@ -263,7 +264,6 @@ def test_openai_fast_path_accepts_confident_actionable_result(monkeypatch):
         ]
     )
 
-    monkeypatch.setitem(parser.config["openai"], "fast_path_enabled", True)
     monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
 
     result = parser.parse("New position: Apple $AAPL - 3% weight @ $190 avg on shares", "stocktalkweekly")
@@ -294,7 +294,6 @@ def test_openai_fast_path_falls_back_to_full_parse_when_ambiguous(monkeypatch):
         ]
     )
 
-    monkeypatch.setitem(parser.config["openai"], "fast_path_enabled", True)
     monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
 
     result = parser.parse("Buying MSFT now", "stocktalkweekly")
@@ -306,6 +305,36 @@ def test_openai_fast_path_falls_back_to_full_parse_when_ambiguous(monkeypatch):
     assert len(parser.client.calls) == 2
     assert parser.client.calls[0]["response_format"]["json_schema"]["name"] == "stocktalk_parser_fast_contract"
     assert parser.client.calls[1]["response_format"]["json_schema"]["name"] == "stocktalk_parser_contract"
+
+
+def test_openai_fallback_parse_uses_configured_stronger_model(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"ambiguous","confidence":0.4,"primary_ticker":null,'
+                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+            ),
+            (
+                '{"signals":[{"ticker":"AAPL","action":"BUY","confidence":0.9,'
+                '"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}]}'
+            ),
+        ]
+    )
+
+    monkeypatch.setitem(parser.config["openai"], "fallback_model", "gpt-4.1-mini")
+    monkeypatch.setitem(parser.config["openai"], "fallback_max_tokens", 1800)
+    monkeypatch.setitem(parser.config["openai"], "fallback_temperature", 0.0)
+
+    result = parser.parse("buy AAPL", "stocktalkweekly")
+    parsed = ParsedMessage.model_validate(result)
+    assert parsed.meta.status == "ok"
+
+    fallback_call = parser.client.calls[1]
+    assert fallback_call["model"] == "gpt-4.1-mini"
+    assert fallback_call["max_tokens"] == 1800
+    assert fallback_call["temperature"] == 0.0
 
 
 def test_openai_fast_path_includes_option_for_mixed_contract_tokens(monkeypatch):
@@ -321,7 +350,6 @@ def test_openai_fast_path_includes_option_for_mixed_contract_tokens(monkeypatch)
         ]
     )
 
-    monkeypatch.setitem(parser.config["openai"], "fast_path_enabled", True)
     monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
 
     result = parser.parse(

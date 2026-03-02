@@ -20,6 +20,25 @@ def test_request_provider_completion_routes_openai():
 
 
 @pytest.mark.unit
+def test_request_provider_completion_routes_openai_with_overrides():
+    client = CapturingOpenAIClient('{"signals":[]}')
+    result = request_provider_completion(
+        "openai",
+        client,
+        parser_provider_config(),
+        "hello",
+        model_override="gpt-4.1-mini",
+        max_tokens_override=1800,
+        temperature_override=0.0,
+    )
+    assert result == '{"signals":[]}'
+    call = client.calls[0]
+    assert call["model"] == "gpt-4.1-mini"
+    assert call["max_tokens"] == 1800
+    assert call["temperature"] == 0.0
+
+
+@pytest.mark.unit
 @pytest.mark.skipif(not RUN_OPTIONAL_PROVIDER_TESTS, reason=OPTIONAL_PROVIDER_TESTS_REASON)
 def test_request_provider_completion_routes_anthropic():
     client = FakeAnthropicClient('{"signals":[]}')

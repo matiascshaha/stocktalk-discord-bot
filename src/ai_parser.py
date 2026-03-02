@@ -123,12 +123,7 @@ class AIParser:
                 logger.warning("Prompt template is empty")
                 return self._empty_result(status="empty_prompt", source=source)
 
-            response_text = request_provider_completion(
-                provider=self.provider,
-                client=self.client,
-                config=self.config,
-                prompt=prompt,
-            )
+            response_text = self._request_full_parse_completion(prompt)
             cleaned = self._clean_json(response_text)
             payload = json.loads(cleaned)
             return self._coerce_result(payload, source=source)
@@ -186,8 +181,6 @@ class AIParser:
             return None
 
         openai_config = self.config.get("openai", {}) if isinstance(self.config, dict) else {}
-        if not bool(openai_config.get("fast_path_enabled", False)):
-            return None
 
         max_tokens = int(openai_config.get("fast_max_tokens", 250) or 250)
         confidence_threshold = float(openai_config.get("fast_confidence_threshold", 0.85) or 0.85)
@@ -247,6 +240,32 @@ class AIParser:
             "vehicles": vehicles,
         }
         return self._coerce_result({"signals": [signal]}, source=source)
+
+    def _request_full_parse_completion(self, prompt: str) -> str:
+        if (self.provider or "").lower().strip() != "openai":
+            return request_provider_completion(
+                provider=self.provider,
+                client=self.client,
+                config=self.config,
+                prompt=prompt,
+            )
+
+        openai_config = self.config.get("openai", {}) if isinstance(self.config, dict) else {}
+        fallback_model = str(openai_config.get("fallback_model") or openai_config.get("model") or "").strip()
+        fallback_max_tokens = int(openai_config.get("fallback_max_tokens", openai_config.get("max_tokens", 1800)) or 1800)
+        fallback_temperature = float(
+            openai_config.get("fallback_temperature", openai_config.get("temperature", 0.0)) or 0.0
+        )
+
+        return request_provider_completion(
+            provider=self.provider,
+            client=self.client,
+            config=self.config,
+            prompt=prompt,
+            model_override=fallback_model or None,
+            max_tokens_override=fallback_max_tokens,
+            temperature_override=fallback_temperature,
+        )
 
     def _render_fast_prompt(self, message_text: str) -> str:
         prompt = self.fast_prompt_template or ""

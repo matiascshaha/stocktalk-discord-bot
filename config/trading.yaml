@@ -28,13 +28,16 @@ ai:
     file: ./config/ai_parser.prompt
 
   openai:
+    # Fast parser model (stage 1)
     model: gpt-4.1-nano
-    max_tokens: 900
+    # Fallback parser model (stage 2, used when fast stage is ambiguous/low-confidence)
+    fallback_model: gpt-4.1-mini
+    # Output budget for fallback stage
+    max_tokens: 1800
+    fallback_max_tokens: 1800
+    fallback_temperature: 0.0
     fast_prompt_file: ./config/ai_parser_fast.prompt
-    # Optional low-latency parser path:
-    # 1) fast intent+ticker classification
-    # 2) fallback to full structured parse on ambiguity/low confidence
-    fast_path_enabled: false
+    # Fast stage is the default OpenAI path.
     fast_confidence_threshold: 0.85
     fast_max_tokens: 250
     temperature: 0.0

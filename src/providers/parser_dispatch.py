@@ -1,6 +1,6 @@
 """Provider-agnostic parser completion dispatch."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from src.providers.anthropic.parser_client import (
     request_parser_completion as request_anthropic_parser_completion,
@@ -22,27 +22,36 @@ def request_provider_completion(
     client: Any,
     config: Dict[str, Any],
     prompt: str,
+    model_override: Optional[str] = None,
+    max_tokens_override: Optional[int] = None,
+    temperature_override: Optional[float] = None,
 ) -> str:
     normalized_provider = (provider or "").lower().strip()
 
     if normalized_provider == "openai":
         openai_config = config["openai"]
+        model = model_override or openai_config["model"]
+        max_tokens = max_tokens_override if max_tokens_override is not None else openai_config["max_tokens"]
+        temperature = temperature_override if temperature_override is not None else openai_config["temperature"]
         return request_openai_parser_completion(
             client=client,
-            model=openai_config["model"],
+            model=model,
             prompt=prompt,
-            max_tokens=openai_config["max_tokens"],
-            temperature=openai_config["temperature"],
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
 
     if normalized_provider == "anthropic":
         anthropic_config = config["anthropic"]
+        model = model_override or anthropic_config["model"]
+        max_tokens = max_tokens_override if max_tokens_override is not None else anthropic_config["max_tokens"]
+        temperature = temperature_override if temperature_override is not None else anthropic_config["temperature"]
         return request_anthropic_parser_completion(
             client=client,
-            model=anthropic_config["model"],
+            model=model,
             prompt=prompt,
-            max_tokens=anthropic_config["max_tokens"],
-            temperature=anthropic_config["temperature"],
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
 
     if normalized_provider == "google":
