@@ -4,7 +4,12 @@ import src.ai_parser as ai_parser_module
 from src.ai_parser import AIParser
 from src.models.parser_models import ParsedMessage
 from tests.data.stocktalk_real_messages import MESSAGE_FIXTURES
-from tests.support.fakes.ai_clients import CapturingOpenAIClient, ErrorOpenAIClient, FakeOpenAIClient
+from tests.support.fakes.ai_clients import (
+    CapturingOpenAIClient,
+    ErrorOpenAIClient,
+    FakeOpenAIClient,
+    SequencedOpenAIClient,
+)
 
 
 pytestmark = pytest.mark.unit
@@ -245,3 +250,61 @@ def test_ai_provider_none_disables_client_even_when_fallback_enabled(monkeypatch
     assert parser.client is None
     assert parser.provider is None
     assert calls == []
+
+
+def test_openai_fast_path_accepts_confident_actionable_result(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"actionable","confidence":0.92,"primary_ticker":"AAPL",'
+                '"vehicle_hint":"stock","action":"BUY","evidence_text":"New position: Apple $AAPL",'
+                '"sizing_text":"3% weight"}'
+            )
+        ]
+    )
+
+    monkeypatch.setitem(parser.config["openai"], "fast_path_enabled", True)
+    monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
+
+    result = parser.parse("New position: Apple $AAPL - 3% weight @ $190 avg on shares", "stocktalkweekly")
+    parsed = ParsedMessage.model_validate(result)
+
+    assert parsed.meta.status == "ok"
+    assert len(parsed.signals) == 1
+    assert parsed.signals[0].ticker == "AAPL"
+    assert parsed.signals[0].action == "BUY"
+    assert parsed.signals[0].vehicles[0].type == "STOCK"
+    assert len(parser.client.calls) == 1
+    assert parser.client.calls[0]["response_format"]["json_schema"]["name"] == "stocktalk_parser_fast_contract"
+
+
+def test_openai_fast_path_falls_back_to_full_parse_when_ambiguous(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"ambiguous","confidence":0.42,"primary_ticker":null,'
+                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+            ),
+            (
+                '{"signals":[{"ticker":"MSFT","action":"BUY","confidence":0.9,'
+                '"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}]}'
+            ),
+        ]
+    )
+
+    monkeypatch.setitem(parser.config["openai"], "fast_path_enabled", True)
+    monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
+
+    result = parser.parse("Buying MSFT now", "stocktalkweekly")
+    parsed = ParsedMessage.model_validate(result)
+
+    assert parsed.meta.status == "ok"
+    assert len(parsed.signals) == 1
+    assert parsed.signals[0].ticker == "MSFT"
+    assert len(parser.client.calls) == 2
+    assert parser.client.calls[0]["response_format"]["json_schema"]["name"] == "stocktalk_parser_fast_contract"
+    assert parser.client.calls[1]["response_format"]["json_schema"]["name"] == "stocktalk_parser_contract"

@@ -140,6 +140,9 @@ AI_CONFIG = {
     'openai': {
         'model': _cfg('ai.openai.model', 'gpt-4.1-nano'),
         'max_tokens': _as_int(_cfg('ai.openai.max_tokens', 2000), 2000),
+        'fast_path_enabled': _as_bool(_cfg('ai.openai.fast_path_enabled', False), False),
+        'fast_confidence_threshold': _as_float(_cfg('ai.openai.fast_confidence_threshold', 0.85), 0.85),
+        'fast_max_tokens': _as_int(_cfg('ai.openai.fast_max_tokens', 250), 250),
         'temperature': _as_float(_cfg('ai.openai.temperature', 0.2), 0.2),
     },
     'anthropic': {

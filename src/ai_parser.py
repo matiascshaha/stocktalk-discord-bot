@@ -23,6 +23,7 @@ from src.models.parser_models import (
     ParsedVehicle,
     ParserMeta,
 )
+from src.providers.openai.parser_client import request_fast_parser_completion
 from src.providers.client_factory import build_provider_client
 from src.providers.parser_dispatch import UnsupportedProviderError, request_provider_completion
 from src.utils.logger import setup_logger
@@ -116,19 +117,26 @@ class AIParser:
             logger.warning("No AI client available")
             return self._empty_result(status="no_client", source=source)
 
-        prompt = self._build_prompt(
-            message_text=message_text,
-            author_name=author_name,
-            channel_id=channel_id,
-            trading_account=trading_account,
-        )
-
-        if not prompt.strip():
-            logger.warning("Prompt template is empty")
-            return self._empty_result(status="empty_prompt", source=source)
-
         response_text = ""
         try:
+            fast_path_result = self._try_openai_fast_path(
+                message_text=message_text,
+                source=source,
+            )
+            if fast_path_result is not None:
+                return fast_path_result
+
+            prompt = self._build_prompt(
+                message_text=message_text,
+                author_name=author_name,
+                channel_id=channel_id,
+                trading_account=trading_account,
+            )
+
+            if not prompt.strip():
+                logger.warning("Prompt template is empty")
+                return self._empty_result(status="empty_prompt", source=source)
+
             response_text = request_provider_completion(
                 provider=self.provider,
                 client=self.client,
@@ -186,6 +194,190 @@ class AIParser:
             meta=ParserMeta(status=status, provider=self.provider, error=None, warnings=warnings),
         )
         return result.model_dump()
+
+    def _try_openai_fast_path(self, message_text: str, source: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if (self.provider or "").lower().strip() != "openai":
+            return None
+
+        openai_config = self.config.get("openai", {}) if isinstance(self.config, dict) else {}
+        if not bool(openai_config.get("fast_path_enabled", False)):
+            return None
+
+        max_tokens = int(openai_config.get("fast_max_tokens", 250) or 250)
+        confidence_threshold = float(openai_config.get("fast_confidence_threshold", 0.85) or 0.85)
+        prompt = self._build_fast_prompt(message_text)
+
+        try:
+            response_text = request_fast_parser_completion(
+                client=self.client,
+                model=openai_config["model"],
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=0.0,
+            )
+            fast_payload = json.loads(self._clean_json(response_text))
+        except Exception as exc:
+            logger.warning("OpenAI fast-path failed; falling back to full parse: %s", exc)
+            return None
+
+        if not isinstance(fast_payload, dict):
+            return None
+
+        status = str(fast_payload.get("status") or "ambiguous").lower().strip()
+        confidence = self._normalize_fast_confidence(fast_payload.get("confidence"))
+
+        if status == "no_action" and confidence >= confidence_threshold:
+            return self._empty_result(status="no_action", source=source)
+
+        if status != "actionable" or confidence < confidence_threshold:
+            return None
+
+        ticker = self._normalize_ticker_candidate(fast_payload.get("primary_ticker"))
+        if not ticker:
+            return None
+
+        action = self._normalize_fast_action(fast_payload.get("action"))
+        if action == "NONE":
+            return None
+
+        vehicles = self._build_vehicles_from_fast_hint(
+            message_text=message_text,
+            vehicle_hint=fast_payload.get("vehicle_hint"),
+            action=action,
+        )
+
+        signal = {
+            "ticker": ticker,
+            "action": action,
+            "confidence": confidence,
+            "reasoning": str(fast_payload.get("evidence_text") or ""),
+            "weight_percent": self._extract_weight_percent(message_text),
+            "urgency": "MEDIUM",
+            "sentiment": "NEUTRAL",
+            "is_actionable": True,
+            "vehicles": vehicles,
+        }
+        return self._coerce_result({"signals": [signal]}, source=source)
+
+    def _build_fast_prompt(self, message_text: str) -> str:
+        return (
+            "Classify this Discord analyst message for trading intent. "
+            "Return only JSON. "
+            "If no new trade recommendation exists in this message, set status to no_action. "
+            "If unclear, set status to ambiguous. "
+            "primary_ticker must be symbol only (no $). "
+            "vehicle_hint: stock|option|mixed|unknown. "
+            "action: BUY|SELL|NONE. "
+            "evidence_text should be a short direct quote from the message. "
+            "sizing_text should copy any explicit size/weight phrase or 'unspecified'.\n\n"
+            f"Message:\n{message_text}"
+        )
+
+    def _normalize_fast_confidence(self, value: Any) -> float:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return max(0.0, min(1.0, parsed))
+
+    def _normalize_fast_action(self, value: Any) -> str:
+        action = str(value or "NONE").upper().strip()
+        if action in {"BUY", "SELL", "NONE"}:
+            return action
+        return "NONE"
+
+    def _normalize_ticker_candidate(self, value: Any) -> Optional[str]:
+        if value in (None, "", "null"):
+            return None
+        text = str(value).upper().replace("$", "").strip()
+        if not text:
+            return None
+        if "-" in text:
+            compact = text.replace("-", "")
+            if compact.isalnum():
+                text = compact
+        return text
+
+    def _extract_weight_percent(self, message_text: str) -> Optional[float]:
+        match = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*%\s*(?:weight|weighting)?", message_text, re.IGNORECASE)
+        if not match:
+            return None
+        try:
+            return float(match.group(1))
+        except (TypeError, ValueError):
+            return None
+
+    def _build_vehicles_from_fast_hint(self, message_text: str, vehicle_hint: Any, action: str) -> List[Dict[str, Any]]:
+        hint = str(vehicle_hint or "unknown").lower().strip()
+        option_details = self._extract_option_details(message_text)
+
+        if hint == "option":
+            return [self._option_vehicle(action, option_details)]
+
+        if hint == "mixed":
+            return [
+                self._stock_vehicle(action),
+                self._option_vehicle(action, option_details),
+            ]
+
+        return [self._stock_vehicle(action)]
+
+    def _stock_vehicle(self, action: str) -> Dict[str, Any]:
+        return {
+            "type": "STOCK",
+            "enabled": True,
+            "intent": "EXECUTE" if action in {"BUY", "SELL"} else "INFO",
+            "side": action if action in {"BUY", "SELL"} else "NONE",
+            "option_type": None,
+            "strike": None,
+            "expiry": None,
+            "quantity_hint": None,
+        }
+
+    def _option_vehicle(self, action: str, option_details: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "type": "OPTION",
+            "enabled": True,
+            "intent": "EXECUTE" if action in {"BUY", "SELL"} else "INFO",
+            "side": action if action in {"BUY", "SELL"} else "NONE",
+            "option_type": option_details.get("option_type"),
+            "strike": option_details.get("strike"),
+            "expiry": option_details.get("expiry"),
+            "quantity_hint": None,
+        }
+
+    def _extract_option_details(self, message_text: str) -> Dict[str, Any]:
+        details: Dict[str, Any] = {
+            "option_type": None,
+            "strike": None,
+            "expiry": None,
+        }
+
+        contract_match = re.search(r"\$?\s*(\d+(?:\.\d+)?)\s*([CP])\b", message_text, re.IGNORECASE)
+        if contract_match:
+            details["strike"] = float(contract_match.group(1))
+            details["option_type"] = "CALL" if contract_match.group(2).upper() == "C" else "PUT"
+
+        if details["option_type"] is None:
+            if re.search(r"\bcalls?\b", message_text, re.IGNORECASE):
+                details["option_type"] = "CALL"
+            elif re.search(r"\bputs?\b", message_text, re.IGNORECASE):
+                details["option_type"] = "PUT"
+
+        expiry_patterns = [
+            r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+'?\d{2,4}\b",
+            r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}\b",
+            r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
+            r"\b\d{4}-\d{2}-\d{2}\b",
+            r"\bfor\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b",
+        ]
+        for pattern in expiry_patterns:
+            match = re.search(pattern, message_text, re.IGNORECASE)
+            if match:
+                details["expiry"] = match.group(0).replace("for ", "").strip()
+                break
+
+        return details
 
     def _normalize_signal(self, signal: Dict[str, Any]) -> Optional[ParsedSignal]:
         if not isinstance(signal, dict):
