@@ -95,6 +95,22 @@ OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
 }
 
 
+OPENAI_FAST_PARSER_JSON_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["status", "confidence", "primary_ticker", "vehicle_hint", "action", "evidence_text", "sizing_text"],
+    "properties": {
+        "status": {"type": "string", "enum": ["actionable", "no_action", "ambiguous"]},
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "primary_ticker": {"type": ["string", "null"]},
+        "vehicle_hint": {"type": "string", "enum": ["stock", "option", "mixed", "unknown"]},
+        "action": {"type": "string", "enum": ["BUY", "SELL", "NONE"]},
+        "evidence_text": {"type": "string"},
+        "sizing_text": {"type": "string"},
+    },
+}
+
+
 def parser_response_format() -> Dict[str, Any]:
     return {
         "type": "json_schema",
@@ -102,5 +118,16 @@ def parser_response_format() -> Dict[str, Any]:
             "name": "stocktalk_parser_contract",
             "strict": True,
             "schema": OPENAI_PARSER_JSON_SCHEMA,
+        },
+    }
+
+
+def parser_fast_response_format() -> Dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "stocktalk_parser_fast_contract",
+            "strict": True,
+            "schema": OPENAI_FAST_PARSER_JSON_SCHEMA,
         },
     }

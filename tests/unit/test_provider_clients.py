@@ -7,9 +7,10 @@ from src.providers.anthropic.parser_client import request_parser_completion as r
 from src.providers.google.parser_client import request_parser_completion as request_google_parser_completion
 from src.providers.openai.parser_client import (
     extract_structured_message_content,
+    request_fast_parser_completion as request_openai_fast_parser_completion,
     request_parser_completion as request_openai_parser_completion,
 )
-from src.providers.openai.parser_contract import parser_response_format
+from src.providers.openai.parser_contract import parser_fast_response_format, parser_response_format
 
 
 pytestmark = [pytest.mark.unit]
@@ -82,6 +83,40 @@ def test_openai_request_parser_completion_passes_response_format(monkeypatch):
     assert kwargs["response_format"]["type"] == "json_schema"
 
 
+def test_openai_request_fast_parser_completion_passes_fast_response_format():
+    create = MagicMock(
+        return_value=SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            '{"status":"actionable","confidence":0.9,"primary_ticker":"AAPL","vehicle_hint":"stock",'
+                            '"action":"BUY","evidence_text":"added AAPL","sizing_text":"3%"}'
+                        )
+                    )
+                )
+            ]
+        )
+    )
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+    result = request_openai_fast_parser_completion(
+        client=client,
+        model="gpt-test",
+        prompt="hello",
+        max_tokens=128,
+        temperature=0.0,
+    )
+
+    assert '"status":"actionable"' in result
+    kwargs = create.call_args.kwargs
+    assert kwargs["model"] == "gpt-test"
+    assert kwargs["max_tokens"] == 128
+    assert kwargs["temperature"] == 0.0
+    assert kwargs["response_format"]["type"] == "json_schema"
+    assert kwargs["response_format"]["json_schema"]["name"] == "stocktalk_parser_fast_contract"
+
+
 def test_anthropic_request_parser_completion_strips_text():
     create = MagicMock(return_value=SimpleNamespace(content=[SimpleNamespace(text=' {"signals": []} ')]))
     client = SimpleNamespace(messages=SimpleNamespace(create=create))
@@ -115,3 +150,12 @@ def test_parser_response_format_is_strict_json_schema():
     assert response_format["json_schema"]["strict"] is True
     assert response_format["json_schema"]["name"] == "stocktalk_parser_contract"
     assert "signals" in response_format["json_schema"]["schema"]["required"]
+
+
+def test_parser_fast_response_format_is_strict_json_schema():
+    response_format = parser_fast_response_format()
+
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert response_format["json_schema"]["name"] == "stocktalk_parser_fast_contract"
+    assert "status" in response_format["json_schema"]["schema"]["required"]
