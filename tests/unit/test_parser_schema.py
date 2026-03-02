@@ -337,6 +337,32 @@ def test_openai_fallback_parse_uses_configured_stronger_model(monkeypatch):
     assert fallback_call["temperature"] == 0.0
 
 
+def test_openai_full_parse_does_not_retry_on_actionable_zero_confidence():
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"ambiguous","confidence":0.40,"primary_ticker":null,'
+                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+            ),
+            (
+                '{"signals":[{"ticker":"CRML","action":"BUY","confidence":0.0,"is_actionable":true,'
+                '"vehicles":[{"type":"STOCK","intent":"EXECUTE","side":"BUY"}]}]}'
+            ),
+        ]
+    )
+
+    result = parser.parse("Adding CRML, 5% weighting, all shares", "stocktalkweekly")
+    parsed = ParsedMessage.model_validate(result)
+
+    assert parsed.meta.status == "ok"
+    assert len(parsed.signals) == 1
+    assert parsed.signals[0].ticker == "CRML"
+    assert parsed.signals[0].confidence == 0.0
+    assert len(parser.client.calls) == 2
+
+
 def test_openai_fast_path_includes_option_for_mixed_contract_tokens(monkeypatch):
     parser = AIParser()
     parser.provider = "openai"

@@ -76,6 +76,7 @@ Output discipline:
 - Return only valid JSON.
 - No markdown fences.
 - No extra commentary outside JSON.
+- `confidence` means parser certainty that ticker/action extraction is correct (NOT analyst conviction).
 
 Contract examples (signals only):
 

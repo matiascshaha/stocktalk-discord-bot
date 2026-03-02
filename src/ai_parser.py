@@ -64,6 +64,7 @@ Rules:
 - ALWAYS include top-level key: signals.
 - If no actionable output, return an empty signals array.
 - Portfolio recaps/watchlists/holdings summaries are NOT actionable; return an empty signals array unless the message includes a new execution command in this message.
+- `confidence` means parser certainty that ticker/action extraction is correct (NOT analyst conviction).
 - Never add or rename top-level keys.
 """.strip()
 
