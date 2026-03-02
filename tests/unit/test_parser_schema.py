@@ -307,3 +307,32 @@ def test_openai_fast_path_falls_back_to_full_parse_when_ambiguous(monkeypatch):
     assert len(parser.client.calls) == 2
     assert parser.client.calls[0]["response_format"]["json_schema"]["name"] == "stocktalk_parser_fast_contract"
     assert parser.client.calls[1]["response_format"]["json_schema"]["name"] == "stocktalk_parser_contract"
+
+
+def test_openai_fast_path_includes_option_for_mixed_contract_tokens(monkeypatch):
+    parser = AIParser()
+    parser.provider = "openai"
+    parser.client = SequencedOpenAIClient(
+        [
+            (
+                '{"status":"actionable","confidence":0.93,"primary_ticker":"GLDD",'
+                '"vehicle_hint":"stock","action":"BUY","evidence_text":"Added stock at $13.95 and some $12.5C",'
+                '"sizing_text":"4.5% weighting"}'
+            )
+        ]
+    )
+
+    monkeypatch.setitem(parser.config["openai"], "fast_path_enabled", True)
+    monkeypatch.setitem(parser.config["openai"], "fast_confidence_threshold", 0.85)
+
+    result = parser.parse(
+        "Added stock at $13.95 and some $12.5C for March at $1.75 avg just to add some juice. 4.5% weighting.",
+        "stocktalkweekly",
+    )
+    parsed = ParsedMessage.model_validate(result)
+    vehicles = parsed.signals[0].vehicles
+    vehicle_types = {vehicle.type for vehicle in vehicles}
+
+    assert parsed.meta.status == "ok"
+    assert parsed.signals[0].ticker == "GLDD"
+    assert vehicle_types == {"STOCK", "OPTION"}

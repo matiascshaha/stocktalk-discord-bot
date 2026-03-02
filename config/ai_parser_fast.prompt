@@ -9,6 +9,7 @@ Rules:
 - If intent is unclear, set `status` to `ambiguous`.
 - `primary_ticker` must be exchange symbol only (no `$`), or null when unknown.
 - `vehicle_hint` must be one of: `stock`, `option`, `mixed`, `unknown`.
+- Use `mixed` when both common shares and options are actively recommended in the same message.
 - `action` must be one of: `BUY`, `SELL`, `NONE`.
 - `evidence_text` should be a short direct quote proving intent.
 - `sizing_text` should copy explicit size language (percent, dollars, starter, etc.) or `unspecified`.

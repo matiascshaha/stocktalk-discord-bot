@@ -303,15 +303,17 @@ class AIParser:
     def _build_vehicles_from_fast_hint(self, message_text: str, vehicle_hint: Any, action: str) -> List[Dict[str, Any]]:
         hint = str(vehicle_hint or "unknown").lower().strip()
         option_details = self._extract_option_details(message_text)
+        has_option_contract = self._has_explicit_option_contract_token(message_text)
+        has_stock_trade_language = self._has_explicit_stock_trade_language(message_text)
 
-        if hint == "option":
+        include_option = hint in {"option", "mixed"} or has_option_contract
+        include_stock = hint in {"stock", "mixed"} or (has_stock_trade_language and hint != "option")
+
+        if include_stock and include_option:
+            return [self._stock_vehicle(action), self._option_vehicle(action, option_details)]
+
+        if include_option:
             return [self._option_vehicle(action, option_details)]
-
-        if hint == "mixed":
-            return [
-                self._stock_vehicle(action),
-                self._option_vehicle(action, option_details),
-            ]
 
         return [self._stock_vehicle(action)]
 
@@ -371,6 +373,18 @@ class AIParser:
                 break
 
         return details
+
+    def _has_explicit_option_contract_token(self, message_text: str) -> bool:
+        return bool(re.search(r"\$?\s*(\d+(?:\.\d+)?)\s*([CP])\b", message_text, re.IGNORECASE))
+
+    def _has_explicit_stock_trade_language(self, message_text: str) -> bool:
+        return bool(
+            re.search(
+                r"\b(added|adding|bought|buying|opened|opening|initiat(?:e|ed|ing)|new position)\b.{0,40}\b(stock|shares?|common(?:\s+stock)?)\b",
+                message_text,
+                re.IGNORECASE | re.DOTALL,
+            )
+        )
 
     def _normalize_signal(self, signal: Dict[str, Any]) -> Optional[ParsedSignal]:
         if not isinstance(signal, dict):
