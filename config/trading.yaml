@@ -39,7 +39,7 @@ ai:
     fast_prompt_file: ./config/ai_parser_fast.prompt
     # Fast stage is the default OpenAI path.
     fast_confidence_threshold: 0.85
-    fast_max_tokens: 250
+    fast_max_tokens: 140
     temperature: 0.0
 
 # =============================================================================
@@ -59,7 +59,7 @@ trading:
   # CRITICAL: Toggle between paper trading (UAT/test) and live trading (production)
   # true = Paper trading (us-openapi-alb.uat.webullbroker.com) - SAFE FOR TESTING
   # false = Live trading (api.webull.com) - REAL MONEY - USE WITH CAUTION
-  paper_trade: true
+  paper_trade: false
   
   # Minimum confidence threshold for AI-parsed picks (0.0-1.0)
   # Picks below this confidence will be logged but not executed

@@ -40,6 +40,11 @@ Behavior mapping:
 - `action=SELL` -> place SELL stock order
 - `action=HOLD` -> no order placement
 
+Provider-path note:
+
+- OpenAI parser runtime is fast-stage first with fallback full parse.
+- Webull/Discord integration tests in this tree mock `AIParser.parse(...)` normalized output (post-parser contract), not raw provider response payloads.
+
 ## Directory Layout
 
 Top-level folders are domain-first:
@@ -148,3 +153,4 @@ Exit codes:
 - `TEST_WEBULL_ENV` (`paper`, `production`)
 - `TEST_AI_PROVIDERS` (default: `openai,anthropic,google`)
 - `TEST_BROKERS` (default: `webull`)
+- `TEST_AI_FAST_PATH` (optional override knobs for OpenAI fast-stage test runs)

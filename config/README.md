@@ -14,11 +14,14 @@ Common changes:
 - Enable option vehicle execution: set `trading.options_enabled: true`
 - Force paper trading: set `trading.paper_trade: true`
 - Switch AI provider: set `ai.provider: openai` (or `anthropic`, `google`, `none`, `auto`)
-- Set a different AI model: change `ai.openai.model` / `ai.anthropic.model`
+- Set fast/fallback OpenAI models: change `ai.openai.model` (fast) and `ai.openai.fallback_model` (fallback)
 - Adjust confidence threshold: `trading.min_confidence`
 
-## 2) AI prompt
-Edit `config/ai_parser.prompt`.
+## 2) AI prompts
+Edit:
+
+- `config/ai_parser_fast.prompt` (OpenAI fast-stage intent extraction)
+- `config/ai_parser.prompt` (full structured extraction/fallback)
 
 Placeholders:
 - `{{AUTHOR_NAME}}`

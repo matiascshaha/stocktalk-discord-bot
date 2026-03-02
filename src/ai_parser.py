@@ -182,7 +182,7 @@ class AIParser:
 
         openai_config = self.config.get("openai", {}) if isinstance(self.config, dict) else {}
 
-        max_tokens = int(openai_config.get("fast_max_tokens", 250) or 250)
+        max_tokens = int(openai_config.get("fast_max_tokens", 140) or 140)
         confidence_threshold = float(openai_config.get("fast_confidence_threshold", 0.85) or 0.85)
         prompt = self._render_fast_prompt(message_text)
         if not prompt.strip():

@@ -37,6 +37,7 @@ python -m scripts.diagnostics.verify_credentials
 Main config files:
 
 - `config/trading.yaml`
+- `config/ai_parser_fast.prompt`
 - `config/ai_parser.prompt`
 - `.env`
 
@@ -220,7 +221,7 @@ Parser AI live smoke:
 TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
 ```
 
-Parser AI live smoke using OpenAI fast-path (when provider resolves to OpenAI):
+Parser AI live smoke with fast-path override knobs (OpenAI only):
 
 ```bash
 TEST_AI_LIVE=1 TEST_AI_FAST_PATH=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
