@@ -16,8 +16,6 @@ setup(
         "anthropic>=0.39.0",
         "webull>=0.2.4",
         "python-dotenv>=1.0.0",
-        "pyperclip>=1.8.2",
-        "plyer>=2.1.0",
     ],
     python_requires=">=3.11,<3.12",
     entry_points={
