@@ -37,6 +37,7 @@ Read in this order before non-trivial edits:
 - Keep adapters thin and focused on mapping/transport.
 - Keep orchestration separate from policy/validation/mapping logic.
 - Keep folder-first organization as domains grow.
+- Use `docs/coding-conventions.md` and `docs/python-conventions.md` as the source of truth for module-structure and separation rules.
 
 ## Testing Guardrails
 

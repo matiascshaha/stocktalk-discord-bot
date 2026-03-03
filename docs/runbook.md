@@ -257,6 +257,18 @@ Discord live smoke:
 TEST_DISCORD_LIVE=1 pytest tests/channels/discord/smoke/test_discord_live.py -m "smoke and live and channel and source_discord"
 ```
 
+Yahoo live probe smoke (quote + options shape capture):
+
+```bash
+TEST_YAHOO_LIVE=1 pytest tests/system/smoke/test_yahoo_live_probe.py -m "smoke and live and system"
+```
+
+Yahoo live probe with custom symbols:
+
+```bash
+TEST_YAHOO_LIVE=1 TEST_YAHOO_SYMBOLS=AAPL,TSLA,MSFT pytest tests/system/smoke/test_yahoo_live_probe.py -m "smoke and live and system"
+```
+
 ## Quality Runners
 
 Health check runner:
