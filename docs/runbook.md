@@ -41,6 +41,11 @@ Main config files:
 - `config/ai_parser.prompt`
 - `.env`
 
+Provider-routing keys in `config/trading.yaml`:
+
+- `trading.execution_provider` (for example `webull`)
+- `trading.quote_provider` (`auto`, `webull`, or `yahoo`)
+
 ## Run the Tool
 
 Default monitor run:

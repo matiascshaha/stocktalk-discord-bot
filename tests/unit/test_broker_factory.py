@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import src.brokerages.factory as broker_factory_module
+from src.brokerages.composite.broker import CompositeTradingBroker
 from src.brokerages.factory import BrokerRuntime, create_broker_runtime
 
 
@@ -19,23 +20,7 @@ def test_create_broker_runtime_returns_none_when_auto_trade_disabled():
     assert runtime is None
 
 
-def test_create_broker_runtime_routes_public_broker(monkeypatch):
-    public_broker = MagicMock(name="public-broker")
-    monkeypatch.setattr(broker_factory_module, "PublicBroker", MagicMock(return_value=public_broker))
-
-    runtime = create_broker_runtime(
-        trading_config={"auto_trade": True, "broker": "public"},
-        webull_config={},
-        public_config={"k": "v"},
-    )
-
-    assert isinstance(runtime, BrokerRuntime)
-    assert runtime.broker is public_broker
-    assert runtime.trading_account is None
-    broker_factory_module.PublicBroker.assert_called_once_with({"k": "v"})
-
-
-def test_create_broker_runtime_routes_webull_builder(monkeypatch):
+def test_create_broker_runtime_routes_webull_builder_with_legacy_broker_key(monkeypatch):
     sentinel_runtime = BrokerRuntime(broker=MagicMock(), trading_account=MagicMock())
     monkeypatch.setattr(broker_factory_module, "_build_webull_runtime", MagicMock(return_value=sentinel_runtime))
 
@@ -47,11 +32,48 @@ def test_create_broker_runtime_routes_webull_builder(monkeypatch):
     assert runtime is sentinel_runtime
 
 
-def test_create_broker_runtime_rejects_unknown_broker():
-    with pytest.raises(ValueError, match="Unsupported trading broker"):
+def test_create_broker_runtime_composes_yahoo_quotes_with_webull_execution(monkeypatch):
+    execution_broker = MagicMock(name="execution-broker")
+    execution_runtime = BrokerRuntime(broker=execution_broker, trading_account=MagicMock(name="acct"))
+    yahoo_quote_provider = MagicMock(name="yahoo-quote-provider")
+
+    monkeypatch.setattr(broker_factory_module, "_build_webull_runtime", MagicMock(return_value=execution_runtime))
+    monkeypatch.setattr(broker_factory_module, "YahooQuoteProvider", MagicMock(return_value=yahoo_quote_provider))
+
+    runtime = create_broker_runtime(
+        trading_config={
+            "auto_trade": True,
+            "execution_provider": "webull",
+            "quote_provider": "yahoo",
+        },
+        webull_config={"app_key": "key", "app_secret": "secret"},
+    )
+
+    assert isinstance(runtime, BrokerRuntime)
+    assert isinstance(runtime.broker, CompositeTradingBroker)
+    assert runtime.trading_account is execution_runtime.trading_account
+    assert runtime.broker._execution_broker is execution_broker
+    assert runtime.broker._quote_provider is yahoo_quote_provider
+
+
+def test_create_broker_runtime_rejects_execution_provider_that_is_not_implemented():
+    with pytest.raises(ValueError, match="Execution provider 'public' is configured but not implemented"):
         create_broker_runtime(
-            trading_config={"auto_trade": True, "broker": "unknown"},
+            trading_config={"auto_trade": True, "execution_provider": "public"},
             webull_config={},
+            public_config={},
+        )
+
+
+def test_create_broker_runtime_rejects_unknown_quote_provider():
+    with pytest.raises(ValueError, match="Unsupported trading quote provider 'unknown'"):
+        create_broker_runtime(
+            trading_config={
+                "auto_trade": True,
+                "execution_provider": "webull",
+                "quote_provider": "unknown",
+            },
+            webull_config={"app_key": "key", "app_secret": "secret"},
             public_config={},
         )
 

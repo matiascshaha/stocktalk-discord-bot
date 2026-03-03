@@ -14,6 +14,8 @@ def test_flag_formats_truthy_and_falsy_values():
 def test_format_mode_summary_includes_key_fields():
     summary = format_mode_summary(
         {
+            "execution_provider": "WEBULL",
+            "quote_provider": "YAHOO",
             "broker": "WEBULL",
             "auto_trade": True,
             "paper_trade": False,
@@ -24,6 +26,8 @@ def test_format_mode_summary_includes_key_fields():
         }
     )
 
+    assert "execution_provider=webull" in summary
+    assert "quote_provider=yahoo" in summary
     assert "broker=webull" in summary
     assert "auto_trade=ON" in summary
     assert "paper_trade=OFF" in summary
