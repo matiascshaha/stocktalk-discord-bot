@@ -26,6 +26,7 @@ tests/
     tooling/
   system/
     integration/
+    smoke/
   unit/
 ```
 

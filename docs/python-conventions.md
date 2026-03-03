@@ -10,6 +10,8 @@ Primary goal: clean structure, readable code, and predictable placement.
 - One module = one purpose.
 - Avoid large mixed-responsibility modules.
 - Keep imports, constants, contracts/models, and implementation clearly separated.
+- Do not mix contracts/models/enums/helpers/orchestration in a single module.
+- Keep one module focused on one artifact type when possible (for example: models-only, enums-only, helpers-only, service/orchestrator-only).
 
 ## Service and Orchestrator Files
 

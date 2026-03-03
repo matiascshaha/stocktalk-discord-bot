@@ -99,6 +99,7 @@ Default run behavior (`pytest.ini`):
 | AI->Trader live pipeline | Validate live AI parsing and trader routing path | `TEST_AI_LIVE=1 TEST_AI_SCOPE=sample pytest tests/channels/discord/integration/test_message_flow.py -k "live_ai_pipeline_message_to_trader" -m "smoke and live"` | AI key + network | No |
 | Webull read smoke | Validate login/account/balance/instrument with real endpoint | `TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write"` | Webull credentials + network | No (initially) |
 | Discord live smoke | Validate real Discord connectivity and channel access | `TEST_DISCORD_LIVE=1 pytest tests/channels/discord/smoke/test_discord_live.py -m "smoke and live and channel and source_discord"` | Discord token + network | No |
+| Yahoo live probe smoke | Capture real Yahoo quote/options response shapes for contract design | `TEST_YAHOO_LIVE=1 pytest tests/system/smoke/test_yahoo_live_probe.py -m "smoke and live and system"` | Network + yfinance | No |
 | Webull write smoke | Opt-in stock/options write-path checks | `TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=paper pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and write"` | Webull trading endpoint + network + market hours | No (opt-in only) |
 
 ## Health Checks
@@ -148,6 +149,8 @@ Exit codes:
 - `TEST_AI_LIVE`
 - `TEST_AI_SCOPE` (`sample`, `full`)
 - `TEST_DISCORD_LIVE`
+- `TEST_YAHOO_LIVE`
+- `TEST_YAHOO_SYMBOLS` (optional, comma-separated; default `AAPL,TSLA`)
 - `TEST_WEBULL_READ`
 - `TEST_WEBULL_WRITE`
 - `TEST_WEBULL_ENV` (`paper`, `production`)

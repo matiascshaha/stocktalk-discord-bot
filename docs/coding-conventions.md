@@ -34,6 +34,7 @@ Use this when deciding where new behavior should live.
 - If logic belongs to one domain, place it in that domain package.
 - If logic is reusable across domains, place it in a clearly named shared module.
 - Do not place policy logic in convenience files just because they are already open.
+- Keep modules narrowly scoped by responsibility and artifact type; avoid convenience "catch-all" modules.
 - Split growing files early when navigation or ownership becomes unclear.
 
 ## Extension Strategy

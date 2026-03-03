@@ -12,6 +12,7 @@ webull-openapi-python-sdk==1.0.9
 # Additional dependencies
 python-dotenv>=1.0.0  # For .env file support
 requests>=2.31.0      # HTTP library (used by SDK)
+yfinance>=0.2.66,<1.0 # Free Yahoo data source for quote/options probe (kept <1.0 to avoid curl_cffi conflicts)
 
 # Optional: For testing
 pytest==7.4.3         # Testing framework
