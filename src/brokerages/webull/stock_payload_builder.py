@@ -68,9 +68,16 @@ class WebullStockPayloadBuilder:
         weighting: Optional[float],
     ) -> float:
         if notional_dollar_amount is not None:
-            price = resolve_notional_sizing_price(order, instrument)
+            stock_price = _read_positive_price(self._get_current_stock_quote, order.symbol)
+            price = resolve_notional_sizing_price(
+                snapshot_price=stock_price,
+                instrument=instrument,
+                order_limit_price=order.limit_price,
+            )
             if price is None or price <= 0:
-                raise ValueError(f"Invalid price for symbol {order.symbol}: {price}")
+                raise ValueError(
+                    f"Unable to resolve notional sizing price for symbol {order.symbol}"
+                )
             balance = self._get_account_balance_contract()
             self._enforce_margin_buffer(balance, estimated_trade_notional=float(notional_dollar_amount))
             return float(notional_dollar_amount) / float(price)
@@ -116,23 +123,43 @@ def resolve_instrument_price(instrument: Mapping[str, Any]) -> Optional[float]:
     return None
 
 
-def resolve_notional_sizing_price(order: StockOrderRequest, instrument: Mapping[str, Any]) -> Optional[float]:
+def resolve_notional_sizing_price(
+    snapshot_price: Optional[float],
+    instrument: Mapping[str, Any],
+    order_limit_price: Optional[float] = None,
+) -> Optional[float]:
+    if snapshot_price is not None and snapshot_price > 0:
+        return float(snapshot_price)
     instrument_price = resolve_instrument_price(instrument)
-    limit_price: Optional[float] = None
-
-    if order.limit_price is not None:
-        try:
-            parsed = float(order.limit_price)
-            if parsed > 0:
-                limit_price = parsed
-        except (TypeError, ValueError):
-            limit_price = None
-
-    if instrument_price is not None:
-        side = str(getattr(order.side, "value", order.side or "")).upper().strip()
-        if side == "BUY" and limit_price is not None:
-            # Conservative BUY sizing: don't assume a lower execution price than the current instrument quote.
-            return max(instrument_price, limit_price)
+    if instrument_price is not None and instrument_price > 0:
         return instrument_price
+    return _read_positive_limit_price(order_limit_price)
 
-    return limit_price
+
+def _read_positive_price(
+    quote_reader: Callable[[str], Optional[float]],
+    symbol: str,
+) -> Optional[float]:
+    try:
+        quote = quote_reader(symbol)
+    except Exception:
+        return None
+
+    try:
+        parsed = float(quote)
+    except (TypeError, ValueError):
+        return None
+
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def _read_positive_limit_price(limit_price: Optional[float]) -> Optional[float]:
+    try:
+        parsed = float(limit_price)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed

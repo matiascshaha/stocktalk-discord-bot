@@ -152,6 +152,7 @@ def test_build_stock_payload_notional_uses_instrument_price_fallback_chain():
             }
         ]
     )
+    trader.get_current_stock_quote = MagicMock(return_value=None)
     trader._get_account_balance_contract = MagicMock(
         return_value=AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
     )
@@ -164,9 +165,10 @@ def test_build_stock_payload_notional_uses_instrument_price_fallback_chain():
     trader._enforce_margin_buffer.assert_called_once()
 
 
-def test_build_stock_payload_notional_prefers_limit_price_when_present():
+def test_build_stock_payload_notional_prefers_snapshot_quote_over_limit_price():
     trader = WebullTrader.__new__(WebullTrader)
-    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "IID"}])
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "IID", "last_price": 500.0}])
+    trader.get_current_stock_quote = MagicMock(return_value=250.0)
     trader._get_account_balance_contract = MagicMock(
         return_value=AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
     )
@@ -181,7 +183,28 @@ def test_build_stock_payload_notional_prefers_limit_price_when_present():
 
     payload = trader._build_stock_payload(order, notional_dollar_amount=1000.0)
 
-    assert payload["qty"] == 1000
+    assert payload["qty"] == 4
+
+
+def test_build_stock_payload_notional_uses_order_limit_price_when_market_data_unavailable():
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "IID"}])
+    trader.get_current_stock_quote = MagicMock(return_value=None)
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
+    )
+    trader._enforce_margin_buffer = MagicMock()
+    order = StockOrderRequest(
+        symbol="AAPL",
+        side=OrderSide.BUY,
+        quantity=1,
+        order_type=OrderType.LIMIT,
+        limit_price=17.44,
+    )
+
+    payload = trader._build_stock_payload(order, notional_dollar_amount=1000.0)
+
+    assert payload["qty"] == 57
 
 
 def test_place_stock_order_forces_default_amount_for_buy(monkeypatch):

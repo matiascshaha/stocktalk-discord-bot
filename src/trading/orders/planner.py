@@ -36,7 +36,7 @@ class StockOrderExecutionPlanner:
         limit_buffer_bps = self._resolve_buffer_bps(self._config.get("out_of_hours_limit_buffer_bps"), default=50.0)
         buy_limit_price_without_quote = self._resolve_positive_float(
             self._config.get("buy_limit_price_without_quote"),
-            default=1.0,
+            default=None,
         )
 
         regular_tif = self._resolve_time_in_force(self._config.get("time_in_force"), TimeInForce.DAY)

@@ -24,6 +24,7 @@ def test_quote_execute_uses_l1_ask_for_buy_and_submits_limit_order(monkeypatch):
             "queue_when_closed": True,
             "queue_time_in_force": "GTC",
             "out_of_hours_limit_buffer_bps": 50.0,
+            "buy_limit_price_without_quote": 1.0,
         }
     )
     executor = StockOrderExecutor(broker, planner)
@@ -52,6 +53,7 @@ def test_quote_execute_uses_l1_bid_for_sell_and_submits_limit_order(monkeypatch)
             "queue_when_closed": True,
             "queue_time_in_force": "GTC",
             "out_of_hours_limit_buffer_bps": 50.0,
+            "buy_limit_price_without_quote": 1.0,
         }
     )
     executor = StockOrderExecutor(broker, planner)
@@ -139,6 +141,7 @@ def test_quote_execute_uses_fallback_buy_limit_price_when_quotes_are_unavailable
             "queue_when_closed": True,
             "queue_time_in_force": "GTC",
             "out_of_hours_limit_buffer_bps": 50.0,
+            "buy_limit_price_without_quote": 1.0,
         }
     )
     executor = StockOrderExecutor(broker, planner)
@@ -154,6 +157,35 @@ def test_quote_execute_uses_fallback_buy_limit_price_when_quotes_are_unavailable
     assert len(trader.placed_orders) == 1
     placed = trader.placed_orders[0][0]
     assert placed.limit_price == pytest.approx(1.0)
+
+
+def test_quote_execute_raises_when_quotes_are_unavailable_and_no_fallback_limit(monkeypatch):
+    monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: False)
+    trader = QuoteAwareTraderProbe(
+        quote_payload=[],
+        snapshot_price=None,
+        instrument_payload=[{"instrument_id": "AAPL_ID"}],
+    )
+    broker = WebullBroker(trader)
+    planner = StockOrderExecutionPlanner(
+        {
+            "use_market_orders": True,
+            "queue_when_closed": True,
+            "queue_time_in_force": "GTC",
+            "out_of_hours_limit_buffer_bps": 50.0,
+        }
+    )
+    executor = StockOrderExecutor(broker, planner)
+
+    with pytest.raises(ValueError, match="Unable to fetch executable reference price"):
+        executor.execute(StockOrder(symbol="AAPL", side="BUY", quantity=1))
+
+    assert [entry[0] for entry in trader.calls] == [
+        "get_stock_quotes",
+        "get_current_stock_quote",
+        "get_instrument",
+    ]
+    assert trader.placed_orders == []
 
 
 def test_quote_execute_raises_non_permission_quote_errors_without_submit(monkeypatch):
