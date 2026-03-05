@@ -195,10 +195,12 @@ Detailed confidence policy and suite organization live in:
 Main commands:
 
 ```bash
-pytest
-pytest -m smoke
-python -m scripts.quality.run_health_checks
-python -m scripts.quality.run_confidence_suite
+./scripts/testing/run.sh list
+./scripts/testing/run.sh critical
+./scripts/testing/run.sh deterministic
+./scripts/testing/run.sh live-read
+./scripts/testing/run.sh all
+./scripts/testing/run.sh ai-live --ai-scope sample
 ```
 
 ## Extensibility

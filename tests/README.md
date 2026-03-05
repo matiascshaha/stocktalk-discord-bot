@@ -6,17 +6,17 @@ Deliver deterministic confidence for parser behavior, channel flow, and broker i
 
 ## Reliability Contract
 
-- `Green`: deterministic suite passes and smoke checks pass.
-- `Yellow`: deterministic suite passes, but external smoke checks are partial/failing.
-- `Red`: deterministic checks fail.
+- `PR required`: `./scripts/testing/run.sh critical` must pass.
+- `Nightly signal`: `./scripts/testing/run.sh live-read` validates external read-only integrations.
+- `Manual cost-controlled`: `./scripts/testing/run.sh ai-live` is manual only.
 
 ## How We Measure Validity
 
-1. Deterministic checks (`unit` + `contract` + `integration`) must pass.
-2. Smoke checks verify external integrations and report drift/non-determinism.
-3. Health report summarizes what is verified vs skipped.
+1. Critical deterministic checks (`unit` + `contract` + key `integration`) must pass on PR.
+2. Live smoke is split from PR gating and run read-only by schedule/manual mode.
+3. Runner report summarizes pass/fail/skip with rerun commands and artifact paths.
 
-If deterministic checks fail, confidence is low regardless of smoke status.
+If critical deterministic checks fail, confidence is low regardless of live smoke status.
 
 ## Parser-to-Trader Contract
 
@@ -86,74 +86,32 @@ Default run behavior (`pytest.ini`):
 
 | Layer | Purpose | Command | External deps | Blocking? |
 |---|---|---|---|---|
-| Paths/Config contracts | Verify path resolution + config loading contract | `pytest tests/unit/test_paths.py` | None | Yes |
-| Parser deterministic contracts | Validate parser output shape and normalization | `pytest tests/parser/contract/test_parser_contract.py tests/unit/test_parser_schema.py` | None | Yes |
-| System/tooling integration | Validate matrix/confidence/flags script behavior | `pytest tests/system/integration` | None | Yes |
-| Discord mocked flow | Verify filtering + notifier/trader behavior deterministically | `pytest tests/channels/discord/integration/test_message_flow.py -k "not live_ai_pipeline_message_to_trader"` | None | Yes |
-| Message-to-trader deterministic pipeline | Verify real message fixtures through parser shape into trader order calls | `pytest tests/channels/discord/integration/test_message_flow.py -k "real_message_pipeline_fake_ai_to_trader"` | None | Yes |
-| Webull integration Discord-paper flow | Verify mocked Discord + mocked parser output through real stock execution path and picks-log append behavior | `pytest tests/brokers/webull/integration/test_paper_trade_discord_flow.py` | None | Yes |
-| Webull integration account-context branches | Verify insufficient-buying-power, margin-buffer violations, and order-submit rejection handling in Discord-driven flow | `pytest tests/brokers/webull/integration/test_paper_trade_account_context.py` | None | Yes |
-| Webull SDK contracts | Verify adapter compatibility + payload builders | `pytest tests/brokers/webull/contract/test_webull_contract.py` | None | Yes |
-| AI live smoke | Validate real provider behavior for enabled provider matrix | `TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"` | AI key + network | No |
-| AI live prompt validator | Validate frozen scenario messages map to expected parser contract/tickers/vehicle types with real provider | `TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -k "prompt_contract_validator" -m "smoke and live"` | AI key + network | No |
-| AI->Trader live pipeline | Validate live AI parsing and trader routing path | `TEST_AI_LIVE=1 TEST_AI_SCOPE=sample pytest tests/channels/discord/integration/test_message_flow.py -k "live_ai_pipeline_message_to_trader" -m "smoke and live"` | AI key + network | No |
-| Webull read smoke | Validate login/account/balance/instrument with real endpoint | `TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write"` | Webull credentials + network | No (initially) |
-| Discord live smoke | Validate real Discord connectivity and channel access | `TEST_DISCORD_LIVE=1 pytest tests/channels/discord/smoke/test_discord_live.py -m "smoke and live and channel and source_discord"` | Discord token + network | No |
-| Yahoo live probe smoke | Capture real Yahoo quote/options response shapes for contract design | `TEST_YAHOO_LIVE=1 pytest tests/system/smoke/test_yahoo_live_probe.py -m "smoke and live and system"` | Network + yfinance | No |
-| Webull write smoke | Opt-in stock/options write-path checks | `TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=paper pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and write"` | Webull trading endpoint + network + market hours | No (opt-in only) |
+| PR critical gate | Highest-risk deterministic Discord -> parser -> Webull execution confidence | `./scripts/testing/run.sh critical` | None | Yes |
+| Full deterministic | Full deterministic suite (`not smoke/live/write`) | `./scripts/testing/run.sh deterministic` | None | Optional |
+| Live read smoke | Discord live + Webull paper read-only smoke | `./scripts/testing/run.sh live-read` | Discord/Webull credentials + network | Nightly/manual |
+| All non-write coverage | Deterministic + live-read in one command | `./scripts/testing/run.sh all` | Mixed | Manual |
+| AI live (cost-controlled) | Live provider smoke + AI pipeline live test | `./scripts/testing/run.sh ai-live --ai-scope sample` | AI key + network | Manual only |
+| Production write probe | Explicitly acknowledged production write check | `./scripts/testing/run.sh night-probe --ack YES_IM_LIVE` | Production Webull credentials + network | Manual only |
 
-## Health Checks
+## Runner Artifacts
 
-Canonical commands:
+`./scripts/testing/run.sh <profile>` writes:
 
-```bash
-python -m scripts.quality.run_full_matrix
-python -m scripts.quality.run_full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
-python -m scripts.quality.run_full_matrix --only webull_read_paper,webull_write_paper
-python -m scripts.quality.run_confidence_suite
-python -m scripts.quality.run_confidence_suite --webull-env paper
-python -m scripts.quality.run_confidence_suite --webull-write 1
-python -m scripts.quality.run_confidence_suite --mode local
-python -m scripts.check_test_file_purity
-pytest
-pytest -m smoke
-python -m scripts.quality.run_health_checks
-TEST_MODE=strict python -m scripts.quality.run_health_checks
-```
-
-`python -m scripts.quality.run_health_checks` writes `artifacts/health_report.json` with:
-
-- `timestamp`
-- `git_sha`
-- `overall_status` (`green`, `yellow`, `red`)
-- `checks[]`
-- `failures[]`
-- `skips[]`
-- `external_dependencies`
-
-Exit codes:
-
-- `0` = green
-- `1` = deterministic failure
-- `2` = external-smoke-only failure (yellow)
-- With `TEST_MODE=strict`, external check failures/skips are blocking.
+- `artifacts/ci_report.json`: machine-readable run summary.
+- `artifacts/junit-*.xml`: per-suite JUnit output for CI integrations.
+- `artifacts/logs/*.log`: full stdout/stderr per suite.
 
 ## Safety Defaults
 
 - Default `pytest` run excludes `live` and `write` markers.
-- No write-path trading tests run unless explicitly enabled (`TEST_WEBULL_WRITE=1`).
+- No write-path trading tests run unless `night-probe` is explicitly invoked with `--ack YES_IM_LIVE`.
 
 ## Environment Flags
 
-- `TEST_MODE` (`local`, `smoke`, `strict`)
 - `TEST_AI_LIVE`
 - `TEST_AI_SCOPE` (`sample`, `full`)
 - `TEST_DISCORD_LIVE`
-- `TEST_YAHOO_LIVE`
-- `TEST_YAHOO_SYMBOLS` (optional, comma-separated; default `AAPL,TSLA`)
 - `TEST_WEBULL_READ`
 - `TEST_WEBULL_WRITE`
 - `TEST_WEBULL_ENV` (`paper`, `production`)
-- `TEST_AI_PROVIDERS` (default: `openai,anthropic,google`)
 - `TEST_BROKERS` (default: `webull`)
-- `TEST_AI_FAST_PATH` (optional override knobs for OpenAI fast-stage test runs)

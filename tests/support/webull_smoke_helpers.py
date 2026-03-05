@@ -15,6 +15,7 @@ KNOWN_WEBULL_WRITE_XFAIL_MARKERS = (
     "CAN_NOT_TRADING_FOR_FIXGW_NOT_READY_NIGHT",
     "OAUTH_OPENAPI_CAN_NOT_TRADING_FOR_FIXGW_NOT_READY_NIGHT",
     "OAUTH_OPENAPI_TRADE_ORDER_NO_PERMISSION",
+    "ACCOUNT_NOT_ALLOW_TRADE_CS_DENY",
 )
 
 REPORT_PATH = Path("artifacts/webull_smoke_report.json")
@@ -52,15 +53,12 @@ def build_webull_smoke_trader() -> WebullTrader:
     paper_trade = paper_trade_enabled()
 
     if paper_trade:
-        app_key = os.getenv("WEBULL_TEST_APP_KEY") or WEBULL_CONFIG.get("test_app_key") or os.getenv("WEBULL_APP_KEY")
-        app_secret = (
-            os.getenv("WEBULL_TEST_APP_SECRET") or WEBULL_CONFIG.get("test_app_secret") or os.getenv("WEBULL_APP_SECRET")
-        )
+        app_key = os.getenv("WEBULL_TEST_APP_KEY") or WEBULL_CONFIG.get("test_app_key")
+        app_secret = os.getenv("WEBULL_TEST_APP_SECRET") or WEBULL_CONFIG.get("test_app_secret")
         account_id = (
             os.getenv("WEBULL_TEST_ACCOUNT_ID")
             or WEBULL_CONFIG.get("test_account_id")
             or WEBULL_CONFIG.get("webull_test_account_id")
-            or os.getenv("WEBULL_ACCOUNT_ID")
         )
     else:
         app_key = os.getenv("WEBULL_APP_KEY")
