@@ -41,6 +41,11 @@ Main config files:
 - `config/ai_parser.prompt`
 - `.env`
 
+Provider-routing keys in `config/trading.yaml`:
+
+- `trading.execution_provider` (for example `webull`)
+- `trading.quote_provider` (`auto`, `webull`, or `yahoo`)
+
 ## Run the Tool
 
 Default monitor run:
@@ -142,165 +147,52 @@ Conflict handling rule:
 
 ## Testing Commands
 
-Use one script:
+Canonical runner:
 
 ```bash
 ./scripts/testing/run.sh list
 ```
 
-### Core
+### Core Profiles
 
 ```bash
-./scripts/testing/run.sh quick
-./scripts/testing/run.sh live
+./scripts/testing/run.sh critical
+./scripts/testing/run.sh deterministic
+./scripts/testing/run.sh all
 ```
 
-### AI Parser
+### Live Read Smoke (No Writes)
 
 ```bash
-./scripts/testing/run.sh ai deterministic
-./scripts/testing/run.sh ai live
+./scripts/testing/run.sh live-read
 ```
 
-### Discord
+### AI Live (Manual Opt-In)
 
 ```bash
-./scripts/testing/run.sh discord deterministic
-./scripts/testing/run.sh discord live
+./scripts/testing/run.sh ai-live --ai-scope sample
+./scripts/testing/run.sh ai-live --ai-scope full
 ```
 
-### Webull
+### Production Night Probe (Manual + Explicit Ack)
 
 ```bash
-./scripts/testing/run.sh webull contract
-./scripts/testing/run.sh webull read-paper
-./scripts/testing/run.sh webull read-production
-./scripts/testing/run.sh webull write-paper
-./scripts/testing/run.sh webull night-probe YES_IM_LIVE
-./scripts/testing/run.sh night YES_IM_LIVE
+./scripts/testing/run.sh night-probe --ack YES_IM_LIVE
 ```
 
-### Safety
+### Safety Defaults
 
 - `pytest` default excludes `live` and `write`.
-- Production write verification is manual only.
-- Night probe requires `YES_IM_LIVE` and auto-cancels after submit.
-
-## Deterministic Test Commands
-
-Fast local deterministic default:
-
-```bash
-pytest
-```
-
-Deterministic CI-style run:
-
-```bash
-python -m scripts.check_test_file_purity
-python -m pytest tests -m "not smoke and not live and not write"
-```
-
-Targeted deterministic suites:
-
-```bash
-pytest tests/unit
-pytest tests/parser/contract/test_parser_contract.py tests/unit/test_parser_schema.py
-pytest tests/channels/discord/integration/test_message_flow.py -k "not live_ai_pipeline_message_to_trader"
-pytest tests/brokers/webull/integration/test_paper_trade_discord_flow.py
-pytest tests/brokers/webull/integration/test_paper_trade_account_context.py
-pytest tests/brokers/webull/contract/test_webull_contract.py
-pytest tests/system/integration
-```
-
-## Smoke and Live Test Commands
-
-Parser AI live smoke:
-
-```bash
-TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
-```
-
-Parser AI live smoke with fast-path override knobs (OpenAI only):
-
-```bash
-TEST_AI_LIVE=1 TEST_AI_FAST_PATH=1 pytest tests/parser/smoke/test_ai_live.py -m "smoke and live"
-```
-
-Parser live prompt validator (frozen scenario contract checks):
-
-```bash
-TEST_AI_LIVE=1 pytest tests/parser/smoke/test_ai_live.py -k "prompt_contract_validator" -m "smoke and live"
-```
-
-AI to trader live pipeline:
-
-```bash
-TEST_AI_LIVE=1 TEST_AI_SCOPE=sample pytest tests/channels/discord/integration/test_message_flow.py -k "live_ai_pipeline_message_to_trader" -m "smoke and live"
-```
-
-Webull live read smoke:
-
-```bash
-TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write"
-```
-
-Webull live write smoke (opt-in):
-
-```bash
-TEST_WEBULL_WRITE=1 TEST_WEBULL_ENV=paper pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and write"
-```
-
-Discord live smoke:
-
-```bash
-TEST_DISCORD_LIVE=1 pytest tests/channels/discord/smoke/test_discord_live.py -m "smoke and live and channel and source_discord"
-```
-
-Yahoo live probe smoke (quote + options shape capture):
-
-```bash
-TEST_YAHOO_LIVE=1 pytest tests/system/smoke/test_yahoo_live_probe.py -m "smoke and live and system"
-```
-
-Yahoo live probe with custom symbols:
-
-```bash
-TEST_YAHOO_LIVE=1 TEST_YAHOO_SYMBOLS=AAPL,TSLA,MSFT pytest tests/system/smoke/test_yahoo_live_probe.py -m "smoke and live and system"
-```
-
-## Quality Runners
-
-Health check runner:
-
-```bash
-python -m scripts.quality.run_health_checks
-TEST_MODE=strict python -m scripts.quality.run_health_checks
-```
-
-Confidence suite runner:
-
-```bash
-python -m scripts.quality.run_confidence_suite
-python -m scripts.quality.run_confidence_suite --mode local
-python -m scripts.quality.run_confidence_suite --webull-env paper
-python -m scripts.quality.run_confidence_suite --webull-write 1
-```
-
-Full scenario matrix:
-
-```bash
-python -m scripts.quality.run_full_matrix --list
-python -m scripts.quality.run_full_matrix
-python -m scripts.quality.run_full_matrix --skip-discord-live --skip-webull-prod-write --ai-scope sample
-python -m scripts.quality.run_full_matrix --only webull_read_paper,webull_write_paper
-```
+- `critical` is the PR gate profile for core Discord -> parser -> execution confidence.
+- `all` includes deterministic + live-read checks.
+- `ai-live` is manual only due API cost.
+- `night-probe` is production write verification and requires explicit `YES_IM_LIVE` acknowledgement.
 
 ## Artifacts and Reports
 
-- Health report JSON: `artifacts/health_report.json`
-- Reliability workflow deterministic JUnit: `artifacts/junit-deterministic.xml`
-- Reliability workflow external smoke JUnit: `artifacts/junit-external-smoke.xml`
+- Runner JSON report: `artifacts/ci_report.json`
+- JUnit XML reports: `artifacts/junit-*.xml`
+- Per-suite logs: `artifacts/logs/*.log`
 
 ## Related Docs
 

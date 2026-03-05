@@ -8,7 +8,7 @@ For deep details, use `docs/system-context/`.
 ## E2E Runtime Flow
 
 1. `python -m src.main` starts app boot and runs `validate_config()` (`src/main.py`).
-2. If `trading.auto_trade=true`, `create_broker_runtime(...)` selects broker runtime (`webull` or `public`) (`src/brokerages/factory.py`).
+2. If `trading.auto_trade=true`, `create_broker_runtime(...)` resolves `execution_provider` and `quote_provider` and builds either a single-provider broker runtime or a split composite runtime (`src/brokerages/factory.py`).
 3. `StockMonitorClient` connects to Discord and filters messages by channel/self/length (`src/discord_client.py`).
 4. `AIParser.parse(...)` sends prompt to selected provider:
    - OpenAI runs fast-stage parsing first, then full-parse fallback on low confidence/ambiguity.

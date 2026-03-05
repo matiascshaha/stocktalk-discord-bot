@@ -4,9 +4,15 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from src.brokerages.ports import TradingBrokerPort
-from src.brokerages.public import PublicBroker
+from src.brokerages.composite import CompositeTradingBroker
+from src.brokerages.ports import MarketDataPort, TradingBrokerPort
+from src.brokerages.provider_registry import (
+    resolve_execution_provider_name,
+    resolve_quote_provider_name,
+    validate_provider_split,
+)
 from src.brokerages.webull import WebullBroker
+from src.market_data.yahoo import YahooQuoteProvider
 from src.utils.logger import setup_logger
 from src.webull_trader import WebullTrader
 
@@ -25,18 +31,64 @@ def create_broker_runtime(
     webull_config: Dict[str, Any],
     public_config: Optional[Dict[str, Any]] = None,
 ) -> Optional[BrokerRuntime]:
+    _ = public_config
     if not bool(trading_config.get("auto_trade", False)):
         return None
 
-    broker_name = str(trading_config.get("broker", "webull")).strip().lower()
-    if broker_name == "webull":
+    execution_provider = resolve_execution_provider_name(trading_config)
+    quote_provider = resolve_quote_provider_name(trading_config, execution_provider)
+    validation_errors = validate_provider_split(execution_provider, quote_provider)
+    if validation_errors:
+        raise ValueError("; ".join(validation_errors))
+
+    execution_runtime = _build_execution_runtime(execution_provider, trading_config, webull_config)
+    if execution_runtime is None:
+        return None
+
+    if quote_provider == execution_provider:
+        return execution_runtime
+
+    logger.info(
+        "Initializing split provider runtime (execution=%s, quotes=%s).",
+        execution_provider,
+        quote_provider,
+    )
+    quote_adapter = _build_quote_provider(
+        quote_provider=quote_provider,
+        execution_provider=execution_provider,
+        execution_runtime=execution_runtime,
+    )
+    return BrokerRuntime(
+        broker=CompositeTradingBroker(
+            execution_broker=execution_runtime.broker,
+            quote_provider=quote_adapter,
+        ),
+        trading_account=execution_runtime.trading_account,
+    )
+
+
+def _build_execution_runtime(
+    execution_provider: str,
+    trading_config: Dict[str, Any],
+    webull_config: Dict[str, Any],
+) -> Optional[BrokerRuntime]:
+    if execution_provider == "webull":
         return _build_webull_runtime(trading_config, webull_config)
+    raise ValueError(f"Unsupported trading execution provider '{execution_provider}'")
 
-    if broker_name == "public":
-        logger.info("Initializing Public broker adapter scaffold.")
-        return BrokerRuntime(broker=PublicBroker(public_config or {}))
 
-    raise ValueError(f"Unsupported trading broker '{broker_name}'")
+def _build_quote_provider(
+    quote_provider: str,
+    execution_provider: str,
+    execution_runtime: BrokerRuntime,
+) -> MarketDataPort:
+    if quote_provider == "yahoo":
+        return YahooQuoteProvider()
+    if quote_provider == "webull":
+        if execution_provider == "webull":
+            return execution_runtime.broker
+        raise ValueError("Webull quote provider currently requires execution_provider=webull")
+    raise ValueError(f"Unsupported trading quote provider '{quote_provider}'")
 
 
 def _build_webull_runtime(trading_config: Dict[str, Any], webull_config: Dict[str, Any]) -> Optional[BrokerRuntime]:
@@ -51,7 +103,9 @@ def _build_webull_runtime(trading_config: Dict[str, Any], webull_config: Dict[st
     )
 
     if not app_key or not app_secret:
-        raise ValueError("Webull credentials are required when trading.broker=webull and auto_trade=true")
+        raise ValueError(
+            "Webull credentials are required when trading.execution_provider=webull and auto_trade=true"
+        )
 
     logger.info("Initializing Webull trader adapter.")
     trader = WebullTrader(
@@ -70,4 +124,3 @@ def _build_webull_runtime(trading_config: Dict[str, Any], webull_config: Dict[st
         broker=WebullBroker(trader),
         trading_account=trader,
     )
-

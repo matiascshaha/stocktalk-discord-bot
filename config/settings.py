@@ -13,6 +13,11 @@ except Exception:  # pragma: no cover - optional dependency
 load_dotenv()
 
 from src.utils.paths import resolve_config_path
+from src.brokerages.provider_registry import (
+    resolve_execution_provider_name,
+    resolve_quote_provider_name,
+    validate_provider_split,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -98,7 +103,7 @@ def _as_bool(value: Any, default: bool = False) -> bool:
     return bool(value)
 
 
-def _as_float(value: Any, default: float) -> float:
+def _as_float(value: Any, default: Optional[float]) -> Optional[float]:
     if value is None:
         return default
     try:
@@ -188,19 +193,37 @@ PUBLIC_CONFIG = {
 TRADING_CONFIG = {
     'auto_trade': _as_bool(_cfg('trading.auto_trade', False), False),
     'broker': str(_cfg('trading.broker', 'webull')).strip().lower() or 'webull',
+    'execution_provider': str(
+        _cfg_first(['trading.execution_provider', 'trading.broker'], 'webull')
+    ).strip().lower() or 'webull',
+    'quote_provider': str(_cfg('trading.quote_provider', 'auto')).strip().lower() or 'auto',
     'paper_trade': _as_bool(_cfg('trading.paper_trade', False), False),
     'options_enabled': _as_bool(_cfg('trading.options_enabled', False), False),
     'min_confidence': _as_float(_cfg('trading.min_confidence', 0.7), 0.7),
-    'default_amount': _as_float(_cfg('trading.default_amount', 1000), 1000.0),
+    'default_amount': _as_float(
+        _cfg_first(['trading.fixed_notional.stocks.amount', 'trading.default_amount'], 1000),
+        1000.0,
+    ),
     'use_market_orders': _as_bool(_cfg('trading.use_market_orders', True), True),
     'extended_hours_trading': _as_bool(_cfg('trading.extended_hours_trading', False), False),
     'time_in_force': _cfg('trading.time_in_force', 'DAY'),
     'queue_when_closed': _as_bool(_cfg('trading.queue_when_closed', True), True),
     'queue_time_in_force': _cfg('trading.queue_time_in_force', 'GTC'),
     'out_of_hours_limit_buffer_bps': _as_float(_cfg('trading.out_of_hours_limit_buffer_bps', 50.0), 50.0),
-    'buy_limit_price_without_quote': _as_float(_cfg('trading.buy_limit_price_without_quote', 1.0), 1.0),
+    'buy_limit_price_without_quote': _as_float(_cfg('trading.buy_limit_price_without_quote', None), None),
     'min_margin_equity_pct': _as_float(_cfg('trading.min_margin_equity_pct', 35.0), 35.0),
-    'force_default_amount_for_buys': _as_bool(_cfg('trading.force_default_amount_for_buys', True), True),
+    'force_default_amount_for_buys': _as_bool(
+        _cfg_first(['trading.fixed_notional.stocks.enabled', 'trading.force_default_amount_for_buys'], True),
+        True,
+    ),
+    'force_default_amount_for_options': _as_bool(
+        _cfg('trading.fixed_notional.options.enabled', False),
+        False,
+    ),
+    'options_default_amount': _as_float(
+        _cfg_first(['trading.fixed_notional.options.amount', 'trading.default_amount'], 1000),
+        1000.0,
+    ),
     'fallback_to_default_amount_on_weighting_failure': _as_bool(
         _cfg('trading.fallback_to_default_amount_on_weighting_failure', True),
         True,
@@ -242,16 +265,19 @@ def validate_config():
         errors.append(f"AI_PROVIDER '{AI_PROVIDER}' is invalid (use openai, anthropic, google, none, auto)")
     
     if TRADING_CONFIG['auto_trade']:
-        broker_name = str(TRADING_CONFIG.get('broker', 'webull')).strip().lower()
-        if broker_name == 'webull':
+        execution_provider = resolve_execution_provider_name(TRADING_CONFIG)
+        quote_provider = resolve_quote_provider_name(TRADING_CONFIG, execution_provider=execution_provider)
+        errors.extend(validate_provider_split(execution_provider, quote_provider))
+
+        if execution_provider == 'webull':
             if not WEBULL_CONFIG['app_key']:
-                errors.append("WEBULL_APP_KEY is required when auto_trade is enabled with trading.broker=webull")
+                errors.append(
+                    "WEBULL_APP_KEY is required when auto_trade is enabled with trading.execution_provider=webull"
+                )
             if not WEBULL_CONFIG['app_secret']:
-                errors.append("WEBULL_APP_SECRET is required when auto_trade is enabled with trading.broker=webull")
-        elif broker_name == 'public':
-            pass
-        else:
-            errors.append("trading.broker must be one of: webull, public")
+                errors.append(
+                    "WEBULL_APP_SECRET is required when auto_trade is enabled with trading.execution_provider=webull"
+                )
     
     return errors
 

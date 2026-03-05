@@ -47,6 +47,7 @@ def test_plan_uses_queued_limit_outside_hours_when_enabled(monkeypatch):
     assert plan.order_type == "LIMIT"
     assert plan.time_in_force == "GTC"
     assert plan.limit_buffer_bps == 75.0
+    assert plan.buy_limit_price_without_quote is None
     assert plan.reason == "off_hours_queued_limit_order"
 
 
@@ -106,3 +107,20 @@ def test_resolve_buffer_bps_parses_numeric_and_clamps_negative():
 
 def test_resolve_buffer_bps_uses_default_for_invalid():
     assert StockOrderExecutionPlanner._resolve_buffer_bps("bad", default=33.0) == 33.0
+
+
+def test_plan_keeps_explicit_buy_limit_fallback_when_configured(monkeypatch):
+    monkeypatch.setattr(planner_module, "is_regular_market_session", lambda _: False)
+    planner = StockOrderExecutionPlanner(
+        {
+            "use_market_orders": True,
+            "queue_when_closed": True,
+            "queue_time_in_force": "GTC",
+            "buy_limit_price_without_quote": 2.5,
+        },
+        now_provider=lambda: datetime(2026, 2, 17, 20, 0, 0),
+    )
+
+    plan = planner.plan()
+    assert plan.order_type == "LIMIT"
+    assert plan.buy_limit_price_without_quote == 2.5

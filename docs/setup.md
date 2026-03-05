@@ -148,7 +148,7 @@ This will test all your credentials (Discord, AI API, Webull) and verify they wo
 
 **Then run full confidence checks:**
 ```bash
-python -m scripts.quality.run_confidence_suite
+./scripts/testing/run.sh all
 ```
 
 **Alternative: Quick validation:**

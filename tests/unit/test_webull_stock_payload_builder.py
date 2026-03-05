@@ -34,7 +34,7 @@ def test_builder_notional_path_does_not_mutate_input_order_quantity():
 
     payload = builder.build(order, notional_dollar_amount=1000.0)
 
-    assert payload["qty"] == 5
+    assert payload["qty"] == 10
     assert order.quantity == 1
     assert calls == [(balance, 1000.0)]
 
@@ -66,28 +66,28 @@ def test_builder_weighting_path_does_not_mutate_input_order_quantity():
     assert calls == [(balance, 2000.0)]
 
 
-def test_resolve_notional_sizing_price_uses_conservative_buy_basis():
-    order = StockOrderRequest(
-        symbol="AAPL",
-        side=OrderSide.BUY,
-        quantity=1,
-        order_type=OrderType.LIMIT,
-        limit_price=1.0,
-    )
-    price = resolve_notional_sizing_price(order, {"last_price": "500.0"})
+def test_resolve_notional_sizing_price_prefers_snapshot_quote():
+    price = resolve_notional_sizing_price(510.0, {"last_price": "500.0"})
+    assert price == 510.0
+
+
+def test_resolve_notional_sizing_price_falls_back_to_instrument_quote():
+    price = resolve_notional_sizing_price(None, {"last_price": "500.0"})
     assert price == 500.0
 
 
-def test_resolve_notional_sizing_price_buy_uses_higher_of_quote_or_limit():
-    order = StockOrderRequest(
-        symbol="AAPL",
-        side=OrderSide.BUY,
-        quantity=1,
-        order_type=OrderType.LIMIT,
-        limit_price=1000.0,
+def test_resolve_notional_sizing_price_returns_none_when_no_market_reference_exists():
+    price = resolve_notional_sizing_price(None, {"instrument_id": "AAPL_ID"})
+    assert price is None
+
+
+def test_resolve_notional_sizing_price_uses_order_limit_price_as_last_resort():
+    price = resolve_notional_sizing_price(
+        snapshot_price=None,
+        instrument={"instrument_id": "AAPL_ID"},
+        order_limit_price=17.44,
     )
-    price = resolve_notional_sizing_price(order, {"last_price": "500.0"})
-    assert price == 1000.0
+    assert price == 17.44
 
 
 def test_normalize_stock_quantity_rejects_sub_share():

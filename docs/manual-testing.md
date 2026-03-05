@@ -5,7 +5,7 @@ Use this when you need confidence that production flow works end-to-end.
 ## 1) Broker Read (Prod)
 
 ```bash
-PYTHON_BIN=.venv/bin/python ./scripts/testing/run.sh webull read-production
+TEST_WEBULL_READ=1 TEST_WEBULL_ENV=production .venv/bin/python -m pytest tests/brokers/webull/smoke/test_webull_live.py -m "smoke and live and not write and broker and broker_webull"
 ```
 
 Pass: `2 passed` (login + balance/instrument checks).
@@ -13,7 +13,7 @@ Pass: `2 passed` (login + balance/instrument checks).
 ## 2) Safe Broker Write Probe (Prod)
 
 ```bash
-PYTHON_BIN=.venv/bin/python ./scripts/testing/run.sh night YES_IM_LIVE
+PYTHON_BIN=.venv/bin/python ./scripts/testing/run.sh night-probe --ack YES_IM_LIVE
 ```
 
 Pass: `1 passed` (tiny limit order path + cleanup cancel).

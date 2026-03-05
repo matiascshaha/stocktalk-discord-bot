@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Runner profile"
+        required: true
+        default: "critical"
+        type: choice
+        options:
+          - critical
+          - deterministic
+          - live-read
+          - all
+          - ai-live
+          - night-probe
+      ai_scope:
+        description: "AI live scope (used for ai-live profile)"
+        required: true
+        default: "sample"
+        type: choice
+        options:
+          - sample
+          - full
+      ack:
+        description: "Required only for night-probe (YES_IM_LIVE)"
+        required: false
+        type: string
+  schedule:
+    - cron: "17 9 * * *"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  test-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+      CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+      WEBULL_TEST_APP_KEY: ${{ secrets.WEBULL_TEST_APP_KEY }}
+      WEBULL_TEST_APP_SECRET: ${{ secrets.WEBULL_TEST_APP_SECRET }}
+      WEBULL_TEST_ACCOUNT_ID: ${{ secrets.WEBULL_TEST_ACCOUNT_ID }}
+      WEBULL_APP_KEY: ${{ secrets.WEBULL_APP_KEY }}
+      WEBULL_APP_SECRET: ${{ secrets.WEBULL_APP_SECRET }}
+      WEBULL_ACCOUNT_ID: ${{ secrets.WEBULL_ACCOUNT_ID }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      INPUT_PROFILE: ${{ github.event.inputs.profile }}
+      INPUT_AI_SCOPE: ${{ github.event.inputs.ai_scope }}
+      INPUT_ACK: ${{ github.event.inputs.ack }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+
+      - name: Resolve profile
+        id: profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            profile="critical"
+            ai_scope="sample"
+            ack=""
+          elif [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            profile="live-read"
+            ai_scope="sample"
+            ack=""
+          else
+            profile="${INPUT_PROFILE:-critical}"
+            ai_scope="${INPUT_AI_SCOPE:-sample}"
+            ack="${INPUT_ACK:-}"
+          fi
+          echo "profile=${profile}" >> "${GITHUB_OUTPUT}"
+          echo "ai_scope=${ai_scope}" >> "${GITHUB_OUTPUT}"
+          echo "ack=${ack}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved profile=${profile} ai_scope=${ai_scope}"
+
+      - name: Run canonical test runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmd=(./scripts/testing/run.sh "${{ steps.profile.outputs.profile }}" --ai-scope "${{ steps.profile.outputs.ai_scope }}")
+          if [[ "${{ steps.profile.outputs.profile }}" == "night-probe" ]]; then
+            cmd+=(--ack "${{ steps.profile.outputs.ack }}")
+          fi
+          printf '$ '
+          printf '%q ' "${cmd[@]}"
+          printf '\n'
+          "${cmd[@]}"
+
+      - name: Render readable summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "${GITHUB_STEP_SUMMARY}"
+          import json
+          from pathlib import Path
+
+          report_path = Path("artifacts/ci_report.json")
+          if not report_path.exists():
+              print("## CI Test Summary")
+              print("")
+              print("No `artifacts/ci_report.json` was generated.")
+              raise SystemExit(0)
+
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          counts = report.get("counts", {})
+          suites = report.get("suites", [])
+
+          print("## CI Test Summary")
+          print("")
+          print(f"- Profile: `{report.get('profile', 'unknown')}`")
+          print(f"- Overall: `{report.get('overall_status', 'unknown').upper()}`")
+          print(
+              f"- Counts: passed={counts.get('passed', 0)}, failed={counts.get('failed', 0)}, "
+              f"skipped={counts.get('skipped', 0)}"
+          )
+          print("")
+          print("| Suite | Status | Duration(s) | Summary |")
+          print("|---|---|---:|---|")
+          for suite in suites:
+              summary = str(suite.get("summary", "")).replace("\n", " ").replace("|", "\\|")
+              print(
+                  f"| `{suite.get('name', '')}` | `{str(suite.get('status', '')).upper()}` | "
+                  f"{suite.get('duration_seconds', 0)} | {summary} |"
+              )
+          PY
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-test-artifacts
+          path: |
+            artifacts/ci_report.json
+            artifacts/*.xml
+            artifacts/*.json
+            artifacts/logs/*.log
+
