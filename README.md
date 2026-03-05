@@ -18,51 +18,42 @@ Discord message -> structured signal -> optional trade execution.
 ## System Design (Runtime Architecture)
 
 ```mermaid
-flowchart TB
-    subgraph Boot["Boot Sequence (src/main.py)"]
-        M["python -m src.main"] --> V["validate_config()"]
-        V --> AT{"trading.auto_trade?"}
-        AT -- "false" --> MON["Monitor-only mode (no broker runtime)"]
-        AT -- "true" --> BR["create_broker_runtime(...)"]
-        BR --> BK{"trading.broker"}
-        BK -- "webull" --> WB["WebullTrader.login() + WebullBroker adapter"]
-        BK -- "public" --> PB["PublicBroker adapter (scaffold)"]
+flowchart LR
+    subgraph Boot["Boot + Runtime Wiring"]
+        START["python -m src.main"] --> CFG["Config validation + mode selection"]
+        CFG --> MODE{"auto_trade enabled?"}
+        MODE -- "no" --> MON["Monitor-only runtime"]
+        MODE -- "yes" --> RUNTIME["Broker runtime via factory"]
     end
 
-    subgraph Ingest["Message Ingestion (src/discord_client.py)"]
-        D["Discord message"] --> G["Guards: target channel, not self, min length"]
-        G --> P["AIParser.parse(...)"]
-        CFG_FAST["config/ai_parser_fast.prompt"] --> P
-        CFG_FULL["config/ai_parser.prompt"] --> P
-        P --> PD["providers.parser_dispatch"]
-        PD --> OA["OpenAI client"]
-        PD --> AN["Anthropic client"]
-        PD --> GG["Google client"]
-        P --> PM["ParsedMessage contract (signals, vehicles, meta)"]
-        PM --> N["Notifier.notify(...)"]
-        PM --> PL["Append data/picks_log.jsonl"]
+    subgraph Pipeline["Message -> Signal Pipeline"]
+        DISCORD["Discord message"] --> GUARDS["Channel/self/content guards"]
+        GUARDS --> PARSER["Parser orchestrator"]
+        PARSER --> CONTRACT["ParsedMessage contract"]
+        CONTRACT --> OBS["Notify + log"]
     end
 
-    subgraph Execute["Stock Execution Path (auto-trade only)"]
-        PM --> EV{"Any STOCK vehicle with enabled=true, intent=EXECUTE, side!=NONE?"}
-        EV -- "no" --> SK["Skip execution"]
-        EV -- "yes" --> SO["Build StockOrder"]
-        SO --> EX["StockOrderExecutor.execute(...)"]
-        EX --> SP["StockOrderExecutionPlanner.plan() using market hours + trading config"]
-        SP --> OT{"Order type?"}
-        OT -- "MARKET" --> PO["broker.place_stock_order(...)"]
-        OT -- "LIMIT" --> Q["broker.get_limit_reference_price(...)"]
-        Q --> LP["compute_buffered_limit_price(...)"]
-        LP --> PO
-        PO --> AD["TradingBrokerPort adapter (Webull/Public)"]
-        AD --> WT["WebullTrader.place_stock_order(...)"]
-        WT --> API["Webull OpenAPI"]
+    subgraph Execution["Execution Pipeline (when eligible)"]
+        CONTRACT --> GATE{"Executable STOCK vehicle?"}
+        GATE -- "no" --> SKIP["No trade"]
+        GATE -- "yes" --> ORDER["Build StockOrder"]
+        ORDER --> POLICY["Execution policy + pricing planner"]
+        POLICY --> PORT["TradingBrokerPort"]
+        PORT --> ADAPTER["Broker adapter"]
+        ADAPTER --> BROKER_API["External broker API"]
     end
 
-    MON -. client starts with broker=None .-> Ingest
-    WB -. broker + trading account injected .-> Ingest
-    PB -. broker injected .-> Ingest
+    MON -.-> Pipeline
+    RUNTIME -. broker context .-> Pipeline
+    PROVIDERS["AI provider adapters"] -. extend parser path .-> PARSER
+    QUOTES["Quote provider adapters"] -. extend pricing path .-> POLICY
 ```
+
+Architecture stability rule:
+
+- This diagram is intentionally boundary-first (contracts + responsibilities).
+- Provider/model-level details belong in component docs/tests, not in this graph.
+- New integrations should plug into existing ports/adapters without changing core flow.
 
 ## Runtime Flow
 
@@ -71,8 +62,8 @@ flowchart TB
 3. `StockMonitorClient` receives Discord messages.
 4. Guard checks run (target channel, not self message, minimum content).
 5. `AIParser.parse(...)` calls provider flow:
-   - OpenAI: fast prompt first (`gpt-4.1-nano`), then fallback full parse (`gpt-4.1-mini`) on low confidence/ambiguity.
-   - Anthropic/Google: full parse only.
+   - OpenAI: fast-stage parse first, then stronger fallback when confidence is low/ambiguous.
+   - Other providers: routed through the same parser contract boundary.
 6. AI output is normalized to `ParsedMessage`/`ParsedSignal` and validated by the parser contract.
 7. Signals are notified/logged, then only executable STOCK vehicles are mapped into `StockOrder`.
 8. `StockOrderExecutor` applies planner rules (market session + config) and routes to broker adapter.
