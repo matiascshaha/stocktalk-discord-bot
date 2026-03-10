@@ -235,6 +235,8 @@ async def test_options_only_recommendation_submits_option_order_when_enabled(mon
     monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
     monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
     monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "options_enabled", True)
+    monkeypatch.setitem(webull_trader_module.TRADING_CONFIG, "force_default_amount_for_options", False)
+    monkeypatch.setitem(webull_trader_module.TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", False)
 
     signal = build_signal_payload("AAPL", "BUY", confidence=0.9, weight_percent=None)
     signal["vehicles"] = [
@@ -307,6 +309,8 @@ async def test_mixed_recommendation_submits_stock_and_option_when_enabled(monkey
     monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
     monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
     monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "options_enabled", True)
+    monkeypatch.setitem(webull_trader_module.TRADING_CONFIG, "force_default_amount_for_options", False)
+    monkeypatch.setitem(webull_trader_module.TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", False)
 
     signal = build_signal_payload("TSLA", "BUY", confidence=0.93, weight_percent=None)
     signal["vehicles"] = [

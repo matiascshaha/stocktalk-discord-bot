@@ -143,6 +143,22 @@ def test_build_stock_payload_weighting_path_uses_buying_power_and_quote():
     trader._enforce_margin_buffer.assert_called_once_with(balance, estimated_trade_notional=1000.0)
 
 
+def test_build_stock_payload_weighting_falls_back_to_instrument_price_when_quote_unavailable():
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "IID", "last_price": 40.0}])
+    balance = AccountBalanceResponse(account_currency_assets=[AccountCurrencyAsset(cash_power=10000.0)])
+    trader._get_account_balance_contract = MagicMock(return_value=balance)
+    trader._get_buying_power = MagicMock(return_value=10000.0)
+    trader._enforce_margin_buffer = MagicMock()
+    trader.get_current_stock_quote = MagicMock(side_effect=RuntimeError("quote permission denied"))
+    order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
+
+    payload = trader._build_stock_payload(order, weighting=10.0)
+
+    assert payload["qty"] == 25
+    trader._enforce_margin_buffer.assert_called_once_with(balance, estimated_trade_notional=1000.0)
+
+
 def test_build_stock_payload_notional_uses_instrument_price_fallback_chain():
     trader = WebullTrader.__new__(WebullTrader)
     trader.get_instrument = MagicMock(
@@ -340,10 +356,12 @@ def test_build_option_payload_formats_symbol_for_limit_order():
         trader._build_option_payload(order)
 
 
-def test_place_option_order_calls_preview_then_submit_with_sdk_shape():
+def test_place_option_order_calls_preview_then_submit_with_sdk_shape(monkeypatch):
     trader = WebullTrader.__new__(WebullTrader)
     trader.paper_trade = True
     trader.resolve_account_id = MagicMock(return_value="paper-account-1")
+    monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_options", False)
+    monkeypatch.setitem(TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", False)
 
     preview_payload = {
         "estimated_cost": "21.25",
