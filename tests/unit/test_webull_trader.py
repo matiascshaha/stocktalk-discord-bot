@@ -9,9 +9,11 @@ from src.models.webull_models import (
     AccountCurrencyAsset,
     OptionLeg,
     OptionOrderRequest,
+    OptionType,
     OrderSide,
     OrderType,
     StockOrderRequest,
+    TimeInForce,
 )
 from src.webull_trader import WebullTrader
 
@@ -336,3 +338,175 @@ def test_build_option_payload_formats_symbol_for_limit_order():
 
     with pytest.raises(AttributeError):
         trader._build_option_payload(order)
+
+
+def test_place_option_order_calls_preview_then_submit_with_sdk_shape():
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.paper_trade = True
+    trader.resolve_account_id = MagicMock(return_value="paper-account-1")
+
+    preview_payload = {
+        "estimated_cost": "21.25",
+        "estimated_transaction_fee": "0.00",
+        "currency": "USD",
+    }
+    place_payload = {
+        "order_id": "option-order-1",
+        "status": "accepted",
+        "client_order_id": "cid-option-1",
+    }
+    trader.order_v2_api = SimpleNamespace(
+        preview_option=MagicMock(
+            return_value=SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: preview_payload)
+        ),
+        place_option=MagicMock(
+            return_value=SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: place_payload)
+        ),
+    )
+
+    order = OptionOrderRequest(
+        combo_type="NORMAL",
+        order_type=OrderType.LIMIT,
+        quantity="1",
+        limit_price="21.25",
+        option_strategy="SINGLE",
+        side=OrderSide.BUY,
+        time_in_force=TimeInForce.GTC,
+        entrust_type="QTY",
+        legs=[
+            OptionLeg(
+                side=OrderSide.BUY,
+                quantity="1",
+                symbol="TSLA",
+                strike_price="400",
+                option_expire_date="2026-04-03",
+                instrument_type="OPTION",
+                option_type=OptionType.CALL,
+                market="US",
+            )
+        ],
+    )
+
+    expected_order_payload = trader._build_option_v2_payload(order)
+
+    result = trader.place_option_order(order)
+
+    assert result == place_payload
+    trader.order_v2_api.preview_option.assert_called_once_with("paper-account-1", [expected_order_payload])
+    trader.order_v2_api.place_option.assert_called_once_with("paper-account-1", [expected_order_payload])
+    assert expected_order_payload["legs"][0]["instrument_type"] == "OPTION"
+    assert expected_order_payload["legs"][0]["option_type"] == "CALL"
+    assert expected_order_payload["legs"][0]["option_expire_date"] == "2026-04-03"
+    assert expected_order_payload["legs"][0]["init_exp_date"] == "2026-04-03"
+
+
+def test_place_option_order_force_default_notional_sizes_quantity(monkeypatch):
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.paper_trade = True
+    trader.resolve_account_id = MagicMock(return_value="paper-account-2")
+    monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_options", True)
+    monkeypatch.setitem(TRADING_CONFIG, "options_default_amount", 1000.0)
+
+    balance = AccountBalanceResponse(
+        total_market_value=10000.0,
+        account_currency_assets=[AccountCurrencyAsset(net_liquidation_value=9000.0, cash_power=5000.0)],
+    )
+    trader._get_account_balance_contract = MagicMock(return_value=balance)
+    trader._get_buying_power = MagicMock(return_value=5000.0)
+    trader._enforce_margin_buffer = MagicMock()
+
+    preview_one_contract = {"estimated_cost": "250.00", "estimated_transaction_fee": "0.00", "currency": "USD"}
+    preview_sized = {"estimated_cost": "1000.00", "estimated_transaction_fee": "0.00", "currency": "USD"}
+    place_payload = {"order_id": "option-order-2", "status": "accepted"}
+    trader.order_v2_api = SimpleNamespace(
+        preview_option=MagicMock(
+            side_effect=[
+                SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: preview_one_contract),
+                SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: preview_sized),
+            ]
+        ),
+        place_option=MagicMock(
+            return_value=SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: place_payload)
+        ),
+    )
+
+    order = OptionOrderRequest(
+        order_type=OrderType.MARKET,
+        quantity="1",
+        side=OrderSide.BUY,
+        legs=[
+            OptionLeg(
+                side=OrderSide.BUY,
+                quantity="1",
+                symbol="AAPL",
+                strike_price="220",
+                option_expire_date="2026-03-20",
+                option_type=OptionType.CALL,
+            )
+        ],
+    )
+
+    result = trader.place_option_order(order, weighting=12.5)
+
+    assert result == place_payload
+    assert trader.order_v2_api.preview_option.call_count == 2
+    place_call = trader.order_v2_api.place_option.call_args.args
+    assert place_call[0] == "paper-account-2"
+    assert place_call[1][0]["quantity"] == "4"
+    assert place_call[1][0]["legs"][0]["quantity"] == "4"
+    trader._enforce_margin_buffer.assert_called_once_with(balance, 1000.0)
+
+
+def test_place_option_order_weighting_sizes_quantity(monkeypatch):
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.paper_trade = True
+    trader.resolve_account_id = MagicMock(return_value="paper-account-3")
+    monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_options", False)
+    monkeypatch.setitem(TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", False)
+
+    balance = AccountBalanceResponse(
+        total_market_value=10000.0,
+        account_currency_assets=[AccountCurrencyAsset(net_liquidation_value=9000.0, cash_power=5000.0)],
+    )
+    trader._get_account_balance_contract = MagicMock(return_value=balance)
+    trader._get_buying_power = MagicMock(return_value=5000.0)
+    trader._enforce_margin_buffer = MagicMock()
+
+    preview_one_contract = {"estimated_cost": "120.00", "estimated_transaction_fee": "0.00", "currency": "USD"}
+    preview_sized = {"estimated_cost": "480.00", "estimated_transaction_fee": "0.00", "currency": "USD"}
+    place_payload = {"order_id": "option-order-3", "status": "accepted"}
+    trader.order_v2_api = SimpleNamespace(
+        preview_option=MagicMock(
+            side_effect=[
+                SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: preview_one_contract),
+                SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: preview_sized),
+            ]
+        ),
+        place_option=MagicMock(
+            return_value=SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: place_payload)
+        ),
+    )
+
+    order = OptionOrderRequest(
+        order_type=OrderType.MARKET,
+        quantity="1",
+        side=OrderSide.BUY,
+        legs=[
+            OptionLeg(
+                side=OrderSide.BUY,
+                quantity="1",
+                symbol="TSLA",
+                strike_price="300",
+                option_expire_date="2026-06-19",
+                option_type=OptionType.CALL,
+            )
+        ],
+    )
+
+    result = trader.place_option_order(order, weighting=10.0)
+
+    assert result == place_payload
+    trader._get_buying_power.assert_called_once_with(balance=balance)
+    place_call = trader.order_v2_api.place_option.call_args.args
+    assert place_call[1][0]["quantity"] == "4"
+    trader._enforce_margin_buffer.assert_called_once_with(balance, 480.0)

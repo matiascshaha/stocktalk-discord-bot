@@ -106,6 +106,7 @@ async def test_happy_path_common_shares_recommendation_submits_order_and_logs_pi
 async def test_options_only_recommendation_does_not_submit_stock_order(monkeypatch, isolated_picks_log_path):
     monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
     monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "options_enabled", False)
 
     signal = build_signal_payload("AAPL", "BUY", confidence=0.9, weight_percent=None)
     signal["vehicles"] = [
@@ -166,6 +167,7 @@ async def test_options_only_recommendation_does_not_submit_stock_order(monkeypat
 async def test_common_plus_options_recommendation_submits_stock_order(monkeypatch, isolated_picks_log_path):
     monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
     monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "options_enabled", False)
 
     signal = build_signal_payload("TSLA", "BUY", confidence=0.93, weight_percent=None)
     signal["vehicles"] = [
@@ -224,6 +226,223 @@ async def test_common_plus_options_recommendation_submits_stock_order(monkeypatc
     assert execution_results[0].success is True
     assert execution_results[0].order_id == "mixed-order"
     assert execution_results[0].raw["status"] == "accepted"
+    lines = isolated_picks_log_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+
+
+@pytest.mark.asyncio
+async def test_options_only_recommendation_submits_option_order_when_enabled(monkeypatch, isolated_picks_log_path):
+    monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "options_enabled", True)
+
+    signal = build_signal_payload("AAPL", "BUY", confidence=0.9, weight_percent=None)
+    signal["vehicles"] = [
+        {
+            "type": "OPTION",
+            "enabled": True,
+            "intent": "EXECUTE",
+            "side": "BUY",
+            "option_type": "CALL",
+            "strike": 200.0,
+            "expiry": "2026-03-20",
+        }
+    ]
+
+    stock_response_payload = {"order_id": "unused-stock-order", "status": "accepted"}
+    option_preview_payload = {"estimated_cost": "1.00", "estimated_transaction_fee": "0.00", "currency": "USD"}
+    option_place_payload = {"order_id": "option-order-1", "status": "accepted"}
+    fake_stock_response = SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: stock_response_payload)
+    fake_option_preview_response = SimpleNamespace(
+        status_code=200, text='{"ok": true}', json=lambda: option_preview_payload
+    )
+    fake_option_place_response = SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: option_place_payload)
+
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.paper_trade = True
+    assert trader.paper_trade is True
+    trader.order_api = SimpleNamespace(place_order=MagicMock(return_value=fake_stock_response))
+    trader.order_v2_api = SimpleNamespace(
+        preview_option=MagicMock(return_value=fake_option_preview_response),
+        place_option=MagicMock(return_value=fake_option_place_response),
+    )
+    trader.resolve_account_id = MagicMock(return_value="paper-account-1")
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "AAPL_ID", "last_price": 100.0}])
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(
+            total_market_value=10000.0,
+            account_currency_assets=[AccountCurrencyAsset(net_liquidation_value=9000.0, cash_power=5000.0)],
+        )
+    )
+    trader._get_buying_power = MagicMock(return_value=5000.0)
+    trader.get_current_stock_quote = MagicMock(return_value=100.0)
+    trader._enforce_margin_buffer = MagicMock()
+    broker = WebullBroker(trader)
+    client = StockMonitorClient(broker=broker, trading_account=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    client.parser.parse = MagicMock(return_value={"signals": [signal], "meta": {"status": "ok"}})
+
+    await client.on_message(build_message(FROZEN_OPTIONS_MESSAGE, author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.order_api.place_order.assert_not_called()
+    trader.order_v2_api.preview_option.assert_called_once()
+    trader.order_v2_api.place_option.assert_called_once()
+    preview_call_args = trader.order_v2_api.preview_option.call_args.args
+    place_call_args = trader.order_v2_api.place_option.call_args.args
+    assert preview_call_args[0] == "paper-account-1"
+    assert place_call_args[0] == "paper-account-1"
+    assert len(preview_call_args[1]) == 1
+    assert len(place_call_args[1]) == 1
+    assert place_call_args[1][0]["legs"][0]["instrument_type"] == "OPTION"
+    assert place_call_args[1][0]["legs"][0]["option_type"] == "CALL"
+    assert place_call_args[1][0]["legs"][0]["option_expire_date"] == "2026-03-20"
+    assert place_call_args[1][0]["legs"][0]["init_exp_date"] == "2026-03-20"
+    lines = isolated_picks_log_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+
+
+@pytest.mark.asyncio
+async def test_mixed_recommendation_submits_stock_and_option_when_enabled(monkeypatch, isolated_picks_log_path):
+    monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "options_enabled", True)
+
+    signal = build_signal_payload("TSLA", "BUY", confidence=0.93, weight_percent=None)
+    signal["vehicles"] = [
+        {
+            "type": "OPTION",
+            "enabled": True,
+            "intent": "EXECUTE",
+            "side": "BUY",
+            "option_type": "CALL",
+            "strike": 250.0,
+            "expiry": "2026-06-19",
+        },
+        {"type": "STOCK", "enabled": True, "intent": "EXECUTE", "side": "BUY"},
+    ]
+
+    stock_response_payload = {"order_id": "mixed-stock-order", "status": "accepted", "client_order_id": "cid-mixed"}
+    option_preview_payload = {"estimated_cost": "1.00", "estimated_transaction_fee": "0.00", "currency": "USD"}
+    option_place_payload = {"order_id": "mixed-option-order", "status": "accepted"}
+    fake_stock_response = SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: stock_response_payload)
+    fake_option_preview_response = SimpleNamespace(
+        status_code=200, text='{"ok": true}', json=lambda: option_preview_payload
+    )
+    fake_option_place_response = SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: option_place_payload)
+
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.paper_trade = True
+    assert trader.paper_trade is True
+    trader.order_api = SimpleNamespace(place_order=MagicMock(return_value=fake_stock_response))
+    trader.order_v2_api = SimpleNamespace(
+        preview_option=MagicMock(return_value=fake_option_preview_response),
+        place_option=MagicMock(return_value=fake_option_place_response),
+    )
+    trader.resolve_account_id = MagicMock(return_value="paper-account-2")
+    trader.get_instrument = MagicMock(return_value=[{"instrument_id": "TSLA_ID", "last_price": 200.0}])
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(
+            total_market_value=10000.0,
+            account_currency_assets=[AccountCurrencyAsset(net_liquidation_value=9000.0, cash_power=5000.0)],
+        )
+    )
+    trader._get_buying_power = MagicMock(return_value=5000.0)
+    trader.get_current_stock_quote = MagicMock(return_value=200.0)
+    trader._enforce_margin_buffer = MagicMock()
+    broker = WebullBroker(trader)
+    execution_results = []
+    original_place_stock_order = broker.place_stock_order
+    broker.place_stock_order = MagicMock(
+        side_effect=lambda order, weighting=None: execution_results.append(
+            original_place_stock_order(order, weighting=weighting)
+        )
+        or execution_results[-1]
+    )
+    client = StockMonitorClient(broker=broker, trading_account=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    client.parser.parse = MagicMock(return_value={"signals": [signal], "meta": {"status": "ok"}})
+
+    await client.on_message(build_message(FROZEN_MIXED_MESSAGE, author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.order_api.place_order.assert_called_once()
+    trader.order_v2_api.preview_option.assert_called_once()
+    trader.order_v2_api.place_option.assert_called_once()
+    assert len(execution_results) == 1
+    assert execution_results[0].success is True
+    lines = isolated_picks_log_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+
+
+@pytest.mark.asyncio
+async def test_weighted_option_recommendation_passes_weighting_for_option_sizing(monkeypatch, isolated_picks_log_path):
+    monkeypatch.setattr(order_planner_module, "is_regular_market_session", lambda _: True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "use_market_orders", True)
+    monkeypatch.setitem(discord_client_module.TRADING_CONFIG, "options_enabled", True)
+    monkeypatch.setitem(webull_trader_module.TRADING_CONFIG, "force_default_amount_for_options", False)
+    monkeypatch.setitem(webull_trader_module.TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", False)
+
+    signal = build_signal_payload("NVDA", "BUY", confidence=0.94, weight_percent=10.0)
+    signal["vehicles"] = [
+        {
+            "type": "OPTION",
+            "enabled": True,
+            "intent": "EXECUTE",
+            "side": "BUY",
+            "option_type": "CALL",
+            "strike": 150.0,
+            "expiry": "2026-06-19",
+        }
+    ]
+
+    option_preview_one_contract_payload = {"estimated_cost": "125.00", "estimated_transaction_fee": "0.00", "currency": "USD"}
+    option_preview_sized_payload = {"estimated_cost": "500.00", "estimated_transaction_fee": "0.00", "currency": "USD"}
+    option_place_payload = {"order_id": "weighted-option-order", "status": "accepted"}
+    fake_option_preview_one_contract_response = SimpleNamespace(
+        status_code=200, text='{"ok": true}', json=lambda: option_preview_one_contract_payload
+    )
+    fake_option_preview_sized_response = SimpleNamespace(
+        status_code=200, text='{"ok": true}', json=lambda: option_preview_sized_payload
+    )
+    fake_option_place_response = SimpleNamespace(
+        status_code=200, text='{"ok": true}', json=lambda: option_place_payload
+    )
+
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.paper_trade = True
+    assert trader.paper_trade is True
+    trader.order_api = SimpleNamespace(place_order=MagicMock())
+    trader.order_v2_api = SimpleNamespace(
+        preview_option=MagicMock(
+            side_effect=[fake_option_preview_one_contract_response, fake_option_preview_sized_response]
+        ),
+        place_option=MagicMock(return_value=fake_option_place_response),
+    )
+    trader.resolve_account_id = MagicMock(return_value="paper-account-5")
+    trader._get_account_balance_contract = MagicMock(
+        return_value=AccountBalanceResponse(
+            total_market_value=10000.0,
+            account_currency_assets=[AccountCurrencyAsset(net_liquidation_value=9000.0, cash_power=5000.0)],
+        )
+    )
+    trader._get_buying_power = MagicMock(return_value=5000.0)
+    trader._enforce_margin_buffer = MagicMock()
+    broker = WebullBroker(trader)
+    client = StockMonitorClient(broker=broker, trading_account=trader)
+    type(client.client).user = SimpleNamespace(id=999)
+    client.notifier.notify = MagicMock()
+    client.parser.parse = MagicMock(return_value={"signals": [signal], "meta": {"status": "ok"}})
+
+    await client.on_message(build_message(FROZEN_WEIGHTED_MESSAGE, author_id=321, channel_id=TEST_CHANNEL_ID))
+
+    trader.order_api.place_order.assert_not_called()
+    trader._get_buying_power.assert_called_once()
+    trader.order_v2_api.preview_option.assert_called()
+    trader.order_v2_api.place_option.assert_called_once()
+    place_call_args = trader.order_v2_api.place_option.call_args.args
+    assert place_call_args[0] == "paper-account-5"
+    assert place_call_args[1][0]["quantity"] == "4"
     lines = isolated_picks_log_path.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 1
 
