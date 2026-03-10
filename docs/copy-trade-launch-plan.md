@@ -52,6 +52,6 @@
 2. Restart app.
 
 ## Out Of Scope
-- Options execution.
+- Option fixed-notional sizing strategy.
 - Multi-analyst support.
 - New strategy features.

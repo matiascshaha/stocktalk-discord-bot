@@ -68,8 +68,12 @@ For deep details, use `docs/system-context/`.
 
 ## Current Scope Limits
 
-- Execution path is stock-focused; option execution is not wired in runtime.
-- `trading.min_confidence` exists in config but is not currently enforced as a hard pre-trade gate.
+- Option execution is wired only for single-leg Webull option submits when
+  `trading.options_enabled=true` and parser vehicle fields include executable option details
+  (`option_type`, `strike`, `expiry`).
+- Option BUY sizing supports `trading.fixed_notional.options.{enabled,amount}` with weighting-based sizing
+  fallback when fixed-notional is disabled and `weight_percent` is present.
+- `trading.min_confidence` is enforced before stock/option execution submission.
 - Default `public` broker adapter is a placeholder (`NotImplementedError`).
 
 ## Where To Look Next
