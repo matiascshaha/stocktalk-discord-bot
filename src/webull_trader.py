@@ -32,7 +32,7 @@ from src.models.webull_models import (
     StockOrderRequest,
 )
 from src.trading.buying_power import assert_margin_equity_buffer, resolve_effective_buying_power
-from src.trading.orders.sizing import resolve_stock_sizing_decision
+from src.trading.orders.sizing import resolve_option_sizing_decision, resolve_stock_sizing_decision
 
 from config.settings import TRADING_CONFIG, WEBULL_CONFIG
 logger = setup_logger("webull_trader")
@@ -220,20 +220,21 @@ class WebullTrader:
 
     def preview_option_order(self, order: OptionOrderRequest) -> OrderPreviewResponse:
         """Preview option order using Webull's preview_option API"""
+        payload = self._build_option_v2_payload(order)
+        logger.info("Formatted option payload: %s", payload)
+        return self._preview_option_payload(payload)
+
+    def _preview_option_payload(self, payload: Dict[str, Any]) -> OrderPreviewResponse:
         account_id = self.resolve_account_id()
-        
-        # Convert Pydantic model to dict for API
-        payload = order.model_dump(exclude_none=True)
-        logger.info(f"Formatted option payload: {payload}")
-        
-        logger.info(f"Previewing option {order.side} {order.quantity} {order.legs[0].symbol}...")
-        
+        side = payload.get("side")
+        quantity = payload.get("quantity")
+        legs = payload.get("legs") or []
+        symbol = legs[0].get("symbol") if legs and isinstance(legs[0], dict) else "unknown"
+        logger.info("Previewing option %s %s %s...", side, quantity, symbol)
         res = self.order_v2_api.preview_option(account_id, [payload])
         self._check_response(res, "preview_option")
-        
         preview_data = res.json()
-        logger.info(f"Option preview response: {preview_data}")
-        
+        logger.info("Option preview response: %s", preview_data)
         return OrderPreviewResponse.model_validate(preview_data)
 
     def _get_account_balance_contract(self) -> Optional[AccountBalanceResponse]:
@@ -335,29 +336,147 @@ class WebullTrader:
     # Order Placement - Options
     # ============================================================================
 
-    def place_option_order(self, order: OptionOrderRequest, skip_preview: bool = False) -> Dict[str, Any]:
+    def place_option_order(
+        self,
+        order: OptionOrderRequest,
+        skip_preview: bool = False,
+        weighting: Optional[float] = None,
+    ) -> Dict[str, Any]:
         """Place option order using Webull's place_option API"""
+        sizing = resolve_option_sizing_decision(
+            side=order.side,
+            weighting=weighting,
+            trading_config=TRADING_CONFIG,
+        )
+        if sizing.notional_dollar_amount is not None:
+            payload = self._build_option_payload_from_notional(
+                order,
+                notional_dollar_amount=sizing.notional_dollar_amount,
+            )
+        elif sizing.weighting is not None:
+            try:
+                payload = self._build_option_payload_from_weighting(order, weighting=sizing.weighting)
+            except Exception as exc:
+                if sizing.fallback_notional_on_weighting_error is None:
+                    raise
+                logger.warning(
+                    "Weighting-based option sizing failed for %s (%s); retrying with options_default_amount=%.2f",
+                    order.legs[0].symbol if order.legs else "unknown",
+                    exc,
+                    sizing.fallback_notional_on_weighting_error,
+                )
+                payload = self._build_option_payload_from_notional(
+                    order,
+                    notional_dollar_amount=sizing.fallback_notional_on_weighting_error,
+                )
+        else:
+            payload = self._build_option_v2_payload(order)
+
         if not skip_preview:
-            preview = self.preview_option_order(order)
-            if not preview:
-                raise ValueError(f"Option preview failed: {preview.errors}")
-            logger.info(f"Preview: ${preview.estimated_cost} {preview.currency}")
-        
+            preview = self._preview_option_payload(payload)
+            logger.info("Preview: $%s %s", preview.estimated_cost, preview.currency)
+
         account_id = self.resolve_account_id()
-        
-        # Convert Pydantic model to dict for API
-        payload = order.model_dump(exclude_none=True)
-        
         env = "UAT/PAPER" if self.paper_trade else "PRODUCTION/LIVE"
-        symbol = order.legs[0].symbol if order.legs else "unknown"
-        logger.info(f"Placing option {order.side} {order.quantity} {symbol} in {env}...")
-        
+        symbol = payload["legs"][0]["symbol"] if payload.get("legs") else "unknown"
+        quantity = payload.get("quantity", order.quantity)
+        logger.info("Placing option %s %s %s in %s...", order.side, quantity, symbol, env)
+
         res = self.order_v2_api.place_option(account_id, [payload])
         self._check_response(res, "place_option")
-        
         response = res.json()
-        logger.info(f"Option order placed: {response}")
+        logger.info("Option order placed: %s", response)
         return response
+
+    def _build_option_payload_from_weighting(self, order: OptionOrderRequest, weighting: float) -> Dict[str, Any]:
+        balance = self._get_account_balance_contract()
+        buying_power = self._get_buying_power(balance=balance)
+        if buying_power is None:
+            raise ValueError("Unable to fetch buying power for option weighting calculation")
+        target_notional = float(buying_power) * (float(weighting) / 100.0)
+        if target_notional <= 0:
+            raise ValueError("Computed option weighting notional must be positive")
+        return self._build_option_payload_from_notional(
+            order,
+            notional_dollar_amount=target_notional,
+            balance=balance,
+        )
+
+    def _build_option_payload_from_notional(
+        self,
+        order: OptionOrderRequest,
+        *,
+        notional_dollar_amount: float,
+        balance: Optional[AccountBalanceResponse] = None,
+    ) -> Dict[str, Any]:
+        side = str(getattr(order.side, "value", order.side or "")).upper().strip()
+        if side != "BUY":
+            return self._build_option_v2_payload(order)
+
+        target_notional = float(notional_dollar_amount)
+        if target_notional <= 0:
+            raise ValueError("Option notional sizing requires a positive notional amount")
+
+        per_contract_notional = self._estimate_option_contract_notional(order)
+        quantity = max(1, int(target_notional / per_contract_notional))
+        estimated_trade_notional = per_contract_notional * float(quantity)
+        self._enforce_margin_buffer(balance or self._get_account_balance_contract(), estimated_trade_notional)
+        return self._build_option_v2_payload(order, quantity=quantity)
+
+    def _estimate_option_contract_notional(self, order: OptionOrderRequest) -> float:
+        one_contract_payload = self._build_option_v2_payload(order, quantity=1)
+        preview = self._preview_option_payload(one_contract_payload)
+        cost = self._preview_total_cost(preview)
+        if cost is None or cost <= 0:
+            raise ValueError(
+                f"Unable to derive per-contract option notional from preview response: {preview.model_dump()}"
+            )
+        return cost
+
+    def _preview_total_cost(self, preview: OrderPreviewResponse) -> Optional[float]:
+        try:
+            estimated_cost = float(preview.estimated_cost or 0)
+        except (TypeError, ValueError):
+            estimated_cost = 0.0
+
+        try:
+            estimated_fee = float(preview.estimated_transaction_fee or 0)
+        except (TypeError, ValueError):
+            estimated_fee = 0.0
+
+        total = estimated_cost + max(estimated_fee, 0.0)
+        return total if total > 0 else None
+
+    def _build_option_v2_payload(self, order: OptionOrderRequest, quantity: Optional[int] = None) -> Dict[str, Any]:
+        """Normalize option payload into Webull v2 option endpoint shape."""
+        payload = order.model_dump(exclude_none=True)
+        resolved_quantity = self._resolve_option_quantity(quantity, payload.get("quantity"))
+        payload["quantity"] = resolved_quantity
+        normalized_legs = []
+        for leg in payload.get("legs", []):
+            normalized_leg = dict(leg)
+            normalized_leg["instrument_type"] = "OPTION"
+            option_variant = str(normalized_leg.get("option_type", "")).upper().strip()
+            if option_variant in {"CALL", "PUT"}:
+                normalized_leg["option_type"] = option_variant
+            if "option_expire_date" in normalized_leg:
+                option_expiry = str(normalized_leg["option_expire_date"])
+                normalized_leg["option_expire_date"] = option_expiry
+                normalized_leg["init_exp_date"] = option_expiry
+            normalized_leg["quantity"] = resolved_quantity
+            normalized_legs.append(normalized_leg)
+        payload["legs"] = normalized_legs
+        return payload
+
+    def _resolve_option_quantity(self, quantity_override: Optional[int], fallback_quantity: Any) -> str:
+        raw_quantity = quantity_override if quantity_override is not None else fallback_quantity
+        try:
+            quantity = int(float(raw_quantity))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid option quantity: {raw_quantity}") from exc
+        if quantity < 1:
+            raise ValueError(f"Option quantity must be >= 1 contract, got {quantity}")
+        return str(quantity)
 
     def _build_option_payload(self, order: OptionOrderRequest) -> Dict[str, Any]:
         """Build option order payload"""

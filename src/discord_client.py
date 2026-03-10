@@ -1,7 +1,7 @@
 import discord
 import json
 import os
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
 from pydantic import ValidationError
@@ -10,7 +10,7 @@ from src.brokerages.ports import TradingBrokerPort
 from src.brokerages.webull import WebullBroker
 from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSignal
 from src.notifier import Notifier
-from src.trading.contracts import OrderSide, StockOrder
+from src.trading.contracts import OptionOrder, OptionType, OrderSide, OrderType, StockOrder
 from src.trading.orders import StockOrderExecutionPlanner, StockOrderExecutor
 from src.utils.logger import setup_logger
 from src.utils.logging_format import format_startup_status, format_pick_summary
@@ -41,10 +41,12 @@ class StockMonitorClient:
         self.parser = AIParser()
         self.notifier = Notifier()
         self.order_executor = None
+        self._broker = None
 
         resolved_broker = broker
         if resolved_broker is None and trader is not None:
             resolved_broker = WebullBroker(trader)
+        self._broker = resolved_broker
 
         if resolved_broker is not None:
             planner = StockOrderExecutionPlanner(TRADING_CONFIG)
@@ -130,8 +132,8 @@ class StockMonitorClient:
             # Log parsed signals
             self._log_signals(message, parsed_payload)
 
-            # Execute trades if executor available
-            if self.order_executor:
+            option_execution_enabled = self._options_execution_enabled()
+            if self.order_executor or option_execution_enabled:
                 for signal in signal_objs:
                     if not self._passes_min_confidence(signal):
                         logger.info(
@@ -141,19 +143,45 @@ class StockMonitorClient:
                             self._min_confidence_threshold(),
                         )
                         continue
-                    order = self._signal_to_stock_order(signal)
-                    if not order:
-                        continue
-                    try:
-                        self.order_executor.execute(order, weighting=signal.weight_percent)
-                    except Exception as exc:
-                        logger.error(
-                            "Trade execution failed for %s %s (%s): %s",
-                            order.side,
-                            order.symbol,
-                            signal.weight_percent,
-                            exc,
-                        )
+                    if self.order_executor:
+                        order = self._signal_to_stock_order(signal)
+                        if order:
+                            try:
+                                self.order_executor.execute(order, weighting=signal.weight_percent)
+                            except Exception as exc:
+                                logger.error(
+                                    "Trade execution failed for %s %s (%s): %s",
+                                    order.side,
+                                    order.symbol,
+                                    signal.weight_percent,
+                                    exc,
+                                )
+                    if option_execution_enabled:
+                        for option_order in self._signal_to_option_orders(signal):
+                            try:
+                                option_result = self._broker.place_option_order(
+                                    option_order,
+                                    weighting=signal.weight_percent,
+                                )
+                                logger.info(
+                                    "Option trade submitted for %s %s %s %.2f exp=%s (order_id=%s)",
+                                    option_order.side,
+                                    option_order.symbol,
+                                    option_order.option_type,
+                                    option_order.strike_price,
+                                    option_order.option_expire_date,
+                                    option_result.order_id,
+                                )
+                            except Exception as exc:
+                                logger.error(
+                                    "Option trade execution failed for %s %s %s %.2f exp=%s: %s",
+                                    option_order.side,
+                                    option_order.symbol,
+                                    option_order.option_type,
+                                    option_order.strike_price,
+                                    option_order.option_expire_date,
+                                    exc,
+                                )
         else:
             logger.info("No actionable signals detected.")
 
@@ -180,6 +208,129 @@ class StockMonitorClient:
             side=side,
             quantity=1,
         )
+
+    def _signal_to_option_orders(self, signal: ParsedSignal):
+        option_orders = []
+        for vehicle in signal.vehicles:
+            if vehicle.type != "OPTION":
+                continue
+            if not vehicle.enabled or vehicle.intent != "EXECUTE":
+                continue
+            if vehicle.side == "NONE":
+                logger.info("Skipping non-executable option signal for %s", signal.ticker)
+                continue
+            if not vehicle.option_type or vehicle.strike is None:
+                logger.info(
+                    "Skipping option signal for %s due to missing option_type/strike (option_type=%s, strike=%s)",
+                    signal.ticker,
+                    vehicle.option_type,
+                    vehicle.strike,
+                )
+                continue
+
+            normalized_expiry = self._normalize_option_expiry(vehicle.expiry)
+            if not normalized_expiry:
+                logger.info(
+                    "Skipping option signal for %s due to unsupported expiry format: %s",
+                    signal.ticker,
+                    vehicle.expiry,
+                )
+                continue
+
+            side = OrderSide.SELL if vehicle.side == "SELL" else OrderSide.BUY
+            option_type = OptionType(str(vehicle.option_type).upper())
+            order_type = self._resolve_option_order_type()
+            limit_price = self._resolve_option_limit_price(order_type)
+            if order_type == OrderType.LIMIT and limit_price is None:
+                logger.info(
+                    "Skipping option signal for %s because no limit price is configured for LIMIT option orders.",
+                    signal.ticker,
+                )
+                continue
+
+            option_orders.append(
+                OptionOrder(
+                    symbol=signal.ticker,
+                    side=side,
+                    quantity=self._resolve_option_quantity(vehicle.quantity_hint),
+                    option_type=option_type,
+                    strike_price=float(vehicle.strike),
+                    option_expire_date=normalized_expiry,
+                    order_type=order_type,
+                    limit_price=limit_price,
+                    time_in_force=self._resolve_time_in_force(),
+                )
+            )
+
+        return option_orders
+
+    def _options_execution_enabled(self) -> bool:
+        if not TRADING_CONFIG.get("options_enabled"):
+            return False
+        if self._broker is None:
+            return False
+        return hasattr(self._broker, "place_option_order")
+
+    def _resolve_option_quantity(self, quantity_hint: Optional[float]) -> int:
+        if quantity_hint is None:
+            return 1
+        try:
+            quantity = int(float(quantity_hint))
+        except (TypeError, ValueError):
+            return 1
+        return max(1, quantity)
+
+    def _resolve_option_order_type(self) -> OrderType:
+        if bool(TRADING_CONFIG.get("use_market_orders", True)):
+            return OrderType.MARKET
+        return OrderType.LIMIT
+
+    def _resolve_option_limit_price(self, order_type: OrderType) -> Optional[float]:
+        if order_type != OrderType.LIMIT:
+            return None
+        raw_value = TRADING_CONFIG.get("option_limit_price_without_quote")
+        try:
+            parsed = float(raw_value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None
+
+    def _resolve_time_in_force(self) -> str:
+        candidate = str(TRADING_CONFIG.get("time_in_force", "DAY")).upper().strip()
+        return candidate if candidate in {"DAY", "GTC", "IOC", "FOK"} else "DAY"
+
+    def _normalize_option_expiry(self, raw_expiry: Optional[str]) -> Optional[str]:
+        if raw_expiry in (None, "", "null"):
+            return None
+        normalized = str(raw_expiry).strip()
+        direct_formats = (
+            "%Y-%m-%d",
+            "%Y/%m/%d",
+            "%b %d %Y",
+            "%B %d %Y",
+            "%b %d, %Y",
+            "%B %d, %Y",
+        )
+        for fmt in direct_formats:
+            try:
+                return datetime.strptime(normalized, fmt).date().isoformat()
+            except ValueError:
+                continue
+
+        month_year_formats = ("%b %Y", "%B %Y")
+        for fmt in month_year_formats:
+            try:
+                parsed = datetime.strptime(normalized, fmt)
+                return self._third_friday(parsed.year, parsed.month).isoformat()
+            except ValueError:
+                continue
+        return None
+
+    def _third_friday(self, year: int, month: int) -> date:
+        first_day = date(year, month, 1)
+        days_until_friday = (4 - first_day.weekday()) % 7
+        first_friday = first_day + timedelta(days=days_until_friday)
+        return first_friday + timedelta(days=14)
 
     def _min_confidence_threshold(self) -> float:
         try:

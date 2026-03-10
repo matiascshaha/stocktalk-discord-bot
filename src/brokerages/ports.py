@@ -2,13 +2,20 @@
 
 from typing import Optional, Protocol
 
-from src.trading.contracts import OrderResult, StockOrder
+from src.trading.contracts import OptionOrder, OrderResult, StockOrder
 
 
 class StockOrderBrokerPort(Protocol):
     """Stock execution operations required by order routing."""
 
     def place_stock_order(self, order: StockOrder, weighting: Optional[float] = None) -> OrderResult:
+        ...
+
+
+class OptionOrderBrokerPort(Protocol):
+    """Option execution operations required by order routing."""
+
+    def place_option_order(self, order: OptionOrder, weighting: Optional[float] = None) -> OrderResult:
         ...
 
 
@@ -19,5 +26,5 @@ class MarketDataPort(Protocol):
         ...
 
 
-class TradingBrokerPort(StockOrderBrokerPort, MarketDataPort, Protocol):
-    """Composed broker contract for stock execution flow."""
+class TradingBrokerPort(StockOrderBrokerPort, OptionOrderBrokerPort, MarketDataPort, Protocol):
+    """Composed broker contract for stock/option execution flow."""
