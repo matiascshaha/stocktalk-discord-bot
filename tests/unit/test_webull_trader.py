@@ -275,6 +275,23 @@ def test_place_stock_order_sell_does_not_force_or_fallback_default_amount(monkey
     trader._build_stock_payload.assert_called_once_with(order, weighting=10.0)
 
 
+def test_place_stock_order_ignores_weighting_when_stock_weighting_disabled(monkeypatch):
+    trader = WebullTrader.__new__(WebullTrader)
+    monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_buys", False)
+    monkeypatch.setitem(TRADING_CONFIG, "weighting_stocks_enabled", False)
+    monkeypatch.setitem(TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", True)
+    monkeypatch.setitem(TRADING_CONFIG, "default_amount", 1000.0)
+
+    trader._build_stock_payload = MagicMock(return_value={"qty": 3})
+    trader._execute_order = MagicMock(return_value={"ok": True})
+    order = StockOrderRequest(symbol="AAPL", side=OrderSide.BUY, quantity=1)
+
+    result = trader.place_stock_order(order, weighting=25.0)
+
+    assert result == {"ok": True}
+    trader._build_stock_payload.assert_called_once_with(order, weighting=None)
+
+
 def test_resolve_effective_buying_power_adds_cash_and_margin_components():
     trader = WebullTrader.__new__(WebullTrader)
     balance = AccountBalanceResponse(
@@ -528,3 +545,50 @@ def test_place_option_order_weighting_sizes_quantity(monkeypatch):
     place_call = trader.order_v2_api.place_option.call_args.args
     assert place_call[1][0]["quantity"] == "4"
     trader._enforce_margin_buffer.assert_called_once_with(balance, 480.0)
+
+
+def test_place_option_order_ignores_weighting_when_option_weighting_disabled(monkeypatch):
+    trader = WebullTrader.__new__(WebullTrader)
+    trader.paper_trade = True
+    trader.resolve_account_id = MagicMock(return_value="paper-account-4")
+    monkeypatch.setitem(TRADING_CONFIG, "force_default_amount_for_options", False)
+    monkeypatch.setitem(TRADING_CONFIG, "weighting_options_enabled", False)
+    monkeypatch.setitem(TRADING_CONFIG, "fallback_to_default_amount_on_weighting_failure", True)
+
+    payload = {
+        "quantity": "1",
+        "side": "BUY",
+        "legs": [{"symbol": "TSLA", "quantity": "1", "option_type": "CALL"}],
+    }
+    place_payload = {"order_id": "option-order-4", "status": "accepted"}
+
+    trader._build_option_v2_payload = MagicMock(return_value=payload)
+    trader._build_option_payload_from_weighting = MagicMock(side_effect=AssertionError("should not be called"))
+    trader._build_option_payload_from_notional = MagicMock(side_effect=AssertionError("should not be called"))
+    trader.order_v2_api = SimpleNamespace(
+        place_option=MagicMock(
+            return_value=SimpleNamespace(status_code=200, text='{"ok": true}', json=lambda: place_payload)
+        )
+    )
+
+    order = OptionOrderRequest(
+        order_type=OrderType.MARKET,
+        quantity="1",
+        side=OrderSide.BUY,
+        legs=[
+            OptionLeg(
+                side=OrderSide.BUY,
+                quantity="1",
+                symbol="TSLA",
+                strike_price="300",
+                option_expire_date="2026-06-19",
+                option_type=OptionType.CALL,
+            )
+        ],
+    )
+
+    result = trader.place_option_order(order, skip_preview=True, weighting=10.0)
+
+    assert result == place_payload
+    trader._build_option_v2_payload.assert_called_once_with(order)
+    trader.order_v2_api.place_option.assert_called_once_with("paper-account-4", [payload])

@@ -1,6 +1,6 @@
 import pytest
 
-from src.trading.orders.sizing import resolve_stock_sizing_decision
+from src.trading.orders.sizing import resolve_option_sizing_decision, resolve_stock_sizing_decision
 
 
 pytestmark = [pytest.mark.unit]
@@ -73,4 +73,56 @@ def test_resolve_stock_sizing_decision_sell_never_forces_or_fallbacks():
 
     assert decision.notional_dollar_amount is None
     assert decision.weighting == 10.0
+    assert decision.fallback_notional_on_weighting_error is None
+
+
+def test_resolve_stock_sizing_decision_ignores_weighting_when_stock_weighting_disabled():
+    decision = resolve_stock_sizing_decision(
+        side="BUY",
+        explicit_notional=None,
+        weighting=20.0,
+        trading_config={
+            "default_amount": 1000.0,
+            "force_default_amount_for_buys": False,
+            "weighting_stocks_enabled": False,
+            "fallback_to_default_amount_on_weighting_failure": True,
+        },
+    )
+
+    assert decision.notional_dollar_amount is None
+    assert decision.weighting is None
+    assert decision.fallback_notional_on_weighting_error is None
+
+
+def test_resolve_option_sizing_decision_uses_weighting_with_buy_fallback():
+    decision = resolve_option_sizing_decision(
+        side="BUY",
+        weighting=10.0,
+        trading_config={
+            "force_default_amount_for_options": False,
+            "options_default_amount": 1200.0,
+            "weighting_options_enabled": True,
+            "fallback_to_default_amount_on_weighting_failure": True,
+        },
+    )
+
+    assert decision.notional_dollar_amount is None
+    assert decision.weighting == 10.0
+    assert decision.fallback_notional_on_weighting_error == 1200.0
+
+
+def test_resolve_option_sizing_decision_ignores_weighting_when_option_weighting_disabled():
+    decision = resolve_option_sizing_decision(
+        side="BUY",
+        weighting=10.0,
+        trading_config={
+            "force_default_amount_for_options": False,
+            "options_default_amount": 1200.0,
+            "weighting_options_enabled": False,
+            "fallback_to_default_amount_on_weighting_failure": True,
+        },
+    )
+
+    assert decision.notional_dollar_amount is None
+    assert decision.weighting is None
     assert decision.fallback_notional_on_weighting_error is None

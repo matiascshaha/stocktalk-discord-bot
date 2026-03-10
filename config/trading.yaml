@@ -10,7 +10,7 @@ version: 1
 # =============================================================================
 discord:
   # Target channel to monitor for analyst signals
-  channel_id: 1229546005788098580
+  channel_id: 1014979505359683726
 
 # =============================================================================
 # AI/PARSING CONFIGURATION
@@ -49,43 +49,55 @@ trading:
   # Enable automatic trade execution via the selected broker adapter
   auto_trade: true
 
-  # Active broker adapter: webull | public
-  broker: webull
-
-  # Canonical provider selection (preferred over legacy trading.broker):
+  # Canonical provider selection:
   # execution_provider controls where orders are sent.
   # quote_provider controls where executable reference prices come from.
   # quote_provider=auto means "same as execution_provider".
   execution_provider: webull
   quote_provider: yahoo
 
-  # Enable option trade vehicles from parser output for execution workflows.
-  # false = keep option signals visible/observable but non-executable.
-  options_enabled: false
+  # Master gate for option execution.
+  # false = option signals are parsed/logged but never submitted to broker.
+  # When false, fixed_notional.options.* and option sizing settings are no-op for runtime execution.
+  options_enabled: true
   
   # CRITICAL: Toggle between paper trading (UAT/test) and live trading (production)
   # true = Paper trading (us-openapi-alb.uat.webullbroker.com) - SAFE FOR TESTING
   # false = Live trading (api.webull.com) - REAL MONEY - USE WITH CAUTION
-  paper_trade: false
+  paper_trade: true
   
   # Minimum confidence threshold for AI-parsed picks (0.0-1.0)
   # Picks below this confidence will be logged but not executed
   min_confidence: 0.7
   
-  # Default dollar amount per trade when weight is not specified
+  # Default stock notional baseline.
+  # Also used as fallback source for options_default_amount when fixed_notional.options.amount is not set.
   default_amount: 1000
 
-  # Fixed-notional overrides.
-  # When stocks.enabled=true, BUY stock orders always target this dollar amount
-  # regardless of analyst weighting.
+  # Fixed-notional sizing policies.
+  # stocks.enabled=true: BUY stock orders force stocks.amount notional.
+  # options.enabled=true: BUY option orders target options.amount notional (via preview-derived contract cost).
   fixed_notional:
     stocks:
-      enabled: true
-      amount: 1000
-    # Options sizing override is config-ready but not used by the runtime stock executor yet.
-    options:
       enabled: false
       amount: 1000
+    options:
+      enabled: true
+      amount: 1000
+
+  # Weighting-based sizing controls.
+  # stocks.enabled=true: stock orders may use parsed weight_percent when fixed_notional.stocks.enabled=false.
+  # options.enabled=true: option orders may use parsed weight_percent when fixed_notional.options.enabled=false.
+  # These toggles are independent; you can run stock weighting ON with option weighting OFF (or vice versa).
+  weighting:
+    stocks:
+      enabled: true
+    options:
+      enabled: true
+
+  # Applies to both stock and option weighting-based sizing.
+  # false = fail fast on weighting sizing errors (no retry using default notional amount).
+  fallback_to_default_amount_on_weighting_failure: false
   
   # Use market orders (vs limit orders)
   use_market_orders: true

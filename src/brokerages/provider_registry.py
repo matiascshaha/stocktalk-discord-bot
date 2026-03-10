@@ -24,7 +24,6 @@ PROVIDER_CAPABILITIES: Dict[str, ProviderCapabilities] = {
 def resolve_execution_provider_name(trading_config: Mapping[str, Any]) -> str:
     raw_value = _first_non_empty(
         trading_config.get("execution_provider"),
-        trading_config.get("broker"),
         DEFAULT_EXECUTION_PROVIDER,
     )
     return _normalize_provider_name(raw_value, default=DEFAULT_EXECUTION_PROVIDER)

@@ -17,7 +17,6 @@ def test_validate_config_rejects_unimplemented_execution_provider(monkeypatch):
             "auto_trade": True,
             "execution_provider": "public",
             "quote_provider": "auto",
-            "broker": "public",
         },
     )
     monkeypatch.setattr(settings_module, "WEBULL_CONFIG", {"app_key": "", "app_secret": ""})
@@ -38,7 +37,6 @@ def test_validate_config_accepts_webull_execution_with_yahoo_quote_provider(monk
             "auto_trade": True,
             "execution_provider": "webull",
             "quote_provider": "yahoo",
-            "broker": "webull",
         },
     )
     monkeypatch.setattr(settings_module, "WEBULL_CONFIG", {"app_key": "k", "app_secret": "s"})
@@ -46,3 +44,10 @@ def test_validate_config_accepts_webull_execution_with_yahoo_quote_provider(monk
     errors = settings_module.validate_config()
 
     assert errors == []
+
+
+def test_trading_config_exposes_independent_weighting_toggles():
+    assert "weighting_stocks_enabled" in settings_module.TRADING_CONFIG
+    assert "weighting_options_enabled" in settings_module.TRADING_CONFIG
+    assert isinstance(settings_module.TRADING_CONFIG["weighting_stocks_enabled"], bool)
+    assert isinstance(settings_module.TRADING_CONFIG["weighting_options_enabled"], bool)

@@ -2,19 +2,15 @@ from typing import Any, Dict, List, Optional
 
 
 def format_mode_summary(trading_config: Dict[str, Any]) -> str:
-    execution_provider = str(
-        trading_config.get("execution_provider")
-        or trading_config.get("broker", "webull")
-    ).lower()
+    execution_provider = str(trading_config.get("execution_provider", "webull")).lower()
     quote_provider = str(trading_config.get("quote_provider", "auto")).lower()
     return (
         "Modes: execution_provider={execution_provider} | quote_provider={quote_provider} | "
-        "broker={broker} | auto_trade={auto} | paper_trade={paper} | options_enabled={options} | "
+        "auto_trade={auto} | paper_trade={paper} | options_enabled={options} | "
         "min_confidence={min_conf:.2f} | default_amount={amount:.2f} | market_orders={market}"
     ).format(
         execution_provider=execution_provider,
         quote_provider=quote_provider,
-        broker=str(trading_config.get("broker", "webull")).lower(),
         auto=_flag(trading_config.get("auto_trade")),
         paper=_flag(trading_config.get("paper_trade")),
         options=_flag(trading_config.get("options_enabled")),

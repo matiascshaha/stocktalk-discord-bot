@@ -192,10 +192,7 @@ PUBLIC_CONFIG = {
 # Trading Settings
 TRADING_CONFIG = {
     'auto_trade': _as_bool(_cfg('trading.auto_trade', False), False),
-    'broker': str(_cfg('trading.broker', 'webull')).strip().lower() or 'webull',
-    'execution_provider': str(
-        _cfg_first(['trading.execution_provider', 'trading.broker'], 'webull')
-    ).strip().lower() or 'webull',
+    'execution_provider': str(_cfg('trading.execution_provider', 'webull')).strip().lower() or 'webull',
     'quote_provider': str(_cfg('trading.quote_provider', 'auto')).strip().lower() or 'auto',
     'paper_trade': _as_bool(_cfg('trading.paper_trade', False), False),
     'options_enabled': _as_bool(_cfg('trading.options_enabled', False), False),
@@ -213,7 +210,7 @@ TRADING_CONFIG = {
     'buy_limit_price_without_quote': _as_float(_cfg('trading.buy_limit_price_without_quote', None), None),
     'min_margin_equity_pct': _as_float(_cfg('trading.min_margin_equity_pct', 35.0), 35.0),
     'force_default_amount_for_buys': _as_bool(
-        _cfg_first(['trading.fixed_notional.stocks.enabled', 'trading.force_default_amount_for_buys'], True),
+        _cfg('trading.fixed_notional.stocks.enabled', True),
         True,
     ),
     'force_default_amount_for_options': _as_bool(
@@ -223,6 +220,14 @@ TRADING_CONFIG = {
     'options_default_amount': _as_float(
         _cfg_first(['trading.fixed_notional.options.amount', 'trading.default_amount'], 1000),
         1000.0,
+    ),
+    'weighting_stocks_enabled': _as_bool(
+        _cfg('trading.weighting.stocks.enabled', True),
+        True,
+    ),
+    'weighting_options_enabled': _as_bool(
+        _cfg('trading.weighting.options.enabled', True),
+        True,
     ),
     'fallback_to_default_amount_on_weighting_failure': _as_bool(
         _cfg('trading.fallback_to_default_amount_on_weighting_failure', True),
