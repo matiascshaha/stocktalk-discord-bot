@@ -17,8 +17,8 @@ def test_resolve_execution_provider_prefers_explicit_execution_provider():
     assert name == "webull"
 
 
-def test_resolve_execution_provider_falls_back_to_legacy_broker():
-    name = resolve_execution_provider_name({"broker": "webull"})
+def test_resolve_execution_provider_defaults_to_webull_when_missing():
+    name = resolve_execution_provider_name({})
     assert name == "webull"
 
 

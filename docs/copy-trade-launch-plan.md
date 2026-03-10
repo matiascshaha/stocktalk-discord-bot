@@ -13,7 +13,7 @@
 
 ## Required Config  
 - `trading.auto_trade: true`
-- `trading.broker: webull`
+- `trading.execution_provider: webull`
 - `trading.options_enabled: false`
 - Phase 1: `trading.paper_trade: true`
 - Phase 2: `trading.paper_trade: false`
@@ -52,6 +52,6 @@
 2. Restart app.
 
 ## Out Of Scope
-- Options execution.
+- Option fixed-notional sizing strategy.
 - Multi-analyst support.
 - New strategy features.

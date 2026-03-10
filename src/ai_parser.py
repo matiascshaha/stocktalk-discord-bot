@@ -208,6 +208,7 @@ class AIParser:
 
         status = str(fast_payload.get("status") or "ambiguous").lower().strip()
         confidence = self._normalize_fast_confidence(fast_payload.get("confidence"))
+        fast_signals = fast_payload.get("signals")
 
         if status == "no_action" and confidence >= confidence_threshold:
             return self._empty_result(status="no_action", source=source)
@@ -215,32 +216,18 @@ class AIParser:
         if status != "actionable" or confidence < confidence_threshold:
             return None
 
-        ticker = self._normalize_ticker_candidate(fast_payload.get("primary_ticker"))
-        if not ticker:
+        if not isinstance(fast_signals, list):
             return None
 
-        action = self._normalize_fast_action(fast_payload.get("action"))
-        if action == "NONE":
+        actionable_signals = [dict(signal) for signal in fast_signals if isinstance(signal, dict)]
+        if not actionable_signals:
             return None
 
-        vehicles = self._build_vehicles_from_fast_hint(
-            message_text=message_text,
-            vehicle_hint=fast_payload.get("vehicle_hint"),
-            action=action,
-        )
+        for signal in actionable_signals:
+            if "confidence" not in signal:
+                signal["confidence"] = confidence
 
-        signal = {
-            "ticker": ticker,
-            "action": action,
-            "confidence": confidence,
-            "reasoning": str(fast_payload.get("evidence_text") or ""),
-            "weight_percent": self._extract_weight_percent(message_text),
-            "urgency": "MEDIUM",
-            "sentiment": "NEUTRAL",
-            "is_actionable": True,
-            "vehicles": vehicles,
-        }
-        return self._coerce_result({"signals": [signal]}, source=source)
+        return self._coerce_result({"signals": actionable_signals}, source=source)
 
     def _request_full_parse_completion(self, prompt: str) -> str:
         if (self.provider or "").lower().strip() != "openai":
@@ -279,119 +266,6 @@ class AIParser:
         except (TypeError, ValueError):
             return 0.0
         return max(0.0, min(1.0, parsed))
-
-    def _normalize_fast_action(self, value: Any) -> str:
-        action = str(value or "NONE").upper().strip()
-        if action in {"BUY", "SELL", "NONE"}:
-            return action
-        return "NONE"
-
-    def _normalize_ticker_candidate(self, value: Any) -> Optional[str]:
-        if value in (None, "", "null"):
-            return None
-        text = str(value).upper().replace("$", "").strip()
-        if not text:
-            return None
-        if "-" in text:
-            compact = text.replace("-", "")
-            if compact.isalnum():
-                text = compact
-        return text
-
-    def _extract_weight_percent(self, message_text: str) -> Optional[float]:
-        match = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*%\s*(?:weight|weighting)?", message_text, re.IGNORECASE)
-        if not match:
-            return None
-        try:
-            return float(match.group(1))
-        except (TypeError, ValueError):
-            return None
-
-    def _build_vehicles_from_fast_hint(self, message_text: str, vehicle_hint: Any, action: str) -> List[Dict[str, Any]]:
-        hint = str(vehicle_hint or "unknown").lower().strip()
-        option_details = self._extract_option_details(message_text)
-        has_option_contract = self._has_explicit_option_contract_token(message_text)
-        has_stock_trade_language = self._has_explicit_stock_trade_language(message_text)
-
-        include_option = hint in {"option", "mixed"} or has_option_contract
-        include_stock = hint in {"stock", "mixed"} or (has_stock_trade_language and hint != "option")
-
-        if include_stock and include_option:
-            return [self._stock_vehicle(action), self._option_vehicle(action, option_details)]
-
-        if include_option:
-            return [self._option_vehicle(action, option_details)]
-
-        return [self._stock_vehicle(action)]
-
-    def _stock_vehicle(self, action: str) -> Dict[str, Any]:
-        return {
-            "type": "STOCK",
-            "enabled": True,
-            "intent": "EXECUTE" if action in {"BUY", "SELL"} else "INFO",
-            "side": action if action in {"BUY", "SELL"} else "NONE",
-            "option_type": None,
-            "strike": None,
-            "expiry": None,
-            "quantity_hint": None,
-        }
-
-    def _option_vehicle(self, action: str, option_details: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "type": "OPTION",
-            "enabled": True,
-            "intent": "EXECUTE" if action in {"BUY", "SELL"} else "INFO",
-            "side": action if action in {"BUY", "SELL"} else "NONE",
-            "option_type": option_details.get("option_type"),
-            "strike": option_details.get("strike"),
-            "expiry": option_details.get("expiry"),
-            "quantity_hint": None,
-        }
-
-    def _extract_option_details(self, message_text: str) -> Dict[str, Any]:
-        details: Dict[str, Any] = {
-            "option_type": None,
-            "strike": None,
-            "expiry": None,
-        }
-
-        contract_match = re.search(r"\$?\s*(\d+(?:\.\d+)?)\s*([CP])\b", message_text, re.IGNORECASE)
-        if contract_match:
-            details["strike"] = float(contract_match.group(1))
-            details["option_type"] = "CALL" if contract_match.group(2).upper() == "C" else "PUT"
-
-        if details["option_type"] is None:
-            if re.search(r"\bcalls?\b", message_text, re.IGNORECASE):
-                details["option_type"] = "CALL"
-            elif re.search(r"\bputs?\b", message_text, re.IGNORECASE):
-                details["option_type"] = "PUT"
-
-        expiry_patterns = [
-            r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+'?\d{2,4}\b",
-            r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}\b",
-            r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
-            r"\b\d{4}-\d{2}-\d{2}\b",
-            r"\bfor\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b",
-        ]
-        for pattern in expiry_patterns:
-            match = re.search(pattern, message_text, re.IGNORECASE)
-            if match:
-                details["expiry"] = match.group(0).replace("for ", "").strip()
-                break
-
-        return details
-
-    def _has_explicit_option_contract_token(self, message_text: str) -> bool:
-        return bool(re.search(r"\$?\s*(\d+(?:\.\d+)?)\s*([CP])\b", message_text, re.IGNORECASE))
-
-    def _has_explicit_stock_trade_language(self, message_text: str) -> bool:
-        return bool(
-            re.search(
-                r"\b(added|adding|bought|buying|opened|opening|initiat(?:e|ed|ing)|new position)\b.{0,40}\b(stock|shares?|common(?:\s+stock)?)\b",
-                message_text,
-                re.IGNORECASE | re.DOTALL,
-            )
-        )
 
     def _normalize_signal(self, signal: Dict[str, Any]) -> Optional[ParsedSignal]:
         if not isinstance(signal, dict):

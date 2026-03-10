@@ -12,6 +12,7 @@ For deep details, use `docs/system-context/`.
 3. `StockMonitorClient` connects to Discord and filters messages by channel/self/length (`src/discord_client.py`).
 4. `AIParser.parse(...)` sends prompt to selected provider:
    - OpenAI runs fast-stage parsing first, then full-parse fallback on low confidence/ambiguity.
+   - OpenAI fast-stage now returns AI-structured `signals` directly (no regex enrichment fallback).
    - Anthropic/Google run full-parse path.
    Parser normalizes provider output to parser contract (`src/ai_parser.py`).
 5. Parsed payload is validated as `ParsedMessage` (`src/models/parser_models.py`).
@@ -52,10 +53,10 @@ For deep details, use `docs/system-context/`.
   - `trading.auto_trade=false`, no broker runtime.
   - Messages are parsed, notified, and logged only.
 - Auto-trade with Webull:
-  - `trading.auto_trade=true` and `trading.broker=webull`.
+  - `trading.auto_trade=true` and `trading.execution_provider=webull`.
   - Runtime builds `WebullBroker` after successful Webull login.
 - Auto-trade with Public:
-  - `trading.broker=public` initializes scaffold adapter.
+  - `trading.execution_provider=public` initializes scaffold adapter.
   - Stock execution methods are not implemented yet.
 
 ## Failure Model (Important)
@@ -68,8 +69,14 @@ For deep details, use `docs/system-context/`.
 
 ## Current Scope Limits
 
-- Execution path is stock-focused; option execution is not wired in runtime.
-- `trading.min_confidence` exists in config but is not currently enforced as a hard pre-trade gate.
+- Option execution is wired only for single-leg Webull option submits when
+  `trading.options_enabled=true` and parser vehicle fields include executable option details
+  (`option_type`, `strike`, `expiry`).
+- Option BUY sizing supports `trading.fixed_notional.options.{enabled,amount}` with weighting-based sizing
+  fallback when fixed-notional is disabled and `weight_percent` is present.
+- Weighting can be toggled independently per asset class via
+  `trading.weighting.stocks.enabled` and `trading.weighting.options.enabled`.
+- `trading.min_confidence` is enforced before stock/option execution submission.
 - Default `public` broker adapter is a placeholder (`NotImplementedError`).
 
 ## Where To Look Next

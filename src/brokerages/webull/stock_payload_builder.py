@@ -88,7 +88,9 @@ class WebullStockPayloadBuilder:
             if buying_power is None:
                 raise ValueError("Unable to fetch buying power for weighting calculation")
 
-            stock_price = self._get_current_stock_quote(order.symbol)
+            stock_price = _read_positive_price(self._get_current_stock_quote, order.symbol)
+            if stock_price is None:
+                stock_price = resolve_instrument_price(instrument)
             if stock_price is None or stock_price <= 0:
                 raise ValueError(f"Unable to fetch current price for symbol {order.symbol}")
 

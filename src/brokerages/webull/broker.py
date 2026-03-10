@@ -3,8 +3,8 @@
 from typing import Optional
 
 from src.brokerages.webull.quote_service import resolve_limit_reference_price
-from src.brokerages.webull.mapper import to_order_result, to_webull_stock_order
-from src.trading.contracts import OrderResult, StockOrder
+from src.brokerages.webull.mapper import to_order_result, to_webull_option_order, to_webull_stock_order
+from src.trading.contracts import OptionOrder, OrderResult, StockOrder
 from src.webull_trader import WebullTrader
 
 
@@ -17,6 +17,11 @@ class WebullBroker:
     def place_stock_order(self, order: StockOrder, weighting: Optional[float] = None) -> OrderResult:
         webull_order = to_webull_stock_order(order)
         response = self._trader.place_stock_order(webull_order, weighting=weighting)
+        return to_order_result(response)
+
+    def place_option_order(self, order: OptionOrder, weighting: Optional[float] = None) -> OrderResult:
+        webull_order = to_webull_option_order(order)
+        response = self._trader.place_option_order(webull_order, weighting=weighting)
         return to_order_result(response)
 
     def get_limit_reference_price(self, symbol: str, side: str) -> Optional[float]:

@@ -16,7 +16,6 @@ def test_format_mode_summary_includes_key_fields():
         {
             "execution_provider": "WEBULL",
             "quote_provider": "YAHOO",
-            "broker": "WEBULL",
             "auto_trade": True,
             "paper_trade": False,
             "options_enabled": True,
@@ -28,7 +27,6 @@ def test_format_mode_summary_includes_key_fields():
 
     assert "execution_provider=webull" in summary
     assert "quote_provider=yahoo" in summary
-    assert "broker=webull" in summary
     assert "auto_trade=ON" in summary
     assert "paper_trade=OFF" in summary
     assert "min_confidence=0.70" in summary

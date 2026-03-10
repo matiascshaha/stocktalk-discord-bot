@@ -13,6 +13,15 @@ class StockSizingDecision:
     fallback_notional_on_weighting_error: Optional[float]
 
 
+@dataclass(frozen=True)
+class OptionSizingDecision:
+    """Resolved sizing inputs for option-order payload construction."""
+
+    notional_dollar_amount: Optional[float]
+    weighting: Optional[float]
+    fallback_notional_on_weighting_error: Optional[float]
+
+
 def resolve_stock_sizing_decision(
     side: Any,
     explicit_notional: Optional[float],
@@ -24,6 +33,8 @@ def resolve_stock_sizing_decision(
     default_amount = _positive_float(trading_config.get("default_amount"))
     force_default_for_buy = bool(trading_config.get("force_default_amount_for_buys", True))
     fallback_enabled = bool(trading_config.get("fallback_to_default_amount_on_weighting_failure", True))
+    weighting_enabled = bool(trading_config.get("weighting_stocks_enabled", True))
+    resolved_weighting = weighting if weighting_enabled else None
 
     if explicit_notional is not None:
         return StockSizingDecision(
@@ -42,12 +53,45 @@ def resolve_stock_sizing_decision(
         )
 
     fallback_notional = None
-    if side_value == "BUY" and weighting is not None and fallback_enabled:
+    if side_value == "BUY" and resolved_weighting is not None and fallback_enabled:
         fallback_notional = default_amount
 
     return StockSizingDecision(
         notional_dollar_amount=None,
-        weighting=weighting,
+        weighting=resolved_weighting,
+        fallback_notional_on_weighting_error=fallback_notional,
+    )
+
+
+def resolve_option_sizing_decision(
+    side: Any,
+    weighting: Optional[float],
+    trading_config: Mapping[str, Any],
+) -> OptionSizingDecision:
+    """Resolve whether option order should use fixed-notional, weighting, or raw quantity."""
+    side_value = str(getattr(side, "value", side or "")).upper().strip()
+    default_amount = _positive_float(trading_config.get("options_default_amount"))
+    force_default_for_buy = bool(trading_config.get("force_default_amount_for_options", False))
+    fallback_enabled = bool(trading_config.get("fallback_to_default_amount_on_weighting_failure", True))
+    weighting_enabled = bool(trading_config.get("weighting_options_enabled", True))
+    resolved_weighting = weighting if weighting_enabled else None
+
+    if side_value == "BUY" and force_default_for_buy:
+        if default_amount is None:
+            raise ValueError("Invalid trading.options_default_amount for forced option default-amount sizing")
+        return OptionSizingDecision(
+            notional_dollar_amount=default_amount,
+            weighting=None,
+            fallback_notional_on_weighting_error=None,
+        )
+
+    fallback_notional = None
+    if side_value == "BUY" and resolved_weighting is not None and fallback_enabled:
+        fallback_notional = default_amount
+
+    return OptionSizingDecision(
+        notional_dollar_amount=None,
+        weighting=resolved_weighting,
         fallback_notional_on_weighting_error=fallback_notional,
     )
 
