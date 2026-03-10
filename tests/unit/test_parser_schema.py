@@ -257,9 +257,11 @@ def test_openai_fast_path_accepts_confident_actionable_result(monkeypatch):
     parser.client = SequencedOpenAIClient(
         [
             (
-                '{"status":"actionable","confidence":0.92,"primary_ticker":"AAPL",'
-                '"vehicle_hint":"stock","action":"BUY","evidence_text":"New position: Apple $AAPL",'
-                '"sizing_text":"3% weight"}'
+                '{"status":"actionable","confidence":0.92,"signals":[{"ticker":"AAPL","action":"BUY",'
+                '"confidence":0.92,"reasoning":"New position: Apple $AAPL",'
+                '"weight_percent":3.0,"urgency":"MEDIUM","sentiment":"NEUTRAL","is_actionable":true,'
+                '"vehicles":[{"type":"STOCK","enabled":true,"intent":"EXECUTE","side":"BUY",'
+                '"option_type":null,"strike":null,"expiry":null,"quantity_hint":null}]}]}'
             )
         ]
     )
@@ -284,8 +286,7 @@ def test_openai_fast_path_falls_back_to_full_parse_when_ambiguous(monkeypatch):
     parser.client = SequencedOpenAIClient(
         [
             (
-                '{"status":"ambiguous","confidence":0.42,"primary_ticker":null,'
-                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+                '{"status":"ambiguous","confidence":0.42,"signals":[]}'
             ),
             (
                 '{"signals":[{"ticker":"MSFT","action":"BUY","confidence":0.9,'
@@ -313,8 +314,7 @@ def test_openai_fallback_parse_uses_configured_stronger_model(monkeypatch):
     parser.client = SequencedOpenAIClient(
         [
             (
-                '{"status":"ambiguous","confidence":0.4,"primary_ticker":null,'
-                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+                '{"status":"ambiguous","confidence":0.4,"signals":[]}'
             ),
             (
                 '{"signals":[{"ticker":"AAPL","action":"BUY","confidence":0.9,'
@@ -343,8 +343,7 @@ def test_openai_full_parse_does_not_retry_on_actionable_zero_confidence():
     parser.client = SequencedOpenAIClient(
         [
             (
-                '{"status":"ambiguous","confidence":0.40,"primary_ticker":null,'
-                '"vehicle_hint":"unknown","action":"NONE","evidence_text":"","sizing_text":"unspecified"}'
+                '{"status":"ambiguous","confidence":0.40,"signals":[]}'
             ),
             (
                 '{"signals":[{"ticker":"CRML","action":"BUY","confidence":0.0,"is_actionable":true,'
@@ -369,9 +368,13 @@ def test_openai_fast_path_includes_option_for_mixed_contract_tokens(monkeypatch)
     parser.client = SequencedOpenAIClient(
         [
             (
-                '{"status":"actionable","confidence":0.93,"primary_ticker":"GLDD",'
-                '"vehicle_hint":"stock","action":"BUY","evidence_text":"Added stock at $13.95 and some $12.5C",'
-                '"sizing_text":"4.5% weighting"}'
+                '{"status":"actionable","confidence":0.93,"signals":[{"ticker":"GLDD","action":"BUY",'
+                '"confidence":0.93,"reasoning":"Added stock and some $12.5C for March",'
+                '"weight_percent":4.5,"urgency":"MEDIUM","sentiment":"NEUTRAL","is_actionable":true,'
+                '"vehicles":['
+                '{"type":"STOCK","enabled":true,"intent":"EXECUTE","side":"BUY","option_type":null,"strike":null,"expiry":null,"quantity_hint":null},'
+                '{"type":"OPTION","enabled":true,"intent":"EXECUTE","side":"BUY","option_type":"CALL","strike":12.5,"expiry":"March","quantity_hint":null}'
+                ']}]}'
             )
         ]
     )

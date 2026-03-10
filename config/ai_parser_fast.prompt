@@ -7,12 +7,13 @@ Return only valid JSON that matches the fast parser schema.
 Rules:
 - If no new trade recommendation exists in THIS message, set `status` to `no_action`.
 - If intent is unclear, set `status` to `ambiguous`.
-- `primary_ticker` must be exchange symbol only (no `$`), or null when unknown.
-- `vehicle_hint` must be one of: `stock`, `option`, `mixed`, `unknown`.
-- Use `mixed` when both common shares and options are actively recommended in the same message.
-- `action` must be one of: `BUY`, `SELL`, `NONE`.
-- `evidence_text` should be a short direct quote proving intent.
-- `sizing_text` should copy explicit size language (percent, dollars, starter, etc.) or `unspecified`.
+- Always include `signals` (array).
+- If `status` is `no_action` or `ambiguous`, set `signals` to `[]`.
+- If `status` is `actionable`, include parsed actionable `signals` in contract shape:
+  - `ticker`, `action`, `confidence`, `reasoning`, `weight_percent`, `urgency`, `sentiment`, `is_actionable`, `vehicles`.
+  - Vehicle entries must include `type`, `enabled`, `intent`, `side`, `option_type`, `strike`, `expiry`, `quantity_hint`.
+- `ticker` must be exchange symbol only (no `$`).
+- Use `type=OPTION` vehicles for option alerts, with `option_type/strike/expiry` whenever inferable.
 - `confidence` means parser certainty that ticker/action extraction is correct (NOT analyst conviction).
 - Confidence rule: actionable BUY/SELL signals with explicit trade intent in this message must use a non-zero confidence.
 

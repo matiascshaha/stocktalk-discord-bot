@@ -3,6 +3,60 @@
 from typing import Any, Dict
 
 
+OPENAI_SIGNAL_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "ticker",
+        "action",
+        "confidence",
+        "reasoning",
+        "weight_percent",
+        "urgency",
+        "sentiment",
+        "is_actionable",
+        "vehicles",
+    ],
+    "properties": {
+        "ticker": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "enum": ["BUY", "SELL", "HOLD", "NONE"]},
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "reasoning": {"type": "string"},
+        "weight_percent": {"type": ["number", "null"]},
+        "urgency": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
+        "sentiment": {"type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"]},
+        "is_actionable": {"type": "boolean"},
+        "vehicles": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "type",
+                    "enabled",
+                    "intent",
+                    "side",
+                    "option_type",
+                    "strike",
+                    "expiry",
+                    "quantity_hint",
+                ],
+                "properties": {
+                    "type": {"type": "string", "enum": ["STOCK", "OPTION"]},
+                    "enabled": {"type": "boolean"},
+                    "intent": {"type": "string", "enum": ["EXECUTE", "WATCH", "INFO"]},
+                    "side": {"type": "string", "enum": ["BUY", "SELL", "NONE"]},
+                    "option_type": {"type": ["string", "null"], "enum": ["CALL", "PUT", None]},
+                    "strike": {"type": ["number", "null"]},
+                    "expiry": {"type": ["string", "null"]},
+                    "quantity_hint": {"type": ["number", "null"]},
+                },
+            },
+        },
+    },
+}
+
+
 OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -10,58 +64,7 @@ OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
     "properties": {
         "signals": {
             "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": [
-                    "ticker",
-                    "action",
-                    "confidence",
-                    "reasoning",
-                    "weight_percent",
-                    "urgency",
-                    "sentiment",
-                    "is_actionable",
-                    "vehicles",
-                ],
-                "properties": {
-                    "ticker": {"type": "string", "minLength": 1},
-                    "action": {"type": "string", "enum": ["BUY", "SELL", "HOLD", "NONE"]},
-                    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                    "reasoning": {"type": "string"},
-                    "weight_percent": {"type": ["number", "null"]},
-                    "urgency": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
-                    "sentiment": {"type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"]},
-                    "is_actionable": {"type": "boolean"},
-                    "vehicles": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": [
-                                "type",
-                                "enabled",
-                                "intent",
-                                "side",
-                                "option_type",
-                                "strike",
-                                "expiry",
-                                "quantity_hint",
-                            ],
-                            "properties": {
-                                "type": {"type": "string", "enum": ["STOCK", "OPTION"]},
-                                "enabled": {"type": "boolean"},
-                                "intent": {"type": "string", "enum": ["EXECUTE", "WATCH", "INFO"]},
-                                "side": {"type": "string", "enum": ["BUY", "SELL", "NONE"]},
-                                "option_type": {"type": ["string", "null"], "enum": ["CALL", "PUT", None]},
-                                "strike": {"type": ["number", "null"]},
-                                "expiry": {"type": ["string", "null"]},
-                                "quantity_hint": {"type": ["number", "null"]},
-                            },
-                        },
-                    },
-                },
-            },
+            "items": OPENAI_SIGNAL_SCHEMA,
         },
     },
 }
@@ -70,15 +73,14 @@ OPENAI_PARSER_JSON_SCHEMA: Dict[str, Any] = {
 OPENAI_FAST_PARSER_JSON_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["status", "confidence", "primary_ticker", "vehicle_hint", "action", "evidence_text", "sizing_text"],
+    "required": ["status", "confidence", "signals"],
     "properties": {
         "status": {"type": "string", "enum": ["actionable", "no_action", "ambiguous"]},
         "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-        "primary_ticker": {"type": ["string", "null"]},
-        "vehicle_hint": {"type": "string", "enum": ["stock", "option", "mixed", "unknown"]},
-        "action": {"type": "string", "enum": ["BUY", "SELL", "NONE"]},
-        "evidence_text": {"type": "string"},
-        "sizing_text": {"type": "string"},
+        "signals": {
+            "type": "array",
+            "items": OPENAI_SIGNAL_SCHEMA,
+        },
     },
 }
 
