@@ -24,6 +24,9 @@ from src.brokerages.webull.stock_payload_builder import (
     WebullStockPayloadBuilder,
     normalize_stock_quantity,
 )
+from src.brokerages.webull.account_resolution import WebullAccountResolver
+from src.brokerages.webull.option_payloads import WebullOptionPayloadBuilder
+from src.brokerages.webull.option_sizing import WebullOptionSizer
 from src.models.webull_models import (
     AccountBalanceResponse,
     OptionOrderRequest,
@@ -117,6 +120,26 @@ class WebullTrader:
         self.instrument_api = Instrument(self.api_client)
         self.market_data_api = MarketData(self.api_client)
 
+    def _create_account_resolver(self) -> WebullAccountResolver:
+        return WebullAccountResolver(
+            get_account_list=self.account_v2_api.get_account_list,
+            check_response=self._check_response,
+            mask_account_id=self._mask_id,
+            logger=logger,
+        )
+
+    def _create_option_payload_builder(self) -> WebullOptionPayloadBuilder:
+        return WebullOptionPayloadBuilder()
+
+    def _create_option_sizer(self) -> WebullOptionSizer:
+        return WebullOptionSizer(
+            get_account_balance_contract=self._get_account_balance_contract,
+            get_buying_power=self._get_buying_power,
+            enforce_margin_buffer=self._enforce_margin_buffer,
+            build_v2_payload=self._build_option_v2_payload,
+            estimate_contract_notional=self._estimate_option_contract_notional,
+        )
+
     def _get_endpoint(self) -> str:
         """Get API endpoint"""
         env_type = "uat" if self.paper_trade else "production"
@@ -128,34 +151,11 @@ class WebullTrader:
 
     def resolve_account_id(self) -> str:
         """Get account ID"""
-        if self._account_id:
-            logger.info(f"Using provided account ID: {self._mask_id(self._account_id)}")
-            return self._account_id
-
-        res = self.account_v2_api.get_account_list()
-        self._check_response(res, "get_account_list")
-        
-        data = res.json()
-        accounts = self._extract_accounts(data)
-        
-        if not accounts:
-            raise RuntimeError(f"No accounts found: {data}")
-
-        account_id = accounts[0].get('account_id') or accounts[0].get('accountId')
-        if not account_id:
-            raise RuntimeError(f"No account_id in: {accounts[0]}")
-
-        self._account_id = str(account_id)
-        logger.info(f"Resolved account: {self._mask_id(self._account_id)}")
+        self._account_id = self._create_account_resolver().resolve_account_id(self._account_id)
         return self._account_id
 
     def _extract_accounts(self, data: Any) -> List[Dict]:
-        """Extract accounts list from various response formats"""
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            return data.get('accounts') or data.get('data') or data.get('list', [])
-        return []
+        return WebullAccountResolver.extract_accounts(data)
 
     def get_account_balance(self, currency: str = Currency.USD.name) -> Dict[str, Any]:
         """Get account balance"""
@@ -389,18 +389,7 @@ class WebullTrader:
         return response
 
     def _build_option_payload_from_weighting(self, order: OptionOrderRequest, weighting: float) -> Dict[str, Any]:
-        balance = self._get_account_balance_contract()
-        buying_power = self._get_buying_power(balance=balance)
-        if buying_power is None:
-            raise ValueError("Unable to fetch buying power for option weighting calculation")
-        target_notional = float(buying_power) * (float(weighting) / 100.0)
-        if target_notional <= 0:
-            raise ValueError("Computed option weighting notional must be positive")
-        return self._build_option_payload_from_notional(
-            order,
-            notional_dollar_amount=target_notional,
-            balance=balance,
-        )
+        return self._create_option_sizer().build_from_weighting(order, weighting)
 
     def _build_option_payload_from_notional(
         self,
@@ -409,19 +398,11 @@ class WebullTrader:
         notional_dollar_amount: float,
         balance: Optional[AccountBalanceResponse] = None,
     ) -> Dict[str, Any]:
-        side = str(getattr(order.side, "value", order.side or "")).upper().strip()
-        if side != "BUY":
-            return self._build_option_v2_payload(order)
-
-        target_notional = float(notional_dollar_amount)
-        if target_notional <= 0:
-            raise ValueError("Option notional sizing requires a positive notional amount")
-
-        per_contract_notional = self._estimate_option_contract_notional(order)
-        quantity = max(1, int(target_notional / per_contract_notional))
-        estimated_trade_notional = per_contract_notional * float(quantity)
-        self._enforce_margin_buffer(balance or self._get_account_balance_contract(), estimated_trade_notional)
-        return self._build_option_v2_payload(order, quantity=quantity)
+        return self._create_option_sizer().build_from_notional(
+            order,
+            notional_dollar_amount=notional_dollar_amount,
+            balance=balance,
+        )
 
     def _estimate_option_contract_notional(self, order: OptionOrderRequest) -> float:
         one_contract_payload = self._build_option_v2_payload(order, quantity=1)
@@ -434,79 +415,19 @@ class WebullTrader:
         return cost
 
     def _preview_total_cost(self, preview: OrderPreviewResponse) -> Optional[float]:
-        try:
-            estimated_cost = float(preview.estimated_cost or 0)
-        except (TypeError, ValueError):
-            estimated_cost = 0.0
-
-        try:
-            estimated_fee = float(preview.estimated_transaction_fee or 0)
-        except (TypeError, ValueError):
-            estimated_fee = 0.0
-
-        total = estimated_cost + max(estimated_fee, 0.0)
-        return total if total > 0 else None
+        return self._create_option_payload_builder().preview_total_cost(preview)
 
     def _build_option_v2_payload(self, order: OptionOrderRequest, quantity: Optional[int] = None) -> Dict[str, Any]:
-        """Normalize option payload into Webull v2 option endpoint shape."""
-        payload = order.model_dump(exclude_none=True)
-        resolved_quantity = self._resolve_option_quantity(quantity, payload.get("quantity"))
-        payload["quantity"] = resolved_quantity
-        normalized_legs = []
-        for leg in payload.get("legs", []):
-            normalized_leg = dict(leg)
-            normalized_leg["instrument_type"] = "OPTION"
-            option_variant = str(normalized_leg.get("option_type", "")).upper().strip()
-            if option_variant in {"CALL", "PUT"}:
-                normalized_leg["option_type"] = option_variant
-            if "option_expire_date" in normalized_leg:
-                option_expiry = str(normalized_leg["option_expire_date"])
-                normalized_leg["option_expire_date"] = option_expiry
-                normalized_leg["init_exp_date"] = option_expiry
-            normalized_leg["quantity"] = resolved_quantity
-            normalized_legs.append(normalized_leg)
-        payload["legs"] = normalized_legs
-        return payload
+        return self._create_option_payload_builder().build_v2_payload(order, quantity)
 
     def _resolve_option_quantity(self, quantity_override: Optional[int], fallback_quantity: Any) -> str:
-        raw_quantity = quantity_override if quantity_override is not None else fallback_quantity
-        try:
-            quantity = int(float(raw_quantity))
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid option quantity: {raw_quantity}") from exc
-        if quantity < 1:
-            raise ValueError(f"Option quantity must be >= 1 contract, got {quantity}")
-        return str(quantity)
+        return self._create_option_payload_builder().resolve_quantity(quantity_override, fallback_quantity)
 
     def _build_option_payload(self, order: OptionOrderRequest) -> Dict[str, Any]:
-        """Build option order payload"""
-        option_symbol = self._format_option_symbol(order)
-        
-        payload = {
-            "client_order_id": uuid.uuid4().hex,
-            "symbol": option_symbol,
-            "instrument_type": "OPTION",
-            "market": "US",
-            "order_type": order.order_type,
-            "quantity": str(order.quantity),
-            "side": order.side,
-            "time_in_force": order.time_in_force,
-            "entrust_type": "QTY",
-            "combo_type": "NORMAL",
-            "support_trading_session": "CORE",
-        }
-        
-        if order.order_type == OrderType.LIMIT:
-            payload["limit_price"] = str(order.limit_price)
-        
-        return payload
+        return self._create_option_payload_builder().build_legacy_payload(order, uuid.uuid4().hex)
 
     def _format_option_symbol(self, order: OptionOrderRequest) -> str:
-        """Format option symbol (e.g., AAPL250117C00150000)"""
-        expiry = order.expiry_date.replace("-", "")[2:]  # YYMMDD
-        option_code = order.option_type[0]  # C or P
-        strike = f"{int(order.strike_price * 1000):08d}"
-        return f"{order.symbol}{expiry}{option_code}{strike}"
+        return self._create_option_payload_builder().format_option_symbol(order)
 
     # ============================================================================
     # Batch Orders

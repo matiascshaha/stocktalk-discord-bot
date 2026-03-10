@@ -1,35 +1,34 @@
-import discord
-import json
-import os
-from datetime import date, datetime, timedelta
+from datetime import date
 from typing import Any, Optional
 
+import discord
 from pydantic import ValidationError
+
+from config.settings import CHANNEL_ID, DISCORD_TOKEN, TRADING_CONFIG
 from src.ai_parser import AIParser
 from src.brokerages.ports import TradingBrokerPort
 from src.brokerages.webull import WebullBroker
+from src.channels.discord.runtime_flags import DiscordRuntimeFlags
+from src.channels.discord.runtime_patcher import DiscordRuntimePatcher
+from src.channels.discord.signal_logger import DiscordSignalLogger
+from src.channels.discord.signal_order_mapper import DiscordSignalOrderMapper
 from src.models.parser_models import CONTRACT_VERSION, ParsedMessage, ParsedSignal
 from src.notifier import Notifier
-from src.trading.contracts import OptionOrder, OptionType, OrderSide, OrderType, StockOrder
+from src.trading.contracts import OptionOrder, OrderType, StockOrder
 from src.trading.orders import StockOrderExecutionPlanner, StockOrderExecutor
 from src.utils.logger import setup_logger
-from src.utils.logging_format import format_startup_status, format_pick_summary
+from src.utils.logging_format import format_pick_summary, format_startup_status
 from src.utils.paths import PICKS_LOG_PATH
-from config.settings import DISCORD_TOKEN, CHANNEL_ID, TRADING_CONFIG
 
-logger = setup_logger('discord_client')
+logger = setup_logger("discord_client")
 
+ALLOW_ALL_CHANNELS_FOR_TESTING = DiscordRuntimeFlags.env_enabled("DISCORD_ALLOW_ALL_CHANNELS")
+ALLOW_SELF_MESSAGES_FOR_TESTING = DiscordRuntimeFlags.env_enabled("DISCORD_ALLOW_SELF_MESSAGES")
 
-def _env_enabled(name: str) -> bool:
-    return str(os.getenv(name, "")).strip().lower() in {"1", "true", "yes", "on"}
-
-
-ALLOW_ALL_CHANNELS_FOR_TESTING = _env_enabled("DISCORD_ALLOW_ALL_CHANNELS")
-ALLOW_SELF_MESSAGES_FOR_TESTING = _env_enabled("DISCORD_ALLOW_SELF_MESSAGES")
 
 class StockMonitorClient:
-    """Discord client for monitoring stock picks"""
-    
+    """Discord client for monitoring stock picks."""
+
     def __init__(
         self,
         trader: Optional[Any] = None,
@@ -40,38 +39,42 @@ class StockMonitorClient:
         self.trading_account = trading_account or trader
         self.parser = AIParser()
         self.notifier = Notifier()
-        self.order_executor = None
-        self._broker = None
+        self.order_executor: Optional[StockOrderExecutor] = None
+        self._broker = self._resolve_broker(broker, trader)
+        self._signal_mapper = DiscordSignalOrderMapper(trading_config=TRADING_CONFIG, logger=logger)
+        self._signal_logger = DiscordSignalLogger(logger=logger)
+        self._runtime_patcher = DiscordRuntimePatcher(logger=logger)
 
-        resolved_broker = broker
-        if resolved_broker is None and trader is not None:
-            resolved_broker = WebullBroker(trader)
-        self._broker = resolved_broker
-
-        if resolved_broker is not None:
+        if self._broker is not None:
             planner = StockOrderExecutionPlanner(TRADING_CONFIG)
-            self.order_executor = StockOrderExecutor(resolved_broker, planner)
+            self.order_executor = StockOrderExecutor(self._broker, planner)
 
         self._patch_pending_payments()
-        
-        # Setup Discord client
+        self.client = self._create_discord_client()
+        self.client.event(self.on_ready)
+        self.client.event(self.on_message)
+
+    @staticmethod
+    def _resolve_broker(broker: Optional[TradingBrokerPort], trader: Optional[Any]) -> Optional[TradingBrokerPort]:
+        if broker is not None:
+            return broker
+        if trader is None:
+            return None
+        return WebullBroker(trader)
+
+    @staticmethod
+    def _create_discord_client() -> discord.Client:
         try:
             intents = discord.Intents.default()
             intents.message_content = True
-            self.client = discord.Client(intents=intents)
+            return discord.Client(intents=intents)
         except AttributeError:
-            # discord.py-self may not have Intents
-            self.client = discord.Client()
-        
-        # Register event handlers
-        self.client.event(self.on_ready)
-        self.client.event(self.on_message)
-    
+            return discord.Client()
+
     async def on_ready(self):
-        """Called when Discord client is ready"""
-        logger.info("="*60)
+        logger.info("=" * 60)
         logger.info("Discord stock monitor active.")
-        logger.info("="*60)
+        logger.info("=" * 60)
         for line in format_startup_status(
             self.client.user,
             CHANNEL_ID,
@@ -81,14 +84,35 @@ class StockMonitorClient:
             CONTRACT_VERSION,
         ):
             logger.info(line)
-        logger.info("="*60)
+        logger.info("=" * 60)
         logger.info("Waiting for stock picks.")
-    
+
     async def on_message(self, message):
-        """Called when a message is received"""
+        if self._should_ignore_message(message):
+            return
+
+        logger.info("New message from %s", message.author.name)
+        logger.debug("Message content: %s...", message.content[:100])
+        parsed_message = self._parse_message(message)
+        if parsed_message is None:
+            return
+
+        signals = parsed_message.signals
+        parsed_payload = parsed_message.model_dump()
+        if not signals:
+            logger.info("No actionable signals detected.")
+            return
+
+        logger.info("Detected %s signal(s).", len(signals))
+        logger.info(format_pick_summary(parsed_payload))
+        self.notifier.notify(parsed_payload, message.author.name)
+        self._log_signals(message, parsed_payload)
+        await self._execute_signals(signals)
+
+    def _should_ignore_message(self, message: Any) -> bool:
         if not ALLOW_ALL_CHANNELS_FOR_TESTING and message.channel.id != CHANNEL_ID:
             logger.debug("Ignoring message from channel %s", message.channel.id)
-            return
+            return True
 
         if (
             not ALLOW_SELF_MESSAGES_FOR_TESTING
@@ -96,173 +120,93 @@ class StockMonitorClient:
             and message.author.id == self.client.user.id
         ):
             logger.debug("Ignoring own message")
-            return
+            return True
 
         content = (message.content or "").strip()
         if len(content) < 3:
             logger.debug("Ignoring short message")
-            return
-        
-        logger.info(f"New message from {message.author.name}")
-        logger.debug(f"Message content: {message.content[:100]}...")
-        
+            return True
+        return False
+
+    def _parse_message(self, message: Any) -> Optional[ParsedMessage]:
         logger.info("AI analyzing message.")
         parsed = self.parser.parse(message.content, message.author.name, message.channel.id, self.trading_account)
         if not isinstance(parsed, dict):
             logger.warning("Parser returned unexpected type: %s", type(parsed).__name__)
+            return None
+
+        try:
+            return ParsedMessage.model_validate(parsed)
+        except ValidationError as exc:
+            logger.warning("Parser returned invalid payload: %s", exc)
+            return None
+
+    async def _execute_signals(self, signals: list[ParsedSignal]) -> None:
+        if not self.order_executor and not self._options_execution_enabled():
+            return
+
+        for signal in signals:
+            if not self._passes_min_confidence(signal):
+                logger.info(
+                    "Skipping trade for %s due to confidence %.3f below min_confidence %.3f",
+                    signal.ticker,
+                    float(signal.confidence),
+                    self._min_confidence_threshold(),
+                )
+                continue
+            self._execute_stock_signal(signal)
+            self._execute_option_signal(signal)
+
+    def _execute_stock_signal(self, signal: ParsedSignal) -> None:
+        if self.order_executor is None:
+            return
+        order = self._signal_to_stock_order(signal)
+        if order is None:
             return
 
         try:
-            parsed_message = ParsedMessage.model_validate(parsed)
-        except ValidationError as exc:
-            logger.warning("Parser returned invalid payload: %s", exc)
-            return
-
-        signal_objs = parsed_message.signals
-        parsed_payload = parsed_message.model_dump()
-
-        if signal_objs:
-            logger.info(f"Detected {len(signal_objs)} signal(s).")
-            logger.debug("Picks details: %s", json.dumps(parsed_payload, indent=2))
-            logger.info(format_pick_summary(parsed_payload))
-
-            # Send notifications
-            self.notifier.notify(parsed_payload, message.author.name)
-
-            # Log parsed signals
-            self._log_signals(message, parsed_payload)
-
-            option_execution_enabled = self._options_execution_enabled()
-            if self.order_executor or option_execution_enabled:
-                for signal in signal_objs:
-                    if not self._passes_min_confidence(signal):
-                        logger.info(
-                            "Skipping trade for %s due to confidence %.3f below min_confidence %.3f",
-                            signal.ticker,
-                            float(signal.confidence),
-                            self._min_confidence_threshold(),
-                        )
-                        continue
-                    if self.order_executor:
-                        order = self._signal_to_stock_order(signal)
-                        if order:
-                            try:
-                                self.order_executor.execute(order, weighting=signal.weight_percent)
-                            except Exception as exc:
-                                logger.error(
-                                    "Trade execution failed for %s %s (%s): %s",
-                                    order.side,
-                                    order.symbol,
-                                    signal.weight_percent,
-                                    exc,
-                                )
-                    if option_execution_enabled:
-                        for option_order in self._signal_to_option_orders(signal):
-                            try:
-                                option_result = self._broker.place_option_order(
-                                    option_order,
-                                    weighting=signal.weight_percent,
-                                )
-                                logger.info(
-                                    "Option trade submitted for %s %s %s %.2f exp=%s (order_id=%s)",
-                                    option_order.side,
-                                    option_order.symbol,
-                                    option_order.option_type,
-                                    option_order.strike_price,
-                                    option_order.option_expire_date,
-                                    option_result.order_id,
-                                )
-                            except Exception as exc:
-                                logger.error(
-                                    "Option trade execution failed for %s %s %s %.2f exp=%s: %s",
-                                    option_order.side,
-                                    option_order.symbol,
-                                    option_order.option_type,
-                                    option_order.strike_price,
-                                    option_order.option_expire_date,
-                                    exc,
-                                )
-        else:
-            logger.info("No actionable signals detected.")
-
-    def _signal_to_stock_order(self, signal: ParsedSignal):
-        stock_vehicle = None
-        for vehicle in signal.vehicles:
-            if vehicle.type == "STOCK":
-                stock_vehicle = vehicle
-                break
-
-        if not stock_vehicle:
-            return None
-
-        if not stock_vehicle.enabled or stock_vehicle.intent != "EXECUTE":
-            return None
-
-        if stock_vehicle.side == "NONE":
-            logger.info("Skipping non-executable stock signal for %s", signal.ticker)
-            return None
-
-        side = OrderSide.SELL if stock_vehicle.side == "SELL" else OrderSide.BUY
-        return StockOrder(
-            symbol=signal.ticker,
-            side=side,
-            quantity=1,
-        )
-
-    def _signal_to_option_orders(self, signal: ParsedSignal):
-        option_orders = []
-        for vehicle in signal.vehicles:
-            if vehicle.type != "OPTION":
-                continue
-            if not vehicle.enabled or vehicle.intent != "EXECUTE":
-                continue
-            if vehicle.side == "NONE":
-                logger.info("Skipping non-executable option signal for %s", signal.ticker)
-                continue
-            if not vehicle.option_type or vehicle.strike is None:
-                logger.info(
-                    "Skipping option signal for %s due to missing option_type/strike (option_type=%s, strike=%s)",
-                    signal.ticker,
-                    vehicle.option_type,
-                    vehicle.strike,
-                )
-                continue
-
-            normalized_expiry = self._normalize_option_expiry(vehicle.expiry)
-            if not normalized_expiry:
-                logger.info(
-                    "Skipping option signal for %s due to unsupported expiry format: %s",
-                    signal.ticker,
-                    vehicle.expiry,
-                )
-                continue
-
-            side = OrderSide.SELL if vehicle.side == "SELL" else OrderSide.BUY
-            option_type = OptionType(str(vehicle.option_type).upper())
-            order_type = self._resolve_option_order_type()
-            limit_price = self._resolve_option_limit_price(order_type)
-            if order_type == OrderType.LIMIT and limit_price is None:
-                logger.info(
-                    "Skipping option signal for %s because no limit price is configured for LIMIT option orders.",
-                    signal.ticker,
-                )
-                continue
-
-            option_orders.append(
-                OptionOrder(
-                    symbol=signal.ticker,
-                    side=side,
-                    quantity=self._resolve_option_quantity(vehicle.quantity_hint),
-                    option_type=option_type,
-                    strike_price=float(vehicle.strike),
-                    option_expire_date=normalized_expiry,
-                    order_type=order_type,
-                    limit_price=limit_price,
-                    time_in_force=self._resolve_time_in_force(),
-                )
+            self.order_executor.execute(order, weighting=signal.weight_percent)
+        except Exception as exc:
+            logger.error(
+                "Trade execution failed for %s %s (%s): %s",
+                order.side,
+                order.symbol,
+                signal.weight_percent,
+                exc,
             )
 
-        return option_orders
+    def _execute_option_signal(self, signal: ParsedSignal) -> None:
+        if not self._options_execution_enabled():
+            return
+
+        for option_order in self._signal_to_option_orders(signal):
+            try:
+                option_result = self._broker.place_option_order(option_order, weighting=signal.weight_percent)
+                logger.info(
+                    "Option trade submitted for %s %s %s %.2f exp=%s (order_id=%s)",
+                    option_order.side,
+                    option_order.symbol,
+                    option_order.option_type,
+                    option_order.strike_price,
+                    option_order.option_expire_date,
+                    option_result.order_id,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Option trade execution failed for %s %s %s %.2f exp=%s: %s",
+                    option_order.side,
+                    option_order.symbol,
+                    option_order.option_type,
+                    option_order.strike_price,
+                    option_order.option_expire_date,
+                    exc,
+                )
+
+    def _signal_to_stock_order(self, signal: ParsedSignal) -> Optional[StockOrder]:
+        return self._signal_mapper.to_stock_order(signal)
+
+    def _signal_to_option_orders(self, signal: ParsedSignal) -> list[OptionOrder]:
+        return self._signal_mapper.to_option_orders(signal)
 
     def _options_execution_enabled(self) -> bool:
         if not TRADING_CONFIG.get("options_enabled"):
@@ -272,168 +216,61 @@ class StockMonitorClient:
         return hasattr(self._broker, "place_option_order")
 
     def _resolve_option_quantity(self, quantity_hint: Optional[float]) -> int:
-        if quantity_hint is None:
-            return 1
-        try:
-            quantity = int(float(quantity_hint))
-        except (TypeError, ValueError):
-            return 1
-        return max(1, quantity)
+        return self._signal_mapper.resolve_option_quantity(quantity_hint)
 
     def _resolve_option_order_type(self) -> OrderType:
-        if bool(TRADING_CONFIG.get("use_market_orders", True)):
-            return OrderType.MARKET
-        return OrderType.LIMIT
+        return self._signal_mapper.resolve_option_order_type()
 
     def _resolve_option_limit_price(self, order_type: OrderType) -> Optional[float]:
-        if order_type != OrderType.LIMIT:
-            return None
-        raw_value = TRADING_CONFIG.get("option_limit_price_without_quote")
-        try:
-            parsed = float(raw_value)
-        except (TypeError, ValueError):
-            return None
-        return parsed if parsed > 0 else None
+        return self._signal_mapper.resolve_option_limit_price(order_type)
 
     def _resolve_time_in_force(self) -> str:
-        candidate = str(TRADING_CONFIG.get("time_in_force", "DAY")).upper().strip()
-        return candidate if candidate in {"DAY", "GTC", "IOC", "FOK"} else "DAY"
+        return self._signal_mapper.resolve_time_in_force()
 
     def _normalize_option_expiry(self, raw_expiry: Optional[str]) -> Optional[str]:
-        if raw_expiry in (None, "", "null"):
-            return None
-        normalized = str(raw_expiry).strip()
-        direct_formats = (
-            "%Y-%m-%d",
-            "%Y/%m/%d",
-            "%b %d %Y",
-            "%B %d %Y",
-            "%b %d, %Y",
-            "%B %d, %Y",
-        )
-        for fmt in direct_formats:
-            try:
-                return datetime.strptime(normalized, fmt).date().isoformat()
-            except ValueError:
-                continue
-
-        month_year_formats = ("%b %Y", "%B %Y")
-        for fmt in month_year_formats:
-            try:
-                parsed = datetime.strptime(normalized, fmt)
-                return self._third_friday(parsed.year, parsed.month).isoformat()
-            except ValueError:
-                continue
-        return None
+        return self._signal_mapper.normalize_option_expiry(raw_expiry)
 
     def _third_friday(self, year: int, month: int) -> date:
-        first_day = date(year, month, 1)
-        days_until_friday = (4 - first_day.weekday()) % 7
-        first_friday = first_day + timedelta(days=days_until_friday)
-        return first_friday + timedelta(days=14)
+        return self._signal_mapper.third_friday(year, month)
 
     def _min_confidence_threshold(self) -> float:
-        try:
-            return float(TRADING_CONFIG.get("min_confidence", 0.0))
-        except (TypeError, ValueError):
-            return 0.0
+        return self._signal_mapper.min_confidence_threshold()
 
     def _passes_min_confidence(self, signal: ParsedSignal) -> bool:
-        threshold = self._min_confidence_threshold()
-        return float(signal.confidence) >= threshold
-    
-    def _log_signals(self, message, parsed_message):
-        """Log parsed signals to file."""
-        log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "author": str(message.author),
-            "message": message.content,
-            "message_url": message.jump_url,
-            "ai_parsed_signals": parsed_message,
-        }
+        return self._signal_mapper.passes_min_confidence(signal)
 
-        PICKS_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with PICKS_LOG_PATH.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(log_entry) + "\n")
+    def _log_signals(self, message: Any, parsed_message: dict) -> None:
+        self._signal_logger.append(message=message, parsed_message=parsed_message, output_path=PICKS_LOG_PATH)
 
-        logger.debug("Pick logged to %s", PICKS_LOG_PATH)
-    
-    async def read_channel_history(self, limit=10):
-        """
-        Read message history from the monitored channel.
-        
-        Args:
-            limit: Number of messages to read (default 10)
-            
-        Returns:
-            List of message dicts with author, content, timestamp
-        """
+    async def read_channel_history(self, limit: int = 10):
         messages = []
-        
         if not self.client.is_ready():
             logger.error("Client not ready. Call this after connecting.")
             return messages
 
         channel = self.client.get_channel(CHANNEL_ID)
         if not channel:
-            logger.error(f"Channel {CHANNEL_ID} not found")
+            logger.error("Channel %s not found", CHANNEL_ID)
             return messages
-        
+
         try:
             async for msg in channel.history(limit=limit):
-                messages.append({
-                    'author': msg.author.name,
-                    'content': msg.content,
-                    'timestamp': msg.created_at.isoformat(),
-                    'message_id': msg.id
-                })
-            
-            logger.info(f"Read {len(messages)} messages from channel history")
+                messages.append(
+                    {
+                        "author": msg.author.name,
+                        "content": msg.content,
+                        "timestamp": msg.created_at.isoformat(),
+                        "message_id": msg.id,
+                    }
+                )
+            logger.info("Read %s messages from channel history", len(messages))
             return messages
-            
-        except Exception as e:
-            logger.error(f"Error reading channel history: {e}")
+        except Exception as exc:
+            logger.error("Error reading channel history: %s", exc)
             return messages
-    
+
     def run(self):
-        """Start the Discord client"""
         self.client.run(DISCORD_TOKEN)
 
     def _patch_pending_payments(self):
-        """
-        Work around discord.py-self handling pending_payments=None from the gateway.
-        Prevents: TypeError: 'NoneType' object is not iterable
-        """
-        try:
-            from discord import state as discord_state
-        except Exception:
-            return
-
-        original = getattr(discord_state.ConnectionState, "parse_ready_supplemental", None)
-        if not original or getattr(original, "_patched_pending_payments", False):
-            return
-
-        def patched(self, data):
-            if not isinstance(data, dict):
-                data = {}
-            else:
-                data = dict(data)
-
-            pending = data.get("pending_payments")
-            if not isinstance(pending, list):
-                data["pending_payments"] = []
-
-            try:
-                return original(self, data)
-            except TypeError as exc:
-                if "NoneType" in str(exc) and "iterable" in str(exc):
-                    data["pending_payments"] = []
-                    try:
-                        return original(self, data)
-                    except Exception:
-                        self.pending_payments = {}
-                        return None
-                raise
-
-        patched._patched_pending_payments = True
-        discord_state.ConnectionState.parse_ready_supplemental = patched
+        self._runtime_patcher.patch_pending_payments()
